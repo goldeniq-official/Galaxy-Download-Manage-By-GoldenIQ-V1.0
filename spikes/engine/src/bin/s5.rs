@@ -170,9 +170,11 @@ async fn main() {
     let (ksize, kseed) = (128 * MIB, 32); // slow enough that `rounds` kills land before completion
     let kurl = a.url(&format!("/file?size={ksize}&seed={kseed}&rate=2000000"));
     let want = expected_sha256(kseed, ksize);
+    // when one file completes before the kill budget is spent, its hash is checked and a fresh file starts
     let (mut rng, mut kills, mut bad, mut regress, mut last_committed) = (0x5EEDu64, 0u32, 0u32, 0u32, 0u64);
+    let (mut files, mut files_ok) = (0u32, 0u32);
     let t0 = Instant::now();
-    let final_sha = loop {
+    loop {
         let mut ch = child(&exe, &kurl, &part, None).stdout(std::process::Stdio::piped()).spawn().unwrap();
         rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         let wait = Duration::from_millis(500 + (rng >> 33) % 3000);
@@ -193,11 +195,16 @@ async fn main() {
             continue;
         }
         let out = ch.wait_with_output().unwrap();
-        break String::from_utf8_lossy(&out.stdout).trim().to_string();
-    };
+        files += 1;
+        if String::from_utf8_lossy(&out.stdout).trim() == want { files_ok += 1; }
+        if kills >= rounds { break; }
+        let _ = std::fs::remove_file(&part);
+        let _ = std::fs::remove_file(sidecar_path(&part));
+        last_committed = 0;
+    }
     c.ok(bad == 0, &format!("{kills} TerminateProcess kills: committed bytes always correct on disk (invariant 6), {bad} bad"));
-    c.ok(regress == 0, &format!("committed progress never went backwards across kills ({regress} regressions)"));
-    c.ok(final_sha == want, &format!("after {kills} kills + resumes: final sha256 ok ({:.0}s)", t0.elapsed().as_secs_f64()));
+    c.ok(regress == 0, &format!("committed progress never went backwards across kills within a file ({regress} regressions)"));
+    c.ok(files_ok == files && files > 0, &format!("after {kills} kills + resumes: {files_ok}/{files} files completed with correct sha256 ({:.0}s)", t0.elapsed().as_secs_f64()));
     c.note("TerminateProcess is a process crash, not a power cut: OS caches survive, so this proves crash recovery only");
     c.finish();
 }
