@@ -1,0 +1,48 @@
+== step -1 -> new-process system dpi 96 (100%)
+  01-language : 294x157 dpi=96
+  02-welcome : 585x501 dpi=96
+  03-directory : 585x501 dpi=96
+  04-finish : 585x501 dpi=96
+  05-uninstall-confirm : 585x501 dpi=96
+  06-uninstall-done : 585x501 dpi=96
+== step 1 -> new-process system dpi 120 (125%)
+  01-language : 342x193 dpi=120
+  02-welcome : 668x590 dpi=120
+  03-directory : 668x590 dpi=120
+  04-finish : 668x590 dpi=120
+  05-uninstall-confirm : 668x590 dpi=120
+  06-uninstall-done : 668x590 dpi=120
+== step 3 -> new-process system dpi 168 (175%)
+  01-language : 486x273 dpi=168
+  02-welcome : 999x768 dpi=168
+  03-directory : 999x768 dpi=168
+  04-finish : 999x768 dpi=168
+  05-uninstall-confirm : 999x768 dpi=168
+  06-uninstall-done : 999x768 dpi=168
+== restored step 0
+== step 24 -> new-process system dpi 96 (100%)
+  01-language : 294x157 dpi=96
+  02-welcome : 585x501 dpi=96
+  03-directory : 585x501 dpi=96
+  04-finish : 585x501 dpi=96
+  05-uninstall-confirm : 585x501 dpi=96
+  06-uninstall-done : 585x501 dpi=96
+== restored step 1
+system dpi now = 120
+== step 2 -> new-process system dpi 144 (150%)
+  01-language : 438x228 dpi=144
+  02-welcome : 834x651 dpi=144
+  03-directory : 834x651 dpi=144
+  04-finish : 834x651 dpi=144
+  05-uninstall-confirm : 834x651 dpi=144
+  06-uninstall-done : 834x651 dpi=144
+== restored step 1
+== step 4 -> new-process system dpi 168 (175%)
+  01-language : 486x273 dpi=168
+  02-welcome : 999x768 dpi=168
+  03-directory : 999x768 dpi=168
+  04-finish : 999x768 dpi=168
+  05-uninstall-confirm : 999x768 dpi=168
+  06-uninstall-done : 999x768 dpi=168
+== restored step 1
+system dpi now = 120

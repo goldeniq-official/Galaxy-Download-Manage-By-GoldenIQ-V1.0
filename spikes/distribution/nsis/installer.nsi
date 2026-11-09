@@ -33,6 +33,9 @@ Function .onInit
   ; Khmer pre-selected (not just listed first). LangDLL is called directly because MUI2
   ; passes no font, and the default MS Shell Dlg clips Khmer in the combo box.
   StrCpy $LANGUAGE 1107
+  !ifdef NOLANGDLG                     ; S9 plan B: no selector, Khmer default, language switch lives in the app
+    Goto done
+  !endif
   IfSilent done
   LangDLL::LangDialog "Installer Language / ភាសា" "សូមជ្រើសភាសា / Please select a language." A "ខ្មែរ" 1107 "English" 1033 "" "Khmer UI" 9
   Pop $0

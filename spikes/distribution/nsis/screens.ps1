@@ -1,5 +1,5 @@
 # SPIKE ONLY (G2/S9): walk the installer + uninstaller with Enter, capture each page.
-param([string]$Out)
+param([string]$Out, [string]$Setup = "GDM-Spike-Setup-0.1.0.exe", [switch]$NoLang)
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
 Add-Type @"
 using System; using System.Runtime.InteropServices;
@@ -28,8 +28,8 @@ function Shot($proc, $name) {
 function Enter($proc) { $h = (Get-Process -Id $proc.Id).MainWindowHandle; [W]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300; [Windows.Forms.SendKeys]::SendWait("{ENTER}") }
 
 $root = Split-Path $PSScriptRoot
-$p = Start-Process "$root\out\GDM-Spike-Setup-0.1.0.exe" -PassThru
-Shot $p "01-language"; Enter $p
+$p = Start-Process "$root\out\$Setup" -PassThru
+if (-not $NoLang) { Shot $p "01-language"; Enter $p }
 Shot $p "02-welcome"; Enter $p
 Shot $p "03-directory"; Enter $p
 Start-Sleep 2; Shot $p "04-finish"; Enter $p

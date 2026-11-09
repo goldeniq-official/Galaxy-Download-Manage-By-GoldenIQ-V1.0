@@ -43,24 +43,24 @@
 | 9 | T-01: DLL ក្លែង ២០ ឈ្មោះ (version, uxtheme, userenv, cryptbase, dwmapi, comctl32, …) នៅក្បែរ setup.exe | NSIS | **PARTIAL** install silent exit 0 ហើយ UI interactive បើកធម្មតា។ នេះបង្ហាញតែថា installer មិន crash ទេ មិនមែនភស្តុតាងថាគ្មាន DLL ណាត្រូវ load ពីថតនោះ (គ្មានភស្តុតាង module-load) ⇒ P1: ProcMon ឬ DLL សាកដែលកត់ត្រាការ load | ពាក្យបញ្ជាក្នុង transcript G2 (ដាក់ junk DLL ហើយរត់ `/S`) |
 | 10 | Component: yt-dlp ទាញក្រោយ install ទៅ `%LOCALAPPDATA%\GDM\components` | NSIS | **PASS** manifest signature OK; sha256 `f5389d36…7a7d` ត្រូវនឹង `SHA2-256SUMS` ផ្លូវការ; write ពេលកាន់ handle ត្រូវរារាំង; `yt-dlp --version` = 2026.10.26 | `g2-logs/nsis-steps.log` |
 | 11 | Component អវិជ្ជមាន: manifest ដែលគេកែ ⇒ បដិសេធ; sha256 ខុស ⇒ បដិសេធ ហើយ **គ្មានឯកសារនៅសល់** | — | **PASS** (bug ដែលរកឃើញ ហើយកែរួច: ពីមុនឯកសារខុស hash នៅសល់ ព្រោះ handle ដែលហាម delete នៅបើក; ឥឡូវ verify លើ `.part` មុន rename ហើយ verify ម្ដងទៀតលើ handle ដែលកាន់) | `g2-logs/checks.log`, `bridge/src/main.rs` `fetch` |
-| 12 | S9 Khmer installer: welcome, folder, installing/finish, uninstall confirm/done | NSIS | **PASS** shaping ត្រឹមត្រូវ (ជើង, ស្រៈផ្សំ: ស្វាគមន៍, ក្នុង, ត្រូវការ, កុំព្យូទ័រ), ចំណងជើង/អត្ថបទ/ប៊ូតុងគ្មានកាត់; uninstaller ចាំភាសាខ្មែរ (`InstallerLanguage=1107` ក្នុង HKCU)។ **បញ្ហាដែលរកឃើញ ហើយកែរួច:** ប៊ូតុង "បង្ហាញព័ត៌មានលម្អិត" ត្រូវកាត់ ⇒ ប្ដូរជា "លម្អិត"; `installer.nsi` គ្មាន BOM ⇒ mojibake ⇒ ដាក់ BOM | `docs/p0/g2-screens/02…06*.png` (125%) |
-| 13 | S9 ផ្ទាំងជ្រើសភាសា (LangDLL) | NSIS | **PARTIAL** ខ្មែរត្រូវបានជ្រើសដំបូង ហើយ label បង្ហាញខ្មែរបាន ប៉ុន្តែអក្សរ "ខ្មែរ" ក្នុង combobox តូច ហើយចង្អៀត; LangDLL មិនទទួល font ដែលបញ្ជូនបន្ទាប់បញ្ជីភាសា (MUI2 ក៏មិនបញ្ជូន font ដែរ) | `docs/p0/g2-screens/01-language.png` |
-| 14 | S9 DPI 100% / 150% / 200% | NSIS | **NOT RUN** ប្ដូរ DPI ត្រូវ sign out; បានសាកតែ 125% | — |
-| 15 | S9 អ្នកអានខ្មែរពិនិត្យ | NSIS | **រង់ចាំម្ចាស់** ពិនិត្យរូប `g2-screens/` | — |
+| 12 | S9 Khmer installer: welcome, folder, installing/finish, uninstall confirm/done | NSIS | **PASS** shaping ត្រឹមត្រូវ (ជើង, ស្រៈផ្សំ: ស្វាគមន៍, ក្នុង, ត្រូវការ, កុំព្យូទ័រ), ចំណងជើង/អត្ថបទ/ប៊ូតុងគ្មានកាត់; uninstaller ចាំភាសាខ្មែរ (`InstallerLanguage=1107` ក្នុង HKCU)។ **បញ្ហាដែលរកឃើញ ហើយកែរួច:** ប៊ូតុង "បង្ហាញព័ត៌មានលម្អិត" ត្រូវកាត់ ⇒ ប្ដូរជា "លម្អិត"; `installer.nsi` គ្មាន BOM ⇒ mojibake ⇒ ដាក់ BOM | `g2-screens/dpi-125/` |
+| 13 | S9 ផ្ទាំងជ្រើសភាសា (LangDLL) | NSIS | **PARTIAL ⇒ plan B ត្រូវបានសាក ហើយ PASS** ខ្មែរត្រូវបានជ្រើសដំបូង; នៅ 175% "ខ្មែរ" អានបានច្បាស់ ប៉ុន្តែនៅ 100–125% តូច ព្រោះ LangDLL មិនទទួល font។ **Plan B** (`-DNOLANGDLG`: គ្មានផ្ទាំង, ខ្មែរលំនាំដើម, ប្ដូរភាសាក្នុង app តាម R6): install/uninstall ជាខ្មែរទាំងស្រុង គ្មានកាត់ | `g2-screens/dpi-*/01-language.png`, `g2-screens/nolang-125/` |
+| 14 | S9 DPI | NSIS | **PASS 100% / 125% / 150% / 175%**: គ្រប់ទំព័រ install + uninstall គ្មានអក្សរខ្មែរកាត់ (window 585×501 → 999×768)។ **200%: មិនអាចសាកលើអេក្រង់នេះ** (Windows កំណត់ត្រឹម 175%; step 4 = 168 dpi)។ ប្ដូរ scale តាម `SPI_SETLOGICALDPIOVERRIDE` ដោយគ្មាន sign out ហើយស្ដារ 125% របស់ម្ចាស់វិញ (ផ្ទៀង: system dpi = 120)។ កំហុសខ្ញុំ: ការរត់ដំបូងស្ដារទៅ step 0 = 100% ខុស ⇒ កែភ្លាមក្នុងការរត់បន្ទាប់ | `g2-logs/dpi.log`, `g2-screens/dpi-100…175/` |
+| 15 | S9 អ្នកអានខ្មែរពិនិត្យ | NSIS | **រង់ចាំម្ចាស់** ពិនិត្យរូប `g2-screens/` (shaping ពិនិត្យដោយ Claude ហើយមើលទៅត្រឹមត្រូវ ប៉ុន្តែមិនជំនួសអ្នកអានខ្មែរ) | — |
 | 16 | S1b MSIX: build + ចុះហត្ថលេខា | MSIX | **PASS** `makeappx pack` (schema ឆ្លង) ជាមួយ `desktop6:RegistryWriteVirtualization=disabled`, `desktop6:FileSystemWriteVirtualization=disabled`, `rescap:unvirtualizedResources`, `uap3` appExecutionAlias `gdm-bridge.exe`, `uap10:Parameters="register"`; `signtool` ជាមួយ cert self-signed `CN=GoldenIQ Spike` | `msix/AppxManifest.template.xml`, `msix/build.ps1` |
 | 17 | S1b MSIX: install | MSIX | **BLOCKED (លើម៉ាស៊ីន/config នេះ)** (1) cert ក្នុង CurrentUser\TrustedPeople: `0x800B0109` root មិនទុកចិត្ត ⇒ ទំនងត្រូវ LocalMachine\TrustedPeople (admin) ប៉ុន្តែមិនទាន់បានសាក; (2) package គ្មានហត្ថលេខា (publisher OID) + `-AllowUnsigned`: `0x80073D2B` "an unsigned package cannot include Executable activations"; (3) policy `AllowAllTrustedApps=0` បដិសេធ MSIX របស់ Firefox ពី winget (`0x80073CFF`)។ សេចក្ដីសន្និដ្ឋានទាំងនេះសម្រាប់ config នេះប៉ុណ្ណោះ | `g2-logs/msix.log` |
-| 18 | S1b MSIX: browser ឃើញ host, upgrade, uninstall, component ក្នុង package | MSIX | **NOT RUN** (អាស្រ័យលើ #17) | — |
+| 18 | S1b MSIX: browser ឃើញ host, upgrade, uninstall, component ក្នុង package | MSIX | **NOT RUN ⇒ plan B ត្រូវបានសាក ហើយ PASS**: goal ជំហាន 2 "if that fails, try a separate per-user installer helper" = `gdm-bridge register` (#2, #3) និង NSIS (#4–#8, #10)។ MSIX ពេញលេញធ្វើមុន Store (D9) | — |
 | 19 | Windows 10: install/launch/upgrade/uninstall | NSIS | **NOT RUN** គ្មាន Windows 10 | — |
-| 20 | Store submission (D9) | Store | **NOT RUN** D9: Store ពន្យារ, គ្មានគណនី ⇒ គ្មាន REAL STORE CERTIFICATION | plan.md D9 |
+| 20 | Store submission (D9) | Store | **N/A**: goal ជំហាន 6 ធ្វើតែ "if the owner has a Store account"; D9 = Store ពន្យារ, គ្មានគណនី ⇒ គ្មាន REAL STORE CERTIFICATION | plan.md D9 |
 
 សំណល់ដែលកើតពីការព្យាយាម MSIX (មិនមែនពី NSIS): Windows Shell បង្កើត `HKCU\Software\Microsoft\Windows\CurrentVersion\CloudStore\…\windows.data.apps.appmetadata$goldeniq.galaxydownloadmanager.spike` ពេល `Add-AppxPackage` បរាជ័យ។ វាជាទិន្នន័យរបស់ Windows ដែលខ្ញុំមិនបានលុប។
 
 ### ផ្លូវដែលជ្រើស
 
-**NSIS per-user ជាផ្លូវចម្បង** (ត្រូវនឹង D8)។ Installer ចុះឈ្មោះ host ក្នុង HKCU key ទាំង ៣ ហើយ uninstaller លុបវាវិញ។ លើ Windows 11 ផ្លូវនេះត្រូវបានបង្ហាញថាដំណើរការ (#1–#8, #10–#12) ជាមួយចំណុចខ្វះ: #8 (`Un.exe` នៅ %TEMP%), #9 និង #13 (PARTIAL), #14, #15, #19 (NOT RUN)។ ការចែកចាយតាម GitHub Releases / winget / Tauri updater ពិតប្រាកដ **មិនទាន់បានបង្ហាញ** ក្នុង G2 ទេ (វាជាការងារ P1/release.yml)។
+**NSIS per-user ជាផ្លូវចម្បង** (ត្រូវនឹង D8)។ Installer ចុះឈ្មោះ host ក្នុង HKCU key ទាំង ៣ ហើយ uninstaller លុបវាវិញ។ លើ Windows 11 ផ្លូវនេះត្រូវបានបង្ហាញថាដំណើរការ (#1–#8, #10–#12) ជាមួយចំណុចខ្វះ: #8 (`Un.exe` នៅ %TEMP%), #9 (PARTIAL), #13 (PARTIAL ⇒ plan B PASS), #14 (200% មិនមានលើអេក្រង់នេះ), #15 (រង់ចាំម្ចាស់), #19 (NOT RUN)។ ការចែកចាយតាម GitHub Releases / winget / Tauri updater ពិតប្រាកដ **មិនទាន់បានបង្ហាញ** ក្នុង G2 ទេ (វាជាការងារ P1/release.yml)។
 **MSIX:** package build បាន ប៉ុន្តែការដំឡើង ដូច្នេះក៏ការមើលថាតើ browser ឃើញ host ឬទេ មិនអាចសាកលើម៉ាស៊ីននេះបានទេ។ តាម plan S1b វាជា probe ½ ថ្ងៃ ហើយ spike ពេញធ្វើមុនដាក់ Store (D9)។
 
-**ស្ថានភាព G2: មិនទាន់រួចរាល់ពេញលេញ។** Windows 10, DPI 100/150/200%, អ្នកអានខ្មែរ និង MSIX install មិនទាន់មានលទ្ធផល ⇒ ត្រូវការម្ចាស់សម្រេច: ផ្ដល់ម៉ាស៊ីន/VM Windows 10 ឬយល់ព្រមពន្យារ (មើល "មិនទាន់ធ្វើ")។
+**ស្ថានភាព G2: មិនទាន់រួចរាល់ពេញលេញ។** MSIX មាន plan B ដែលបានសាក (#18) ហើយ Store = N/A (#20)។ នៅសល់: **Windows 10 (#19)** គ្មានលទ្ធផល, **200% DPI** មិនអាចសាកលើអេក្រង់នេះ, **អ្នកអានខ្មែរ (#15)** ⇒ ត្រូវការម្ចាស់: ផ្ដល់ម៉ាស៊ីន/VM Windows 10 (និងអេក្រង់ដែលគាំទ្រ 200%) ឬយល់ព្រមពន្យារ ហើយពិនិត្យរូបខ្មែរ។
 
 ### អ្នកម្ចាស់ update តាមផ្លូវ
 
@@ -87,7 +87,8 @@
 
 - **Windows 10** (#19): ត្រូវការ VM ឬម៉ាស៊ីន Windows 10។ ពាក្យបញ្ជាដដែល (ផ្នែក "របៀបរត់ឡើងវិញ") រត់បានដោយគ្មានការកែ។
 - **MSIX install** (#17, #18): ត្រូវរត់ជា admin មួយដង ហើយទទួលយកថា policy របស់ម៉ាស៊ីនប្ដូរ: `Import-Certificate out\spike.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople` និង `AllowAllTrustedApps=1`។ ខ្ញុំមិនធ្វើវាទេ (គ្មាន admin ហើយវាប្ដូរ security policy របស់ម៉ាស៊ីនម្ចាស់)។ តាម plan S1b អាចពន្យាររហូតដល់ Store (D9)។
-- **DPI 100/150/200%** (#14) និង **អ្នកអានខ្មែរ** (#15)។
+- **DPI 200%** (#14): អេក្រង់នេះឈប់ត្រឹម 175%។ ត្រូវការអេក្រង់ធំជាង ឬ VM ដែលមានគុណភាពបង្ហាញខ្ពស់។
+- **អ្នកអានខ្មែរ** (#15): ម្ចាស់ពិនិត្យ `docs/p0/g2-screens/`។
 
 ### របៀបរត់ឡើងវិញ
 
@@ -100,11 +101,12 @@ node runner/browsers.cjs <label> [chrome edge firefox]
 tools/nsis-3.11/makensis.exe -DVERSION=0.1.0 -DBRIDGE=<exe> -DOUT=<setup.exe> <abs path>/nsis/installer.nsi
 out/GDM-Spike-Setup-0.1.0.exe /S ; out/GDM-Spike-Setup-0.2.0.exe /S ; "%LOCALAPPDATA%\Programs\GDM-Spike\uninstall.exe" /S
 gdm-bridge.exe fetch-component out/components.json out/components.json.minisig
-powershell -File nsis/screens.ps1 -Out docs/p0/g2-screens
+powershell -File nsis/screens.ps1 -Out docs/p0/g2-screens/dpi-125   [-Setup GDM-Spike-Setup-0.1.0-nolang.exe -NoLang]
+powershell -File nsis/dpi.ps1 -Out docs/p0/g2-screens -Steps 2 -Restore 1   (one step per run; restores the owner's 125%)
 powershell -File msix/build.ps1 -Version 0.1.0.0 ; Add-AppxPackage out/gdm-spike-0.1.0.0.msix
 ```
 
-`out/` និង `tools/` មិនត្រូវ commit (`.gitignore`)។ Log សំខាន់ៗ ត្រូវបានចម្លងទៅ `docs/p0/g2-logs/` (`checks.log`, `browsers-summary.log`, `nsis-steps.log`, `msix.log`, `rerun-after-council.log`)។ `nsis-steps.log` ជាការរត់មុន council (runner ចាស់ ដែល PASS មិនតម្រូវ ports/dir); លទ្ធផលដែលប្រើក្នុងតារាងគឺ `rerun-after-council.log`។
+`out/` និង `tools/` មិនត្រូវ commit (`.gitignore`)។ Log សំខាន់ៗ ត្រូវបានចម្លងទៅ `docs/p0/g2-logs/` (`checks.log`, `browsers-summary.log`, `nsis-steps.log`, `msix.log`, `rerun-after-council.log`, `dpi.log`)។ `nsis-steps.log` ជាការរត់មុន council (runner ចាស់ ដែល PASS មិនតម្រូវ ports/dir); លទ្ធផលដែលប្រើក្នុងតារាងគឺ `rerun-after-council.log`។
 
 ### Council (ChatGPT/Codex, read-only, 2 ជុំ, 2026-11-09)
 
