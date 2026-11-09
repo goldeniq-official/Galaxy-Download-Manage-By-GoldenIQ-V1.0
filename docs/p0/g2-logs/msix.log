@@ -1,0 +1,27 @@
+S1b MSIX probe, 2026-11-09, Windows 11 Pro 26H2 build 26300.9711, no admin.
+
+reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\Appx
+    AllowAllTrustedApps    REG_DWORD    0x0
+    AllowDevelopmentWithoutDevLicense    REG_DWORD    0x0
+
+winget install Mozilla.Firefox --scope user   (winget picked the MSIX installer)
+    Organization policies are preventing installation. Contact your admin.
+    Installer failed with exit code: 0x80073cff : To install this application you need either a Windows developer license or a sideloading-enabled system.
+
+powershell -File msix/build.ps1 -Version 0.1.0.0
+    makeappx: Package creation succeeded.
+    signtool sign /fd SHA256 (self-signed CN=GoldenIQ Spike, CurrentUser\My)
+    Get-AuthenticodeSignature: UnknownError CN=GoldenIQ Spike   (root not trusted)
+
+Add-AppxPackage out\gdm-spike-0.1.0.0.msix
+    Deployment failed with HRESULT: 0x80073CF0, Package could not be opened.
+    error 0x800B0109: The root certificate of the signature in the app package or bundle must be trusted.
+
+Import-Certificate spike.cer -CertStoreLocation Cert:\CurrentUser\TrustedPeople ; Add-AppxPackage (same package)
+    Deployment failed with HRESULT: 0x80073CF0 ... error 0x800B0109 (same)
+
+Unsigned variant: Publisher="CN=GoldenIQ Spike, OID.2.25.311729368913984317654407730594956997722=1", makeappx pack, Add-AppxPackage -AllowUnsigned
+    Deployment failed with HRESULT: 0x80073D2B, The package deployment failed because its content is not valid for an unsigned package.
+    Windows cannot install package GoldenIQ.GalaxyDownloadManager.Spike because an unsigned package cannot include Executable activations.
+
+Cleanup: spike certificate removed from CurrentUser\My and CurrentUser\TrustedPeople; Get-AppxPackage *GalaxyDownloadManager* = none.

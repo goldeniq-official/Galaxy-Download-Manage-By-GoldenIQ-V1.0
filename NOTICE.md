@@ -24,7 +24,7 @@ This notice is set in Exhibit B of `LICENSE`. Under RPL-1.5 Section 6.4(d), it m
 
 RPL-1.5 Section 5.0 states: "No right is granted to the trademarks of Licensor or any Contributor even if such marks are included in the Licensed Software."
 
-The Licensor claims the names "Galaxy Download Manager", "GDM" (for download software) and "Golden IQ", and the Galaxy Download Manager logo, as its marks. The licence grants no permission to use them, subject to applicable law. RPL-1.5 Section 6.0 requires Extensions that are made and Deployed to have "a distinct title", so such a version must not be titled Galaxy Download Manager or GDM. Attribution required by the licence and truthful descriptive statements, such as "based on Galaxy Download Manager", remain allowed.
+The Licensor claims the names "Galaxy Download Manager", "GDM" (for download software) and "Golden IQ", and the Galaxy Download Manager logo, as its marks. The licence grants no permission to use them, subject to applicable law. RPL-1.5 Section 6.0 requires Extensions that are made and Deployed to have "a distinct title", so such a version must not be titled Galaxy Download Manager or GDM. Attribution required by the licence and truthful descriptive statements, such as "based on Galaxy Download Manager", remain allowed. The full policy is in [`TRADEMARKS.md`](TRADEMARKS.md).
 
 ## Third-party components
 

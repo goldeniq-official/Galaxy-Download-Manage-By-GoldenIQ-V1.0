@@ -1,0 +1,6 @@
+target/
+out/
+tools/
+*.msix
+*.exe
+!nsis/*.nsi

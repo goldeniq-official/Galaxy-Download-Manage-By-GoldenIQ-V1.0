@@ -1,0 +1,22 @@
+{
+ "manifest_version": 3,
+ "name": "GDM bridge spike",
+ "version": "0.1.0",
+ "description": "SPIKE ONLY: calls the gdm-bridge native host",
+ "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2ETL4+IE2wP2/DH9hT1raKiWNrMCPStt1Fug1lNlXr0EPFZE5dc7wIBvdag+cyURTLKJoJmub2Sebjhe8IZkXWRRhaiLPGQA2OMLxhjm2FGoyGS7lHBIeV23Jbpam0v0ObrXZ9SjbGz92ipZdgtJMCHWeqD3xfGf75Lii28CdJYmAKvcYsbD9cOBzyhjRtEEbtQRoHLogrV7qVmblSeT61vA7etsghvkZdz3cAx/efYUDJYAEKhrPLJIBM4JDM633PukgaEmkhvbln1NPP+ZA/nznrAmyOtue8mf5Yzp39gIJNWmEpkwLRvURdoXyx00j6ut+79Z07gDDoxfK2RN7wIDAQAB",
+ "permissions": [
+  "nativeMessaging"
+ ],
+ "background": {
+  "service_worker": "bg.js",
+  "scripts": [
+   "bg.js"
+  ]
+ },
+ "browser_specific_settings": {
+  "gecko": {
+   "id": "gdm-spike@goldeniq.dev",
+   "strict_min_version": "128.0"
+  }
+ }
+}

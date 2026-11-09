@@ -1,0 +1,60 @@
+[helper-all] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: LAUNCH ERROR: To use `enableExtensions` with a list of paths in Chrome, you must be connected with `--remote-debugging-pipe` (`pipe: true`).
+
+[helper-all] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: LAUNCH ERROR: Failed to launch the browser process:  Code: 0
+
+stderr:
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+
+[helper-all] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS round-trip; dir-field rejected=true; lines=3
+[helper-all] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS round-trip; dir-field rejected=true; lines=3
+[helper-all] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: LAUNCH ERROR: Protocol error (Target.setDiscoverTargets): Target closed
+
+[helper-all] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: LAUNCH ERROR: Failed to launch the browser process:  Code: 0
+
+stderr:
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+
+[helper-all] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: LAUNCH ERROR: Failed to launch the browser process:  Code: 0
+
+stderr:
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+
+[helper-all] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS round-trip; dir-field rejected=true; lines=3
+[only-chrome] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS round-trip; dir-field rejected=true; lines=3
+[only-chrome] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS round-trip; dir-field rejected=true; lines=3
+[only-chrome] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: FAIL no round-trip; dir-field rejected=false; lines=0
+
+[only-edge] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: FAIL no round-trip; dir-field rejected=false; lines=0
+
+[only-edge] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS round-trip; dir-field rejected=true; lines=3
+[only-edge] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: FAIL no round-trip; dir-field rejected=false; lines=0
+
+[only-firefox] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: FAIL no round-trip; dir-field rejected=false; lines=0
+
+[only-firefox] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: FAIL no round-trip; dir-field rejected=false; lines=0
+
+[only-firefox] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS round-trip; dir-field rejected=true; lines=3
+[helper-100] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[helper-100] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[helper-100] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[nsis-0.1.0] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[nsis-0.1.0] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[nsis-0.1.0] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[nsis-0.2.0] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[nsis-0.2.0] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[nsis-0.2.0] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS round-trip pings=102/100+2 ports=2/2; dir-field rejected=true; lines=104
+[rerun-0.1.0] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.1.0
+[rerun-0.1.0] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.1.0
+[rerun-0.1.0] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.1.0
+[rerun-0.2.0] chrome C:\Users\yrgol\AppData\Local\Google\Chrome\Application\chrome.exe: PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.2.0
+[rerun-0.2.0] edge C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe: PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.2.0
+[rerun-0.2.0] firefox C:\Users\yrgol\AppData\Local\Mozilla Firefox\firefox.exe: PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.2.0

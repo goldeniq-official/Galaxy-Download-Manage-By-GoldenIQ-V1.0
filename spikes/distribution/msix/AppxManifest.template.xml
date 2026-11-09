@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPIKE ONLY (G2). Variant A: unvirtualized registry + file system so browsers see the host registration. -->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 desktop desktop6 rescap">
+  <Identity Name="GoldenIQ.GalaxyDownloadManager.Spike" Publisher="CN=GoldenIQ Spike" Version="@VERSION@" ProcessorArchitecture="x64"/>
+  <Properties>
+    <DisplayName>GDM distribution spike</DisplayName>
+    <PublisherDisplayName>GoldenIQ</PublisherDisplayName>
+    <Logo>StoreLogo.png</Logo>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+  </Properties>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0"/></Dependencies>
+  <Resources><Resource Language="en-us"/></Resources>
+  <Applications>
+    <Application Id="GDM" Executable="gdm-bridge.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="register">
+      <uap:VisualElements DisplayName="GDM spike" Description="GDM distribution spike" BackgroundColor="transparent"
+        Square150x150Logo="Square150x150Logo.png" Square44x44Logo="Square44x44Logo.png"/>
+      <Extensions>
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="gdm-bridge.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias><desktop:ExecutionAlias Alias="gdm-bridge.exe"/></uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust"/>
+    <rescap:Capability Name="unvirtualizedResources"/>
+  </Capabilities>
+</Package>

@@ -1,0 +1,10 @@
+== check-host
+check-host: all 14 checks passed (incl. 100/100 foreign origins rejected)
+== tampered manifest
+FAIL manifest signature: Signature verification failed
+rc=1
+== sha256 mismatch
+manifest signature OK
+FAIL yt-dlp: sha256 mismatch f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d
+rc=1
+files left in dest: 0

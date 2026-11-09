@@ -1,0 +1,35 @@
+== install 0.1.0
+exit=0
+C:\Users\yrgol\AppData\Local/GDM: nmh sentinel-user-data.txt  C:\Users\yrgol\AppData\Local/GDM/nmh: chrome.json edge.json firefox.json 
+rerun-0.1.0 {
+ "chrome": "PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.1.0",
+ "edge": "PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.1.0",
+ "firefox": "PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.1.0"
+}
+runner exit=0
+== upgrade 0.2.0
+exit=0
+DisplayVersion=0.2.0
+rerun-0.2.0 {
+ "chrome": "PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.2.0",
+ "edge": "PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.2.0",
+ "firefox": "PASS first=true all100=true ports2=true dirrej=true pings=102/102 hostver=0.2.0"
+}
+runner exit=0
+== component via installed exe
+manifest signature OK
+yt-dlp: sha256 OK f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d -> C:\Users\yrgol\AppData\Local\GDM\components\yt-dlp.exe
+yt-dlp: write while held blocked = true
+yt-dlp: run exit=exit code: 0 stdout=2026.10.26
+== uninstall
+exit=0
+== after uninstall
+GDM dir: sentinel-user-data.txt 
+instdir: ls: cannot access 'C:\Users\yrgol\AppData\Local/Programs/GDM-Spike': No such file or directory
+C:\Users\yrgol\AppData\Local\Temp/~nsu1.tmp
+C:\Users\yrgol\AppData\Local\Temp/~nsu2.tmp
+C:\Users\yrgol\AppData\Local\Temp/~nsu3.tmp
+C:\Users\yrgol\AppData\Local\Temp/~nsu4.tmp
+(no Un.exe process; the ~nsu*.tmp dirs listed above DO remain - see next line)
+== leftover after silent uninstall: %TEMP%\~nsu1.tmp\Un.exe created 16:13:09 (= this uninstall), still present 15 s later, no Un.exe process
+check-host: all 15 checks passed (incl. 100/100 foreign origins rejected)
