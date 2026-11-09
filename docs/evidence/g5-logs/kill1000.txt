@@ -1,8 +1,13 @@
-commit 2810ae6, 2026-11-09T23:14:50+07:00, rustc rustc 1.97.1 (8bab26f4f 2026-07-14)
-   Compiling gdm-fixture v0.1.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\fixtures\hostile)
-   Compiling gdm-core v0.1.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\crates\gdm-core)
-    Finished `release` profile [optimized + debuginfo] target(s) in 2.61s
+commit ca7da25, 2026-11-10T00:53:00+07:00, rustc 1.97.1 (8bab26f4f 2026-07-14)
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.25s
      Running tests\e04_kill.rs (C:\Users\yrgol\AppData\Local/gdm-t2\release\deps\e04_kill-e7933b4a48f8d81c.exe)
 
-running 1 test
-test e04_kill_rounds has been running for over 60 seconds
+running 4 tests
+test e04_failpoints_then_resume_correct ... ok
+test e04_intent_survives_a_failed_state ... ok
+test e04_kill_rounds ... E-04 kill rounds: 1000 TerminateProcess kills, 0 oracle failures, 0 progress regressions, 17/17 files with correct sha256 (1811 s)
+ok
+test e04_published_file_changed_after_crash_is_not_completed ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1886.70s
+
