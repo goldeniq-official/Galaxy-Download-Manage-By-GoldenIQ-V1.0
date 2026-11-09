@@ -31,4 +31,4 @@ $ npx tsc --noEmit
 
 ## 4. នៅសល់
 
-- រួច: ម្ចាស់បញ្ជាក់បញ្ជី D1–D19, D20 = ក (RPL-1.5 + TRADEMARKS.md), P0 4 សប្ដាហ៍ (AskUserQuestion 2026-11-09)។ នៅសល់: សរសេរ TRADEMARKS.md ក្នុង G2។
+- រួច: ម្ចាស់បញ្ជាក់បញ្ជី D1–D19 (ចម្លើយផ្ទាល់ "បាទ/ចាស បញ្ជាក់"), D20 = ក (RPL-1.5 + TRADEMARKS.md), P0 4 សប្ដាហ៍ (AskUserQuestion 2026-11-09)។ នៅសល់: សរសេរ TRADEMARKS.md ក្នុង G2។
