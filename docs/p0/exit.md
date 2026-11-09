@@ -1,8 +1,8 @@
 # P0 exit (G4 / P0-D): design និង delivery baseline
 
-ថ្ងៃ: 2026-11-09។ ស្ថានភាព: **ម្ចាស់អនុម័ត 2026-11-09** (mockups + ឯកសារនេះ)។ P0 រង់ចាំ G3 + council បិទ P0។
+ថ្ងៃ: 2026-11-09។ ស្ថានភាព: **ម្ចាស់អនុម័ត 2026-11-09** (mockups + ឯកសារនេះ)។ G3 ចូល `results.md` (`75ccc68`) ⇒ ផ្នែក ៥ និង ៦ បានកែតាម G3; council បិទ P0 នៅផ្នែក ៧។
 
-**លក្ខខណ្ឌមុនមិនទាន់គ្រប់:** `docs/p0/results.md` មានផ្នែក G2 ហើយ តែ council មិនទាន់ពិនិត្យ ("បំពេញក្រោយ council ពិនិត្យ")។ ផ្នែក G3 មិនទាន់មាន។ ម្ចាស់បានឱ្យចាប់ផ្ដើម G4 មុន (2026-11-09, "ល្មមធ្វើហើយអី")។ ដូច្នេះផ្នែកដែលមិនពឹងលើ spike (ផ្នែក ១–៤) ត្រូវបានធ្វើរួច។ ផ្នែក ៥ (ការប៉ាន់ស្មាន) នៅជា **បឋម** រហូតដល់ G3 ត្រូវបានសរសេរ។ **P0 មិនទាន់បិទ** ទាល់តែ G2+G3 ឆ្លង council ហើយម្ចាស់អនុម័តឯកសារនេះ។
+**លក្ខខណ្ឌមុន:** ពេលចាប់ផ្ដើម G4 មិនទាន់គ្រប់ទេ; ម្ចាស់ឱ្យធ្វើផ្នែក ១–៤ មុន (2026-11-09, "ល្មមធ្វើហើយអី")។ ឥឡូវគ្រប់ហើយ: G2 (council ២ ជុំ) និង G3 (council ២ ជុំ, `75ccc68`) នៅក្នុង `docs/p0/results.md`។ G3 បិទជា **ការវាយតម្លៃ** ដែល gate ល្បឿន durable ធៀប IDM **ធ្លាក់** ⇒ ផ្នែក ៥ (R12)។
 
 ## ១. Design tokens និង mockups
 
@@ -75,7 +75,7 @@
 | អ្វី | ស្នើ | ភស្តុតាង / ស្ថានភាព |
 |---|---|---|
 | Windows 11 x64 | **គាំទ្រ, តេស្ត** | G2 ឆ្លងលើ 26H2 build 26300.9711 |
-| Windows 11 arm64 | **គាំទ្រ (§15 build x64 + arm64)** | គ្មានម៉ាស៊ីន arm64 សាក ⇒ R3 |
+| Windows 11 arm64 | **គាំទ្រ (§15 build x64 + arm64), provisional (preview)** រហូតដល់រត់លើឧបករណ៍ពិត | គ្មានម៉ាស៊ីន arm64 សាក ⇒ R3 |
 | Windows 10 22H2 x64 | **ដំណើរការបាន, មិនសន្យា** (ម្ចាស់ Q4) | G2 #19 NOT RUN (គ្មាន VM)។ Microsoft បញ្ចប់ការគាំទ្រ Windows 10 ថ្ងៃ 2025-10-14 ហើយ ESU សម្រាប់អ្នកប្រើធម្មតាផុតនៅ 2026-10-13។ Persona ១ (laptop ចាស់) ប្រហែលនៅប្រើ Windows 10។ អនុសាសន៍: "ដំណើរការបាន, មិនសន្យា" + តេស្ត VM មួយដងក្នុង P1 |
 | WebView2 | Evergreen runtime (មានស្រាប់ក្នុង Windows 11; NSIS ដំឡើងបើខ្វះ) | Tauri 2 default |
 | Installer | **NSIS per-user** (ផ្លូវចម្បង G2) | G2 #4–#12 PASS |
@@ -162,38 +162,50 @@ Allow: MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib, Unicode-3.0, OFL-1.1, MPL-2.0
 3. Font + icon: ចម្លង `OFL-*.txt` និង Phosphor MIT ដោយផ្ទាល់។
 4. Component ដែលទាញពេលដំណើរការ (**មិន bundle**): yt-dlp (Unlicense; binary មានផ្នែក GPLv3+) ពី `github.com/yt-dlp/yt-dlp/releases` និង ffmpeg **BtbN FFmpeg-Builds `win64-lgpl`** ពី GitHub។ ទាំងពីរទាញទៅ `%LOCALAPPDATA%\GDM\components` តាម manifest ចុះហត្ថលេខា minisign + sha256 (G2 #10, #11 PASS) ហើយរត់ជា process ដាច់ (មិន link)។ THIRD-PARTY-NOTICES កត់ URL, version និង sha256 ប៉ុន្តែមិនចែកចាយ binary ទេ។ មុនបើកមុខងារវីដេអូ (P2) ត្រូវ pin artifact ពិតប្រាកដ និង audit licence/configure flags (គ្មាន `--enable-gpl`)។ ការរត់ជា process ដាច់មិនដោះស្រាយកាតព្វកិច្ចចែកចាយទាំងអស់ដោយខ្លួនឯងទេ (council)។
 
-## ៥. ការប៉ាន់ស្មាន P1 ឡើងវិញ (បឋម, មិនទាន់គ្រប់)
+## ៥. ការប៉ាន់ស្មាន P1 ឡើងវិញ (ក្រោយ G3)
 
-§17: P1 = **8 សប្ដាហ៍** (អ្នកអភិវឌ្ឍម្នាក់ពេញម៉ោង)។
+§17: P1 = **8 សប្ដាហ៍** (អ្នកអភិវឌ្ឍម្នាក់ពេញម៉ោង)។ ភស្តុតាង: `docs/p0/results.md` G2 + G3 (commit `75ccc68`)។
 
 | ការប្ដូរ | សប្ដាហ៍ | ភស្តុតាង |
 |---|---|---|
-| MSIX/Store ចេញពី P1 | −1.0 | G2 #17 BLOCKED, D8/D9 |
+| MSIX/Store ចេញពី P1 | −1.0 | G2 #17 BLOCKED, D8/D9; §17 P1 មាន "installer NSIS + MSIX" និង "MSIX ឆ្លង Store certification" ⇒ ការងារ package + certification ចេញ (ចំនួន 1.0 ជាការប៉ាន់ស្មាន) |
 | Installer ខ្មែរ: LangDLL font, បកប្រែ ~250 ឃ្លា, BOM, អ្នកអានពិនិត្យ | +0.5 | G2 #13, finding ៣–៥ |
-| Upgrade ខណៈ host រត់ + update idle (U-02) មិនទាន់សាក | +0.5 | G2 finding ២ |
+| Upgrade ខណៈ host រត់ + update idle (U-02); ផ្លូវ update ពិត (plan B ថត A/B + pointer បាន PASS, NSIS in-place មិនបានសាក) | +0.8 | G2 finding ២; G3 S8 |
 | ការតេស្តលើ Windows 10 VM និង arm64 (គ្មានឧបករណ៍) | +0.5 | G2 #19, ផ្នែក ៣ |
 | TLS platform verifier ជំនួស webpki-roots | +0.2 | ផ្នែក ៤ |
 | Opera/Brave/Vivaldi + browser fork (B-07) | +0.3 | ផ្នែក ៣ ជួរ 11 |
-| ៣២ កាត critical/high (fuzz 24 ម៉ោង, kill ×1000, matrix MOTW) | +1.0 | §17 exit; ពេលវេលា CI/test ដែល §17 មិនបានរាប់ |
+| ៣២ កាត critical/high (fuzz 24 ម៉ោង, kill ×1000, matrix MOTW) | +1.0 | §17 exit; ពេលវេលា test infrastructure/CI ដែលដាក់ឱ្យច្បាស់ថ្មី (មិនដឹងថា 8 សប្ដាហ៍ដើមរាប់វាឬអត់) |
 | UI ពិត (component, keyboard, modal focus lifecycle, grid/tab semantics, check.cjs លើ WebView2) | 0 | Mockup មិនមែនជា component ទេ ⇒ មិនកាត់ពេល (council) |
-| **G3 engine evidence (segmenter, benchmark vs IDM)** | **?** | **G3 មិនទាន់សរសេរ ⇒ មិនទាន់ដឹង** |
+| **ល្បឿន durable: gate ធៀប IDM ធ្លាក់** (geo-mean r 0.59–0.80 ទល់គោលដៅ ≥ 0.95; engine network 124.8 MB/s ឆ្លង) ⇒ writer ដាច់ + queue កំណត់ + checkpoint តាមពេល, profile flush, វាស់ម្ដងទៀតលើ NVMe ទំនេរ + LAN ពិត + iperf3 | **+1.5** (0.5–3.0) | G3 Benchmark + Fallback; plan S5 |
+| Fallback G3 ដែលនៅសល់ (៥ ការងារ): (ក) ticket durable + failure injection + 200 handoff (S2) 0.3; (ខ) ACL ថតដំឡើង + pipe instance ច្រើន + Authenticode តាម handle (S3) 0.3; (គ) Job Object limits + allowlist extractor (S7) 0.2; (ឃ) Defender/AMSI ជាភស្តុតាង AV វិជ្ជមាន + ENOSPC (S6) 0.2; (ង) FAT/exFAT/SMB ពិត ក្នុង CI ≈0 (ពេលរង់ចាំឧបករណ៍ មិនមែនពេលអភិវឌ្ឍ) | **+1.0** (0.8–1.5) | G3 តារាង "មិនបានបង្ហាញ ⇒ fallback / P1" |
+| កូដ spike គឺ throwaway; មានតែ fixture S4 (`spikes/engine/src/fixture.rs`) ដែលយកទៅ `fixtures/` | −0.3 | G3 ក្បាលផ្នែក |
 
-**សរុបបឋម: ≈ 10 សប្ដាហ៍ (ចន្លោះ 9.5–11.5)** មុនបញ្ចូល G3។ ការប៉ាន់ស្មាននេះមិនទាន់គ្រប់ ហើយមិនមែនជាការសន្យាទេ។ មានតែ exit criteria ទេដែលជាការសន្យា (§17)។ ត្រូវកែម្ដងទៀតពេល G3 មានលទ្ធផល ជាពិសេសលទ្ធផល benchmark ល្បឿនធៀប IDM (P1 exit: ≥ IDM −5%)។
+**សរុប: ≈ 12.5 សប្ដាហ៍ (ចន្លោះ 11.3–14.5)** ទល់ 8 សប្ដាហ៍ក្នុង §17។ ចន្លោះ = ល្បឿន durable 0.5–3.0 និង fallback 0.8–1.5។ ការប៉ាន់ស្មាននេះគឺ adjustments លើ 8 សប្ដាហ៍ដើមប៉ុណ្ណោះ (blueprint មិនផ្ដល់ការបំបែក 8 សប្ដាហ៍) ហើយជា **conditional** លើ R12។ ហានិភ័យធំជាងគេ = ល្បឿន durable (R12): បើ writer ថ្មីនៅតែមិនដល់ ≥ IDM −5% លើ disk ធម្មតា ការប៉ាន់ស្មាននេះមិនគ្រប់ទេ។ ការប៉ាន់ស្មាននេះមិនមែនជាការសន្យាទេ; មានតែ exit criteria ទេដែលជាការសន្យា (§17)។ Internet (CDN ៥, observation): ស្មើ/លឿនជាង IDM 4/5 URL, geo-mean 2.30 ⇒ លក្ខខណ្ឌ "≥ 3/5 URL" ទំនងឆ្លង តែលក្ខខណ្ឌ "ល្បឿនមធ្យម ≥ IDM −5%" លើ LAN gate មិនទាន់ឆ្លង។
+
+### Protocol gate ល្បឿន P1 (បង្កក)
+
+§17 "ល្បឿនមធ្យម ≥ IDM −5%" នៅ P1 មានន័យថា protocol `docs/p0/plan.md` ចំណុច ង: LAN fixture 1 GB (S4) ជា gate; គូ GDM/IDM លំដាប់ AB/BA ចៃដន្យមានតុល្យភាព; warm-up 1 គូមិនរាប់; ≥ 5 គូក្នុងមួយ config; ratio គូ ⇒ median ក្នុងមួយ URL ⇒ geometric mean ≥ 0.95; MB/s ទសភាគ; GDM done = ចប់ durable (final sync + sha256 + MOTW + rename)។ Disk: NVMe ទំនេរ ≥ 25% (gate) និង HDD (រាយការណ៍)។ Internet (CDN ៥) = observation សម្រាប់ "≥ 3/5 URL"; IDM timeout ត្រូវកត់ តែមិនរាប់ជាជ័យជម្នះ GDM។
+
+**Checkpoint សប្ដាហ៍ទី ២ នៃ P1** (ក្រោយ writer ថ្មី): វាស់តាម protocol ខាងលើ ⇒ ជ្រើសមួយ: (១) ឆ្លង ⇒ បន្ត; (២) ជិតឆ្លង ហើយមានមូលហេតុវាស់បាន ⇒ បន្តកែ និងកែកាលវិភាគ; (៣) មិនអាចឆ្លងដោយរក្សា "commit តែក្រោយ flush" ⇒ ម្ចាស់សម្រេចប្ដូរ acceptance។ មិនបន្ធូរ "commit តែក្រោយ flush" ដោយស្ងាត់ទេ។ Kill ×1000 ត្រូវរត់ម្ដងទៀតលើ engine ផលិតផល ក្រោយប្ដូរ writer។
 
 ## ៦. ហានិភ័យដែលនៅបើក
 
 | # | ហានិភ័យ | ផលប៉ះពាល់ | ការធ្វើ / បិទពេល |
 |---|---|---|---|
-| R1 | G3 មិនទាន់មានលទ្ធផល/council | ការប៉ាន់ស្មាន និងការបិទ P0 រង់ចាំ | បញ្ចប់ G3 ⇒ council ⇒ កែផ្នែក ៥ |
 | R2 | Windows 10 មិនបានសាក; ស្ថានភាពគាំទ្រ | Persona ១ (laptop ចាស់) | VM តេស្តមួយដងក្នុង P1 (Q4) |
-| R3 | arm64 គ្មានឧបករណ៍សាក | build ចេញ តែមិនបានរត់ពិត | arm64 VM/ឧបករណ៍ ឬចេញ arm64 ជា "preview" |
+| R3 | arm64 គ្មានឧបករណ៍សាក | build ចេញ តែមិនបានរត់ពិត ⇒ arm64 = **provisional (preview)** រហូតដល់រត់លើឧបករណ៍ពិត | arm64 VM/ឧបករណ៍ក្នុង P1 |
 | R4 | Check HC ជាការធ្វើត្រាប់ Chromium | Windows HC ពិត (WebView2) អាចខុស | សាក theme contrast ពិត ៤ (Aquatic, Desert, Dusk, Night sky) លើ UI ពិតក្នុង P1 |
 | R5 | Mockup ជា HTML; scale ធ្វើត្រាប់ដោយ deviceScaleFactor | Windows scaling/WebView2 zoom និងទំហំ window អប្បបរមាមិនទាន់សាក | រត់ `check.cjs` លើ app ពិតក្នុង P1 CI + សាក 100/125/150% ពិត |
-| R6 | អត្ថបទខ្មែរក្នុង mockup សរសេរដោយ Claude | §05 គោលការណ៍ ៦ (គ្មានការបកប្រែម៉ាស៊ីន) | អ្នកអានខ្មែរពិនិត្យ glossary មុន v0.9 |
+| R6 | អត្ថបទខ្មែរក្នុង mockup និង installer (G2 #15 "រង់ចាំម្ចាស់") មិនទាន់មានអ្នកអានខ្មែរពិនិត្យ | §05 គោលការណ៍ ៦ (គ្មានការបកប្រែម៉ាស៊ីន) | **G2 #15 ពន្យារទៅ P1** (មិនរារាំង P0): អ្នកអានខ្មែរពិនិត្យ glossary + `docs/p0/g2-screens/` មុន v0.9 |
 | R8 | MSIX native messaging មិនទាន់បញ្ជាក់ | ផ្លូវ Store (P2) អាចត្រូវការផែនការ B | Spike ពេញមុន Store (G2 plan S1b) |
 | R9 | `webpki-roots` / CDLA | P1 build បរាជ័យ cargo-deny បើប្រើ reqwest default | Platform verifier (ផ្នែក ៤) |
 | R10 | Key ចុះហត្ថលេខា updater / extension store account / migration DB | បាត់ key ឬ account ⇒ update មិនបាន (U-03, S-03) | Drill ស្ដារ key + checklist release មុន v0.9 |
 | R11 | `src-tauri/Cargo.toml` `authors` មាន "CHHIT Sungchhay" ក្បែរ "Golden IQ" | ច្បាប់ ៥: author ត្រូវជា GoldenIQ ប៉ុណ្ណោះ (§14/§15 ក៏កត់ © Golden IQ និង CHHIT Sungchhay) | ម្ចាស់បញ្ជាក់ថាជាឈ្មោះម្ចាស់ខ្លួនឯង ឬត្រូវដក (ខ្ញុំមិនបានកែ) |
+| R12 | ល្បឿន durable ចាញ់ IDM (r 0.59–0.80) លើម៉ាស៊ីននេះ; ផ្នែកមួយនៃភាពខុសគ្នាមិនទាន់ពន្យល់ (8 conn ថេរនៅតែចាញ់លើ C:) | P1 exit "≥ IDM −5%" អាចមិនឆ្លង ⇒ P1 យឺត; ឬ **មិនអាចឆ្លងបានទាល់តែសោះ** លើ disk ខ្លះ ព្រោះ final sync ជាតម្លៃដែល writer ថ្មីលុបមិនបាន | សប្ដាហ៍ទី ១–២ នៃ P1: writer ដាច់ + checkpoint + profile; វាស់លើ NVMe ទំនេរ ≥ 25% និង LAN ពិត។ checkpoint សប្ដាហ៍ទី ២ (ផ្នែក ៥); រក្សា invariant "commit តែក្រោយ flush"; "fast finish មិន durable" ដូច IDM មិនបានយក (ជាសេចក្ដីសម្រេចផលិតផល មិនមែនការកែ bug) |
+| R13 | ភស្តុតាង G3 ជា local validation (គ្មាន admin): FAT/exFAT/SMB, account ទីពីរ, DNS rebinding server ពិត, extractor ដែលរំលង proxy មិនបាន confine | ចំណុចសុវត្ថិភាពខ្លះនៅលើអំណះអំណាងរចនាសម្ព័ន្ធ | រត់ `check.ps1 s6 <path>` / S3 លើ volume/account ពិតក្នុង P1 CI; M-08 "មិនគាំទ្រ"; WFP user-mode ពិនិត្យ P2 |
+| R14 | Resume គ្មាន SHA-256 ដែលដឹងមុន: seam check មើលមិនឃើញការខូចខាងក្នុង prefix ដែល commit | ឯកសារអាចខូចដោយស្ងាត់ក្រោយ resume | UI បែងចែក "ទាញចប់ durable" ពី "ផ្ទៀងប្រភពរួច" (តែពេលមាន hash); test validator ខ្សោយ/គ្មាន, content ប្ដូរ, sidecar ខូច |
+| R15 | M-08 "មិនគាំទ្រ" មិនមែនការ confine; Job Object មិនមែន network confinement; proxy បញ្ជូនតែ read ដំបូង (គ្មាន POST body) | Extractor អាចរំលង proxy | Allowlist extractor + បដិសេធផ្លូវ network ក្រៅ proxy មុនរត់; test POST/extractor មិនគាំទ្រ ⇒ បដិសេធ |
+| R16 | `.part` sparse មិនកក់ទំហំ ⇒ ENOSPC អាចកើតគ្រប់ដំណាក់កាល | ខូច sidecar/metadata ឬ finalise ពាក់កណ្ដាល | Test ENOSPC ពេលទាញ, checkpoint, ដក sparse, hash, finalise, និងទាញច្រើនព្រមគ្នា ⇒ state កំហុសត្រឹមត្រូវ, 0 ឯកសារខូច។ Kill test = process crash មិនមែនដាច់ភ្លើង |
 
 ## ៧. Council (G4 review, 2026-11-09)
 
@@ -204,4 +216,14 @@ ChatGPT (Codex CLI, read-only) ពីរជុំ។ ខ្ញុំជាអ្
 - **កែការរចនាតាមជុំ ២:** pixel clip check ឥឡូវបែងចែក ink របស់អក្សរនីមួយៗ (គូរ/ថ្លា) និងមាន fixture ដែលដឹងចម្លើយ; ការវាស់ field ហៅថា "heuristic" មិនហៅថា "AA verified" ទេ។
 - **ទម្លាក់:** គ្មាន។ ការរកឃើញទាំងអស់មានភស្តុតាង។
 
-P0 exit council (ក្រោយ G3) ត្រូវធ្វើម្ដងទៀត ពេល G2+G3 ឆ្លង council រួច។
+### P0 exit council (ក្រោយ G3, 2026-11-09)
+
+ChatGPT (Codex CLI, read-only) ពីរជុំ លើ G3 ពេញ, G2 council, និងផ្នែក ៣, ៥, ៦។ ខ្ញុំជាអ្នកដឹកនាំ ហើយផ្ទៀងផ្ទាត់ជាមួយ `results.md`, `plan.md` និង blueprint §17។
+
+- **ការឯកភាព:** បិទ P0 ជា **ការវាយតម្លៃ** ដែល gate ល្បឿន durable ធ្លាក់; មិនត្រូវការ performance engineering បន្ថែមក្នុង P0 ទេ (plan S5 អនុញ្ញាត fallback "profile ⇒ ប្ដូរ buffer/flush")។ លុះត្រាម្ចាស់អនុម័ត exit.md ក្រោយ G3 (ការប៉ាន់ស្មាន 12.5 សប្ដាហ៍, protocol gate, ការពន្យារ G2 #15)។
+- **ទទួលយក និងកែរួច:** កំហុសនព្វន្ធចន្លោះ (11.5 ⇒ 11.3–14.5); បំបែក fallback G3 ជា ៥ ការងារ; protocol gate ល្បឿនបង្កក + checkpoint សប្ដាហ៍ទី ២ ដែលមានលទ្ធផល ៣; R12 រួមលទ្ធភាព "មិនអាចឆ្លង"; kill ×1000 លើ engine ផលិតផល; R14 (integrity គ្មាន hash), R15 (M-08), R16 (ENOSPC/sparse); arm64 = provisional; G2 #15 ពន្យារដោយច្បាស់។
+- **Codex ដកចេញវិញនៅជុំ ២:** MSIX −1.0 "ត្រូវការហេតុផល" (§17 P1 មាន MSIX + Store certification ពិត); "+1.0 test ជាការរាប់ពីរដង" ⇒ ហៅថា allowance ដែលដាក់ឱ្យច្បាស់ថ្មី។
+- **ទម្លាក់:** បំបែក 8 សប្ដាហ៍ដើម (blueprint មានតែចំនួនសរុប) ⇒ estimate ជា adjustments-only ហើយ conditional; Codex យល់ព្រម។
+- **Codex ខុស/មិនបានឃើញ:** "DPI មិនទាន់មាន" (G2 #14 PASS 100–175%, `2c955eb`); Codex មិនបានឃើញបញ្ជី ៣២ ជួរ (មិនបានផ្ញើ) ⇒ ពិនិត្យរួចក្នុង council G4 មុន។
+
+**ស្ថានភាព P0:** បិទ ពេលម្ចាស់អនុម័តកំណែក្រោយ G3 នេះ។
