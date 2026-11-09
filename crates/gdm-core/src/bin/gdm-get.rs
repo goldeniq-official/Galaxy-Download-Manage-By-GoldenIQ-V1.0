@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: RPL-1.5
-//! `gdm-get <db> <url> <dir> [--fixed N] [--new]`: download one URL with the engine (resumes the unfinished job
+//! `gdm-get <db> <url> <dir> [--fixed N] [--new] [--name NAME]`: download one URL with the engine (resumes the unfinished job
 //! for the same URL in that database). Test / benchmark tool, not shipped. Prints one line:
 //!   OK <sha256> <bytes> <transfer_s> <done_s> <peak_conns> <flushes> <flush_s> <path>      exit 0
 //!   FAIL <code> <detail>                                                                  exit 3
@@ -10,11 +10,12 @@ use std::time::Instant;
 async fn main() {
     let a: Vec<String> = std::env::args().collect();
     if a.len() < 4 {
-        eprintln!("usage: gdm-get <db> <url> <dir> [--fixed N] [--new]");
+        eprintln!("usage: gdm-get <db> <url> <dir> [--fixed N] [--new] [--name NAME]");
         std::process::exit(2);
     }
     let t0 = Instant::now();
-    let fixed = a.iter().position(|x| x == "--fixed").and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok());
+    let arg = |k: &str| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).cloned();
+    let fixed = arg("--fixed").and_then(|v| v.parse().ok());
     let e = match Engine::open(std::path::Path::new(&a[1]), seg::Config { fixed, ..seg::Config::default() }) {
         Ok(e) => e,
         Err(f) => {
@@ -34,7 +35,7 @@ async fn main() {
     };
     let id = match existing {
         Some(id) => id,
-        None => match e.add(NewJob { url: a[2].clone(), dir: a[3].clone().into(), typed: true, ..Default::default() }) {
+        None => match e.add(NewJob { url: a[2].clone(), dir: a[3].clone().into(), typed: true, name: arg("--name"), ..Default::default() }) {
             Ok(id) => id,
             Err(f) => {
                 println!("FAIL {} {f}", f.code());

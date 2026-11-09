@@ -1,0 +1,5 @@
+# id|url|bytes|sha256  (loopback fixture, gdm-fixture 8790; sha256 empty = pinned by the warm-up pair, both tools must agree)
+# lan1g: total cap trate=125000000 B/s = 1 Gbit/s link emulation (gate: >= 112.5 MB/s = 90%)
+# lan1g-percon: same link, server also caps each connection at 25 MB/s (segmentation has to earn the speed)
+lan1g|http://127.0.0.1:8790/file?size=1073741824&seed=7&trate=125000000|1073741824|
+lan1g-percon|http://127.0.0.1:8790/file?size=1073741824&seed=8&rate=25000000&trate=125000000|1073741824|
