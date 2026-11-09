@@ -84,7 +84,7 @@ html:lang(km) .btn-p { font-size: 13px; font-weight: 600; }
 .ext { font-family: var(--f-mono), var(--f-khmer), monospace; font-size: 10.5px; background: var(--chip); color: var(--tx-3); padding: 0 6px; border-radius: 6px; margin-inline-start: 6px; }
 .st { font-size: 12px; min-width: 0; padding: 6px 0; }
 .st .tx { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st.warn .tx { color: var(--warn); } .st.err .tx { color: var(--err); } .st.done .tx { color: var(--done); }
+.st.warn .tx { color: var(--warn); } .st.err .tx { color: var(--err); } .st.done .tx { color: var(--done); } .st.info .tx { color: var(--accent); }
 .bar { height: 4px; border-radius: var(--r-pill); background: var(--track); overflow: hidden; margin-top: 5px; }
 .bar > i { display: block; height: 100%; border-radius: inherit; background: var(--accent-grad); background-size: 200px 100%; }
 .bar.warn > i { background: var(--warn-grad); } .bar.done > i { background: var(--done); }
@@ -213,6 +213,11 @@ const S = {
   step:"ជំហាន ២ នៃ ៣", obTitle:"ភ្ជាប់ browser របស់អ្នក", obText:"GDM រកឃើញ browser ៣ ក្នុងម៉ាស៊ីននេះ។ ដំឡើង extension ដើម្បីឱ្យ GDM ចាប់ការទាញយកពី browser។",
   bConn:"បានភ្ជាប់", bInstall:"ដំឡើង extension", bVer:"កំណែ", tipText:"<kbd>Ctrl</kbd> + ចុច = បង្ខំឱ្យ GDM ទាញ · <kbd>Alt</kbd> + ចុច = ទុកឱ្យ browser ទាញ។ អាចប្ដូរគ្រាប់ចុចក្នុងការកំណត់។", skip:"រំលង", back:"ថយក្រោយ", next:"បន្ទាប់",
   min:"បង្រួម", max:"ពង្រីក", close:"បិទ",
+  stTitle:"ស្ថានភាពការទាញយក", stItems:"៨ ធាតុ",
+  finalizing:"កំពុងពិនិត្យជាមួយ antivirus និង SHA-256", unverified:"បានបញ្ចប់ · មិនបានផ្ទៀងផ្ទាត់ (server គ្មាន ETag)", verifyHash:"ផ្ទៀងផ្ទាត់ hash",
+  unprotected:"បានបញ្ចប់ · ថត exFAT មិនការពារ (គ្មាន Mark-of-the-Web)", blocked:"ត្រូវ antivirus រារាំង · មិនបានរក្សាទុក", why:"ហេតុអ្វី?",
+  changed:"ឯកសារលើ server បានប្ដូរ · ផ្នែកចាស់នៅដដែល", restart:"ចាប់ផ្ដើមឡើងវិញ", askResume:"បន្តដោយមិនអាចផ្ទៀងផ្ទាត់ ឬចាប់ផ្ដើមថ្មី?", fresh:"ចាប់ផ្ដើមថ្មី",
+  diskFull:"Disk មិនគ្រប់ · ត្រូវការ 6.9 GB (រក្សា 1 GB ទុក)", moveTo:"ប្ដូរថត", privateNet:"ទាញពីបណ្ដាញក្នុង 192.168.1.20?", allow:"អនុញ្ញាត",
  },
  en: {
   all:"All", active:"Downloading", done:"Complete", queue:"Queues", cats:"Categories", zip:"Compressed", video:"Video", music:"Music", docs:"Documents", apps:"Programs", settings:"Settings",
@@ -230,6 +235,11 @@ const S = {
   step:"Step 2 of 3", obTitle:"Connect your browser", obText:"GDM found 3 browsers on this PC. Install the extension so GDM can catch downloads from them.",
   bConn:"Connected", bInstall:"Install extension", bVer:"version", tipText:"<kbd>Ctrl</kbd> + click = force GDM · <kbd>Alt</kbd> + click = let the browser download. Keys can be changed in Settings.", skip:"Skip", back:"Back", next:"Next",
   min:"Minimise", max:"Maximise", close:"Close",
+  stTitle:"Download states", stItems:"8 items",
+  finalizing:"Checking with antivirus and SHA-256", unverified:"Complete · not verified (server sent no ETag)", verifyHash:"Verify hash",
+  unprotected:"Complete · exFAT folder is unprotected (no Mark-of-the-Web)", blocked:"Blocked by antivirus · not saved", why:"Why?",
+  changed:"The file changed on the server · old part kept", restart:"Start over", askResume:"Continue unverified or start over?", fresh:"Start over",
+  diskFull:"Not enough disk space · 6.9 GB needed (1 GB kept free)", moveTo:"Change folder", privateNet:"Download from the local network 192.168.1.20?", allow:"Allow",
  }
 }[LANG];
 
@@ -258,10 +268,30 @@ const statusCell = r => {
   if (r.st === "needLink") return `<div class="st warn"><span class="tx" title="${S.needLink}">${S.needLink}</span>${B("act", S.refresh)}</div>`;
   if (r.st === "html") return `<div class="st err"><span class="tx" title="${S.html}">${S.html}</span>${B("act", S.openBrowser)}</div>`;
   if (r.st === "finished") return `<div class="st done"><span class="tx">${S.finished}</span>${B("act", S.openFolder)}</div>`;
+  const one = (cls, tx, act) => `<div class="st ${cls}"><span class="tx" title="${S[tx]}">${S[tx]}</span>${act ? B("act", S[act]) : ""}</div>`;
+  if (r.st === "finalizing") return `<div class="st info"><span class="tx" title="${S.finalizing}">${S.finalizing}</span><div class="bar"><i style="width:100%"></i></div></div>`;
+  if (r.st === "unverified") return one("done", "unverified", "verifyHash");
+  if (r.st === "unprotected") return one("warn", "unprotected", "openFolder");
+  if (r.st === "blocked") return one("err", "blocked", "why");
+  if (r.st === "changed") return one("warn", "changed", "restart");
+  if (r.st === "askResume") return one("warn", "askResume", "fresh");
+  if (r.st === "diskFull") return one("err", "diskFull", "moveTo");
+  if (r.st === "privateNet") return one("warn", "privateNet", "allow");
   return `<div class="st"><span class="tx" title="${S.queued}">${S.queued}</span></div>`;
 };
-const list = (sel) => `<div class="list" role="grid" aria-label="${S.title}"><div class="cols" role="row"><span></span><span>${S.cName}</span><span>${S.cSize}</span><span>${S.cStatus}</span><span>${S.cSpeed}</span><span>${S.cLeft}</span></div>
-  ${ROWS.map((r,i) => `<div class="row fx${i===sel?" is-selected":""}" role="row" tabindex="0" aria-selected="${i===sel}"><span class="ft ${r.ft}">${ic(r.fi)}</span>
+// G5 engine states (Fail / Protection in crates/gdm-core): every state names its cause and offers one action
+const STATE_ROWS = [
+ {ft:"app", fi:"app-window", n:"ubuntu-24.04.3-desktop-amd64.iso", ext:"iso", sz:"5.9 GB", st:"finalizing", sp:"—", left:"—", sub:"releases.ubuntu.com"},
+ {ft:"doc", fi:"file-doc", n:"សៀវភៅណែនាំ-គណិតវិទ្យា-ថ្នាក់ទី១២.pdf", ext:"pdf", sz:"18 MB", st:"unverified", sp:"—", left:"—", sub:"files.example.edu.kh"},
+ {ft:"app", fi:"app-window", n:"VLC-3.0.22-win64.exe", ext:"exe", sz:"44 MB", st:"unprotected", sp:"—", left:"—", sub:"get.videolan.org"},
+ {ft:"app", fi:"app-window", n:"free-crack-installer.exe", ext:"exe", sz:"2.1 MB", st:"blocked", sp:"—", left:"—", sub:"dl.example.net"},
+ {ft:"zip", fi:"file-zip", n:"dataset-2026-q3.zip", ext:"zip", sz:"2.4 GB", st:"changed", sp:"—", left:"—", sub:"data.example.org"},
+ {ft:"vid", fi:"file-video", n:"មេរៀន-ភាសាអង់គ្លេស-វគ្គ៤.mp4", ext:"mp4", sz:"860 MB", st:"askResume", sp:"—", left:"—", sub:"media.example.com"},
+ {ft:"app", fi:"app-window", n:"windows-11-26h2-x64.iso", ext:"iso", sz:"5.9 GB", st:"diskFull", sp:"—", left:"—", sub:"software.example.com"},
+ {ft:"zip", fi:"file-zip", n:"backup-nas-2026-11.7z", ext:"7z", sz:"—", st:"privateNet", sp:"—", left:"—", sub:"192.168.1.20"},
+];
+const list = (sel, rows = ROWS) => `<div class="list" role="grid" aria-label="${S.title}"><div class="cols" role="row"><span></span><span>${S.cName}</span><span>${S.cSize}</span><span>${S.cStatus}</span><span>${S.cSpeed}</span><span>${S.cLeft}</span></div>
+  ${rows.map((r,i) => `<div class="row fx${i===sel?" is-selected":""}" role="row" tabindex="0" aria-selected="${i===sel}"><span class="ft ${r.ft}">${ic(r.fi)}</span>
    <div class="nm"><b title="${r.n}">${r.n}</b><small><span class="sub">${r.sub}</span><span class="ext">.${r.ext}</span></small></div><span class="num">${r.sz}</span>${statusCell(r)}<span class="num">${r.sp}</span><span class="num">${r.left}</span></div>`).join("")}</div>`;
 
 const mainCol = (sel, extra = "") => `<section class="main"><div class="top"><h1>${S.title}</h1>
@@ -309,6 +339,7 @@ const screens = {
    <div class="sec"><h3>${S.hSpeed}</h3><div class="card list-card">
     <div class="opt"><div class="t"><b>${S.tlimit}</b><small>${S.tlimitS}</small></div><label class="fld" style="margin:0"><div class="in" style="width:130px"><input class="mono" value="2 MB/s" aria-label="${S.tlimit}"></div></label><button class="fx fx-strong toggle" role="switch" aria-checked="false" aria-label="${S.tlimit}"></button></div></div></div>
   </div></section></div>`),
+ states: () => shell(`<div class="body"><nav class="rail">${navs("all")}</nav>${mainCol(-1, list(-1, STATE_ROWS)).replace(`<h1>${S.title}</h1>`, `<h1>${S.stTitle}</h1>`).replace(`<span>${S.items}</span>`, `<span>${S.stItems}</span>`)}</div>`),
  onboarding: () => shell(`<div class="ob"><div class="card"><div style="display:flex;align-items:center;gap:12px"><div class="dots"><i class="past"></i><i class="on"></i><i></i></div><span class="meta">${S.step}</span></div>
   <h2>${S.obTitle}</h2><p>${S.obText}</p>
   ${[["Google Chrome","148.0",1],["Microsoft Edge","148.0",0],["Mozilla Firefox","146.0",0]].map(b=>`<div class="brow"><span class="ft doc">${ic("browser")}</span><div class="t"><b>${b[0]}</b><small>${S.bVer} ${b[1]}</small></div>${b[2]?`<span class="ok">${ic("check-circle#fill")}${S.bConn}</span>`:B("btn btn-s", ic("puzzle-piece") + S.bInstall)}</div>`).join("")}
