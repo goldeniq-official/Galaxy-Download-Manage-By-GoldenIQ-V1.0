@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: RPL-1.5
+# G3 (P0-C) throwaway spikes. Never shipped. Run: spikes/engine/check.ps1 <spike>
+[package]
+name = "gdm-spikes"
+version = "0.0.0"
+edition = "2021"
+publish = false
+authors = ["GoldenIQ"]
+license = "RPL-1.5"
+
+[workspace]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "http2"] }
+futures-util = "0.3"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+minisign = "0.7"
+minisign-verify = "0.2"
+base64 = "0.22"
+
+[dependencies.windows]
+version = "0.61"
+features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_IO",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+]
+
+[profile.release]
+debug = 1
