@@ -114,3 +114,123 @@ powershell -File msix/build.ps1 -Version 0.1.0.0 ; Add-AppxPackage out/gdm-spike
 **ការសម្រេច (Claude ជាអ្នកដឹកនាំ):** កែក្នុង spike ហើយរត់ check ដែលរងផលប៉ះពាល់ឡើងវិញ: harness (#4), uninstall មានតែអ្វីដែលខ្លួនជាម្ចាស់ + sentinel (#8), Abort ពេល register បរាជ័យ, check-host (#1), កែស្លាក #7 #8 #9 #17។ ការរត់ឡើងវិញក៏បានរកឃើញ `Un.exe` នៅ %TEMP% (#8) ដែលការពិនិត្យមុនបានខកខាន។ ចំណុចផ្សេងទៀតត្រូវបានកត់ទុកជា P1 (ការរកឃើញ 7–11)។
 **ការឯកភាព:** Codex យល់ព្រមថាធាតុ P1 មិនរារាំងការបញ្ជាក់ផ្លូវ NSIS ទេ (S8 ជាម្ចាស់ U-06/U-02) ហើយផ្ដល់យោបល់កុំពង្រីកការ Abort ទៅជា rollback engineering។ **ទម្លាក់:** ការរត់ឡើងវិញទាំងស្រុង (រត់តែ check ដែលរងផលប៉ះពាល់)។
 **សេចក្ដីសន្និដ្ឋានរួម:** ផ្លូវ NSIS per-user ត្រូវបានបង្ហាញលើ Windows 11 ប៉ុន្តែ G2 **មិនទាន់រួចរាល់ពេញលេញ** រហូតដល់ Windows 10, DPI, អ្នកអានខ្មែរ មានលទ្ធផល ឬម្ចាស់យល់ព្រមពន្យារ។
+
+
+## G3: ភាពត្រឹមត្រូវ engine និងព្រំដែនសុវត្ថិភាព (S2–S8) + benchmark ធៀប IDM 6.43
+
+ថ្ងៃ: 2026-11-09។ កូដ spike (throwaway, មិនចែកចាយ): `spikes/engine/` (crate តែមួយ, binary មួយក្នុងមួយ spike, `src/fixture.rs` = S4 fixture ដែល P1 យកទៅ `fixtures/`)។ Plan: `docs/p0/plan.md` (ម្ចាស់បញ្ជាក់ 058e165)។ សេចក្ដីសម្រេចដែល session ធ្វើ: `docs/decisions.md`។
+**ស្លាកលទ្ធផល:** រាល់លទ្ធផលជា **LOCAL VALIDATION** លើម៉ាស៊ីនម្ចាស់ (គ្មាន admin)។ "LAN" = loopback fixture ដែលកំណត់ល្បឿន មិនមែន NIC ពិត។ `TerminateProcess` បង្ហាញតែការ recover ពី process crash មិនមែនដាច់ភ្លើងទេ។
+
+**សេចក្ដីសន្និដ្ឋានរួម:** G3 បិទជា **ការវាយតម្លៃ** ដែលមាន **gate មួយធ្លាក់**។ S2–S8 មាន check ដែលរត់ឡើងវិញបាន ហើយ PASS ទាំងអស់។ ចំណុចដែលមិនអាចសាកនៅទីនេះមាន fallback កត់ទុក។ Gate ល្បឿនផលិតផល (durable) ធៀប IDM **ធ្លាក់** លើម៉ាស៊ីននេះ (មើល "Benchmark")។ Gate 90% goodput ឆ្លងតែផ្លូវ network របស់ engine លើ loopback ប៉ុណ្ណោះ។
+
+### បរិស្ថាន
+
+| អ្វី | Version / ស្ថានភាព |
+|---|---|
+| Windows 11 Pro | build 26300; គ្មានសិទ្ធិ admin |
+| CPU / RAM | Intel i5-12400F (12 threads) / 31.8 GB |
+| C: | ADATA LEGEND 710 NVMe (DRAM-less), **ពេញ 97%** (ទំនេរ 16.8 GB), **0% idle** ដោយ I/O ផ្ទៃក្រោយ ~40 MB/s ដែលមិនមែនរបស់ GDM/IDM |
+| D: | WD10EZEX 7200 rpm HDD, ទំនេរ 76%, idle |
+| Network | Ethernet Intel I219-V 1 Gbps; Internet ≈ 9–12 MB/s ក្នុង 1 connection (curl, 2026-11-09 16:5x) |
+| AV | Defender real-time **បិទ**; Bitdefender ដំឡើង (ដូចគ្នាទាំង GDM និង IDM) |
+| IDM | 6.43 build 10 (`IDMan.exe` FileVersion 6.43.10.3, sha256 `6C047F10…9E0254EF5`), connection លំនាំដើម 8 (គ្មាន override ក្នុង registry) |
+| Rust | rustc / cargo 1.97.1; tokio 1.54.1, reqwest 0.12.28 (hyper 1.12.0, rustls 0.23.46), windows 0.61.3, minisign 0.7.9 / minisign-verify 0.2.5, sha2 0.10.9, serde_json 1.0.154 |
+| yt-dlp | 2026.10.26 (sha256 `f5389d36…7a7d` = `SHA2-256SUMS` ផ្លូវការ) |
+| ffmpeg / ffprobe | N-128691-gcc583787bb-20261108 (sha256 `0d6723a6…0b8553` / `c070df72…466b6e`) |
+| iperf3 | មិនមាន (LAN gate ប្រើ fixture ដែលដឹង cap ច្បាស់) |
+
+### លទ្ធផល check នីមួយៗ
+
+ពាក្យបញ្ជា: `powershell -File spikes/engine/check.ps1 <spike>` (build ទៅ `%LOCALAPPDATA%\gdm-spike-target`, exit 0 = PASS គ្រប់បន្ទាត់)។ Log ពេញ: `docs/p0/g3-logs/<spike>.txt`។
+
+| Spike | Check | លទ្ធផល | អ្វីដែលបានបង្ហាញ | មិនបានបង្ហាញ ⇒ fallback / P1 |
+|---|---|---|---|---|
+| S4 hostile fixture | `check.ps1 s4` | **PASS 18/18** (9 s) | តាម wire ដោយ TCP ឆៅ: 206 ត្រឹមត្រូវ, If-Range ខុស ⇒ 200, 416, 200 មិនអើពើ Range, 206 រួច 200 ពាក់កណ្ដាល, ETag ប្ដូរ, body គ្មានទីបញ្ចប់, លើស/ខ្វះ, Content-Range ខុស, slowloris, slow body, redirect ឆ្លង origin, 429 + Retry-After, text/html, multipart/byteranges, log request + header | ផែនទី "fixture ⇒ លទ្ធផល engine" នៅក្នុង S5 (ខាងក្រោម) |
+| S5 segmenter | `check.ps1 s5` (30 រង្វង់) និង `check.ps1 s5 1000` | **PASS 36/36**; 1000 រង្វង់: **PASS 36/36** (41 នាទី) | Probe `Range: bytes=0-` + `Accept-Encoding: identity`; ramp ពី 2, +1/2 s ពេលល្បឿនកើន ≥ 10%, cap 8; split ពាក់កណ្ដាល ≥ 1 MiB; If-Range ជាមួយ strong ETag; fixture S4 ទាំងអស់ ⇒ ឯកសារត្រឹមត្រូវ ឬ state កំហុសត្រឹមត្រូវ (0 ឯកសារខូច); redirect ឆ្លង origin (port/host) ⇒ គ្មាន Cookie/Authorization + control same-origin; failpoint កំណត់ ៦ (`lease_revoke`, `after_ack`, `mid_write`, `after_sync`, `after_sidecar_tmp`, `after_commit`) ⇒ byte ដែល commit ត្រូវលើ disk + resume sha ត្រូវ; crash មុន rename ចុងក្រោយ ⇒ resume ស្នើតែ 320 KiB; sidecar ខូចរចនាសម្ព័ន្ធ ⇒ ចោល; **sidecar រចនាសម្ព័ន្ធត្រឹមត្រូវតែកុហក** ⇒ seam check ចាប់ ⇒ sha ត្រូវ; **kill 1000 ដង: 0 byte ខូចលើ disk, 0 progress ថយ, 25/25 ឯកសារ sha256 ត្រូវ** | Gate ល្បឿន durable ធ្លាក់ (Benchmark)។ **ដែនកំណត់ (NOTE):** seam check ពិនិត្យតែព្រំដែន segment; ការខូចខាងក្នុង prefix ដែល commit មិនត្រូវបានរកឃើញ ⇒ ត្រូវការ SHA-256 ដែលដឹងមុន។ Write ចាស់មិនអាចសរសេរក្រោយ split: worker សរសេរ និងដោះស្រាយ Shrink ក្នុង loop តែមួយតាមលំដាប់ ⇒ ack តែពេល cursor < mid ហើយ clamp គ្រប់ write ក្រោយ (អំណះអំណាងរចនាសម្ព័ន្ធ + failpoint, council យល់ព្រម) |
+| S6 finalisation | `check.ps1 s6` | **PASS 8/8** | Byte count ≠ total ⇒ បរាជ័យ; sha256 ខុស ⇒ បរាជ័យ; `IAttachmentExecute::Save` S_OK លើ NTFS ⇒ `Zone.Identifier` ZoneId=3 (+HostUrl តាម policy) នៅរស់ក្រោយ rename; rename តាម handle `ReplaceIfExists=false` ⇒ ឯកសារអ្នកប្រើមិនត្រូវជំនួស (0x800700B7); EICAR ⇒ **"ត្រូវបានរារាំង"** គ្មានឈ្មោះចុងក្រោយ; FS ឈ្មោះ exFAT ⇒ **"គោលដៅមិនការពារ"** | **FAT/exFAT ពិត និង SMB: មិនបានសាក** (គ្មាន admin សម្រាប់ VHD, គ្មាន USB/share) ⇒ `s6 <path>` រត់លើ volume ពិតពេលមាន។ **AV:** Bitdefender មិនផ្ដល់ error code ទេ (វាស់: write/read តាម handle ជោគជ័យ, លុបដោយស្ងាត់ ~1.5 s ក្រោយ close) ⇒ "ត្រូវបានរារាំង" = "សង្ស័យ security software" ពេលឯកសារបាត់ ហើយ probe ស្លូតនៅរស់; ឯកសារដែល process ផ្សេងលុបក៏ត្រូវចាត់ដូចគ្នា (NOTE) ⇒ P1: Defender MpThreatDetection / AMSI ជាភស្តុតាងវិជ្ជមាន |
+| S3 named pipe | `check.ps1 s3` | **PASS 19/19** (រត់ ៣ ដង ដូចគ្នា) | DACL អានវិញ = `D:P(A;;FA;;;<SID user>)` (protected, ACE តែមួយ); principal ផ្សេង (anonymous token, និង token ដែល SID user ជា deny-only) បើក/បង្កើត instance ⇒ ERROR_ACCESS_DENIED, control: principal ដដែលបើក pipe DACL លំនាំដើមបាន; instance ទី ២ ដោយ user ដដែល ⇒ 231; server ឃើញ client ត្រឹម SecurityIdentification (SQOS); message 100 KiB ⇒ បដិសេធ; JSON ជ្រៅ 5000 ⇒ បដិសេធ (recursion limit 128) ហើយ server នៅរស់; `\\127.0.0.1\pipe\…` ⇒ បដិសេធ (control: pipe គ្មាន flag ចូលបាន); **pipe squat មុន ⇒ server ពិតបរាជ័យដោយបិទ (FAILCLOSED 5), client បដិសេធ 50/50, squatter ទទួល 0 message**, control: client មិនផ្ទៀង លេចធ្លាយទៅ squatter | Account ទីពីរពិត / session ផ្សេង: មិនបានសាក (ត្រូវការ admin)។ Client ផ្ទៀងតែ image path (fallback មុន SignPath); **ACL ថតដំឡើង មិនទាន់ implement** (P1); Authenticode ក្រោយ SignPath ត្រូវចងនឹង image របស់ process handle ដែលកាន់ មិនមែន path។ `nMaxInstances=1` ក្នុង spike; P1 ត្រូវការ instance ច្រើន ⇒ client verify ជាអ្នកការពារ។ Same-user នៅក្រៅ threat model |
+| S2 handoff (ខាង host) | `check.ps1 s2` | **PASS 18/18** | Origin ត្រឹមត្រូវ + cookie ក្នុង scope ⇒ ទទួល, stdout មានតែ frame, គ្មានឯកសារសរសេរ; origin ផ្សេង, message 10 MB (> 64 KiB មុនអាន body), header ខ្លី/កាត់, UTF-8/JSON ខូច, cookie ក្រៅ scope (hostOnly, site ផ្សេង, Secure ទៅ http, Path), header injection, `file://`, userinfo, ticket ផុត ឬ > 60 s, field មិនស្គាល់ (ឧ. `path`) ⇒ បដិសេធ | ខាង browser ពិត (MV3, `chrome.cookies`) = G2 S1a (Chrome/Edge/Firefox ពិត, `sendNativeMessage` 100/100 + `connectNative` 2/2, `docs/p0/g2-logs/`)។ **Ticket durable + failure injection + 200 handoff: មិនទាន់ធ្វើ** ⇒ P1។ "Cookie មិនរក្សាទុក" = គោលការណ៍ app (log, ticket, diagnostics) ត្រូវផ្ទៀងក្នុង P1 |
+| S7 yt-dlp proxy + media gate | `check.ps1 s7` | **PASS 26/26** | គ្មាន/ខុស Proxy-Authorization ⇒ 407; SSRF matrix 23/23 បដិសេធ (GET + CONNECT); CONNECT authority ចម្លែក ⇒ បដិសេធ; yt-dlp `-J --ignore-config --no-plugin-dirs` + `--` ⇒ URL មេឌៀ; redirect ទៅ loopback ⇒ **proxy REFUSED លើ connection ផ្ទាល់ខ្លួន (403 Forbidden by GDM policy)** + control redirect ទៅទំព័រដែលអនុញ្ញាតដំណើរការ; `--exec=…` ក្រោយ `--` ⇒ គ្មាន command រត់; engine: literal loopback, `localtest.me` (DNS សាធារណៈ ⇒ 127.0.0.1), redirect hop ទៅ loopback ⇒ Forbidden មុន connect (canary 0) + control; DNS answer public+private ⇒ បដិសេធទាំងមូល; វីដេអូ+សំឡេងដាច់ ⇒ engine ទាញ ⇒ ffmpeg mux (`-protocol_whitelist file,pipe`) ⇒ ffprobe video,audio; progressive ⇒ video,audio; ffmpeg បដិសេធ http input និង playlist ដែលចង្អុល http; proxy បិទក្រោយ run | **ការធានា ADR-6 = តែ request ដែលគោរព `--proxy`**; extractor ដែលរំលង proxy មិនត្រូវបាន confine (គ្មាន WFP, គ្មាន admin) ⇒ "មិនគាំទ្រ" (M-08) / WFP user-mode ពិនិត្យ P2។ DNS rebinding server ពិតមិនបានរត់ (រចនាសម្ព័ន្ធ: lookup មួយក្នុងមួយ connection ហើយ connect តែទៅ address ដែលបានពិនិត្យ)។ Job Object limits មិនក្នុង spike ⇒ P1។ Proxy មិនបញ្ជូន request body លើស read ដំបូង (yt-dlp `-J` មានតែ GET) |
+| S8 update + recover | `check.ps1 s8` | **PASS 12/12** | 1.1.0 ចុះហត្ថលេខា ⇒ ដំឡើង; byte ប្ដូរ ⇒ sha256 បដិសេធ; sha256 ក្លែងត្រូវគ្នា ⇒ minisign បដិសេធ; key ផ្សេង ⇒ បដិសេធ; កំណែចាស់ / ដូចគ្នា ⇒ បដិសេធ; កាន់ handle (share READ) ⇒ overwrite/delete/rename ឯកសារ staged ត្រូវរារាំង; installed bytes = verified bytes (កញ្ចប់អានចូល memory តាម handle ដែលកាន់, verify + extract ពី bytes ដដែល); crash នៅជំហាននីមួយៗ ⇒ 1.0.0 ឬ 1.1.0 ដែល verify ពេញ; **kill ចៃដន្យ 20/20 ⇒ launcher ចាប់ផ្ដើម version ដែល verify** (8 × 1.0.0, 12 × 1.1.0); ឯកសារ version ថ្មីខូច ⇒ ត្រឡប់ 1.0.0 + flag "Update បរាជ័យ" | **ផ្លូវដែលបាន PASS = plan B (ថត A/B + pointer)** ត្រូវបានទទួលយកជាផ្លូវ P0; NSIS passive in-place មិនមែនផ្លូវដែលបានសាក។ "Install តែពេល idle" (U-02), ACL staging/reparse: P1 |
+
+### Bug ដែលរកឃើញ និងកែក្នុង G3
+
+1. **Fixture pacer** គេងរាល់ chunk 256 KiB ហើយ timer Windows 15.6 ms ⇒ cap ~17 MB/s ក្នុងមួយ connection (ផ្ដល់អត្ថប្រយោជន៍ IDM 8 conn) ⇒ គេងតែពេលលឿនមុន ≥ 20 ms + credit 20 ms (1 conn 125.6 MB/s, 8 conn 124 MB/s)។
+2. **Fixture response 200** (request គ្មាន Range) មិនជាប់ cap; trace បង្ហាញថា connection ទី ១ របស់ IDM គ្មាន Range ⇒ run LAN ដំបូងលំអៀង ហើយត្រូវបោះចោល (`bench/lan-baseline-*` ទុកជាភស្តុតាងបញ្ហាតែប៉ុណ្ណោះ)។ Trace ក៏បង្ហាញ IDM ទាញ overlap 64 byte នៅព្រំដែន segment។
+3. **Zero-fill NTFS**: write នៅកណ្ដាលឯកសារក្រោយ `set_len` ⇒ NTFS zero-fill ចន្លោះ (4 conn 12.6 s ទល់ 8.6 s) ⇒ `.part` sparse, ដក flag ពេល finalise (sparse មិនកក់ទំហំ ⇒ P1 ពិនិត្យទំហំទំនេរមុន)។
+4. **HTTP/2**: segment ក្លាយជា stream លើ TCP តែមួយ (CDN: segment 3, TCP 1, 9.9 MB/s) ⇒ segmenter ប្រើ HTTP/1.1 ដូច IDM។
+5. **Partial write**: ចំនួន byte ពី `seek_write` មិនត្រូវបានពិនិត្យ ⇒ loop រហូតអស់។
+6. **Proxy S7**: request ទី ២ លើ connection keep-alive ទៅ upstream ចាស់ដោយមិនពិនិត្យ (PASS មុននោះទទេ) ⇒ request មួយក្នុង connection មួយ + `Connection: close`។
+7. **Engine S7**: ពិនិត្យ ហើយ reqwest resolve ម្ដងទៀត, redirect មិនពិនិត្យ ⇒ resolver ដែលពិនិត្យ + ពិនិត្យ literal នៅរាល់ hop។
+8. **Probe offset**: ពេល seam check ផ្លាស់ byte ខ្វះដំបូង, body របស់ probe អាចត្រូវសរសេរខុសទីតាំង ⇒ ផ្ដល់ probe លុះត្រា offset ដូចគ្នា។
+9. **Sidecar ចុងក្រោយ** មិនត្រូវបានសរសេរ ⇒ crash មុន rename ទាញ window ចុងក្រោយម្ដងទៀត ⇒ សរសេរ "commit ទាំងអស់" ក្រោយ final sync។
+10. **Probe ពេល commit គ្រប់** ស្នើ `bytes=0-` ⇒ ស្នើតែ byte ចុងក្រោយ។
+11. **Harness**: typeperf ទុកតម្លៃទទេចុងក្រោយ ⇒ parse បរាជ័យ ⇒ រំលងតម្លៃមិនមែនលេខ។
+
+### Benchmark ធៀប IDM 6.43 (plan ង)
+
+Harness: `spikes/engine/bench.ps1` (គូ GDM/IDM, លំដាប់ AB/BA ចៃដន្យដែលមានតុល្យភាព seed 20261109, warm-up 1 គូមិនរាប់, restart IDM រាល់ run, `ipconfig /flushdns`, CPU = typeperf ម៉ាស៊ីនទាំងមូល 1 s, RAM = Private Bytes peak, connection = `Get-NetTCPConnection`), របាយការណ៍ `python -I spikes/engine/bench_report.py <csv…>`, URL: `docs/p0/bench-urls.md`, ទិន្នន័យឆៅ: `docs/p0/bench/*.csv` + `*-log.txt`។
+**ចំណុចបញ្ចប់:** GDM `done_s` = ចប់ពិត (final sync + sha256 + IAttachmentExecute + rename); IDM = ពេលឯកសារមានទំហំពេញ ហើយបើក exclusive បាន (IDM មិន flush)។ ដូច្នេះ GDM `transfer_s` ទល់ IDM done ជាការប្រៀបធៀបផ្ទេរ, ហើយ GDM done ទល់ IDM done ជាការប្រៀបធៀបផលិតផល (ចំណុចបញ្ចប់មិនស្មើគ្នា: GDM durable)។ MB/s = ទសភាគ (bytes ÷ done_s)។
+
+**LAN gate (loopback fixture S4, link 1 Gbit/s = 125 MB/s; `lan1g` = cap សរុប, `lan1g-percon` = + 25 MB/s ក្នុងមួយ connection)** — config: c/d = disk C:/D:, a = លំនាំដើមទល់លំនាំដើម, b = GDM 8 ថេរ ទល់ IDM លំនាំដើម 8:
+
+| Config | URL | GDM MB/s median (worst) | IDM MB/s median (worst) | median r | សេចក្ដីសម្រេច | conn GDM / IDM | CPU ម៉ាស៊ីន GDM / IDM % | RAM GDM MB |
+|---|---|---|---|---|---|---|---|---|
+| C: a | lan1g | 62.4 (55.3) | 101.8 (73.2) | 0.598 | យឺតជាង | 3–6 / 8 | 12.0 / 14.5 | 20.1 |
+| C: a | lan1g-percon | 55.9 (46.1) | 100.5 (63.4) | 0.580 | យឺតជាង | 3–6 / 8 | 9.2 / 11.6 | 20.0 |
+| C: b | lan1g | 84.5 (82.3) | 109.0 (106.7) | 0.769 | យឺតជាង | 8 / 8–9 | 7.8 / 11.9 | 26.6 |
+| C: b | lan1g-percon | 78.2 (50.5) | 104.2 (62.7) | 0.822 | យឺតជាង | 8 / 8 | 10.8 / 14.8 | 26.9 |
+| D: a | lan1g | 65.5 (61.8) | 110.6 (108.9) | 0.588 | យឺតជាង | 3–6 / 8 | 7.4 / 13.1 | 20.1 |
+| D: a | lan1g-percon | 64.9 (63.5) | 106.1 (102.7) | 0.613 | យឺតជាង | 5 / 8 | 8.3 / 13.4 | 17.5 |
+| D: b | lan1g | 67.2 (61.4) | 110.1 (109.3) | 0.613 | យឺតជាង | 8 / 8 | 7.4 / 12.0 | 26.5 |
+| D: b | lan1g-percon | 68.4 (67.4) | 104.4 (102.2) | 0.653 | យឺតជាង | 8–9 / 8 | 6.1 / 14.3 | 26.7 |
+
+Geometric mean នៃ median(r): C: a 0.589, C: b 0.795, D: a 0.600, D: b 0.633 (គោលដៅ ≥ 0.95) ⇒ **ធ្លាក់**។ Ratio គូនីមួយៗ: CSV / `bench_report.py`។
+
+**Engine តែប៉ុណ្ណោះ (D:, commit តាមកាលកំណត់បិទ `GDM_FLUSH_MB=100000`, មិនមែនឥរិយាបថផលិតផល):** `lan1g` transfer 8.59–8.94 s = **120–125 MB/s (median 124.8 MB/s ≥ 112.5) ⇒ gate 90% ឆ្លងសម្រាប់ផ្លូវ network របស់ engine** លើ paced loopback (មិនមែន LAN ពិត)។ Done 12.7–17.2 s ព្រោះ final sync រុញ ~1 GB ពី cache ទៅ HDD។ IDM done 9.7–10.0 s។
+
+**CPU < 10% / RAM < 60 MB:** RAM engine ឆ្លង (11–27 MB)។ CPU ម៉ាស៊ីនទាំងមូល median 6–12% (12 threads, typeperf) ⇒ ឆ្លងលើ D:, នៅព្រំដែនលើ C: config a (12.0%); IDM 11–15%។
+
+**អ្វីដែលវាស់ ពីមូលហេតុល្បឿន durable (contributors ដែលបានវាស់ មិនមែនការពន្យល់ពេញ):** (1) `FlushFileBuffers` លើឯកសារ ធ្វើឱ្យ write ផ្សេងរង់ចាំ: fixed=1 គ្មាន flush 8.75 s, flush 8 MiB/2 s 15.8 s, flush តាមពេល 2 s 14.1 s; (2) ល្បឿន durable របស់ disk ខ្លួនឯង (python, 1 MiB, fsync រាល់ 8 MiB): D: 99 MB/s (គ្មាន fsync 177), C: 83–137 MB/s (រវល់); (3) ramp ឈប់នៅ 3–6 conn ព្រោះល្បឿនសរុបលែងកើន (disk-bound); (4) `FILE_FLAG_WRITE_THROUGH`: C: fixed=4 10.7 s តែ D: 17–18 s ⇒ បិទលំនាំដើម។ សូម្បីតែ 8 conn ថេរ GDM នៅតែចាញ់លើ C: ⇒ ផ្នែកមួយនៃភាពខុសគ្នានៅមិនទាន់ពន្យល់ពេញ។
+
+**Fallback (P1, plan S5 "profile ⇒ ប្ដូរ buffer/flush"):** រក្សា invariant "commit តែក្រោយ flush"; សាក writer ដាច់ដែលមាន queue កំណត់ + checkpoint តាមពេលជាមួយ budget re-download ក្រោយ crash; វាស់ពេល flush, ចំនួន checkpoint, byte ទាញឡើងវិញ; រត់ម្ដងទៀតលើ NVMe ដែលទំនេរ ≥ 25% និង LAN ពិតមានម៉ាស៊ីនទីពីរ + iperf3។ "Fast finish (មិន durable)" ដូច IDM = ជម្រើសផលិតផលដែលមិនបានយក។
+
+**Internet (CDN ៥, observations តែប៉ុណ្ណោះ):** config ក (លំនាំដើមទល់លំនាំដើម), disk D:, `docs/p0/bench/public-a.csv`, log `public-log.txt`; config ខ មិនរត់លើ Internet (docs/decisions.md)។
+
+**config pa**
+
+| URL | GDM MB/s median (worst) | IDM MB/s median (worst) | r per pair | median r | verdict | conns GDM/IDM | CPU avg GDM/IDM % | GDM priv MB peak | sha ok |
+|---|---|---|---|---|---|---|---|---|---|
+| cloudflare | 11.7 (11.0) | 5.1 (0.6) | 17.22 1.15 2.15 2.33 18.62 | 2.332 | faster | 3 / 2/8 | 8.6 / 11.0 | 12.4 | NO |
+| cloudfront | 11.3 (10.8) | 11.2 (10.8) | 1.02 1.09 0.95 0.97 1.04 | 1.015 | equal | 4 / 8 | 5.4 / 8.5 | 13.3 | yes |
+| fastly | 10.3 (8.2) | 0.8 (0.4) | 5.46 27.25 12.28 5.55 26.45 | 12.277 | faster | 3 / 2/8 | 5.9 / 6.1 | 12.1 | NO |
+| github | 9.1 (8.9) | 10.4 (9.7) | 0.88 0.82 0.92 1.01 0.87 | 0.883 | slower | 4 / 8 | 5.6 / 8.4 | 12.0 | yes |
+| google | 11.1 (10.8) | 4.6 (1.0) | 2.50 1.40 10.80 4.76 1.05 | 2.497 | faster | 3 / 8 | 8.0 / 14.8 | 13.1 | yes |
+
+equal-or-faster on 4/5 URLs; geometric mean of median(r) = 2.298 (target >= 0.95)
+
+កំណត់សម្គាល់: ផ្លូវ Internet ឈប់ត្រឹម ~11–12 MB/s (≈100 Mbit/s) ⇒ GDM ពេញ link ដោយ 3–4 connection; ពិន្ទុ "faster" មកពី IDM ជាប់ (cloudflare 2/5, fastly 2/5 timeout 600 s = sha missing ⇒ "sha ok NO" ជារបស់ IDM, GDM sha ត្រូវគ្រប់ run) មិនមែន GDM លឿនជាង link; github GDM យឺតជាង (r 0.883)។ Run ដែលបោះបង់ (HTTP/2 មុន `http1_only`, IDM ជាប់ 3600 s) ទុកជា `public-*-aborted-*`; log IDM ជាប់ `bench/idm-stall-cloudflare.log`។ លទ្ធផលនេះជា observation (ង.4) មិនមែន gate។
+
+### អ្វីដែលមិនទាន់ធ្វើ / ត្រូវការម្ចាស់
+
+- FAT/exFAT/SMB ពិត (S6), account ទីពីរពិត (S3): ត្រូវការ admin ឬ USB/share ⇒ អាចរត់ `s6 <path>` / S3 ពេលមាន។
+- Benchmark លើ LAN ពិត (ម៉ាស៊ីនទីពីរ) និង disk ដែលមិនពេញ: P1។
+- ការជ្រើស "fast finish មិន durable" ដើម្បីស្មើ IDM: មិនបានយក; ប្រសិនម្ចាស់ចង់បាន ត្រូវជាសេចក្ដីសម្រេចផលិតផល។
+
+### របៀបរត់ឡើងវិញ
+
+```
+powershell -File spikes/engine/check.ps1 s2|s3|s4|s5|s6|s7|s8      (s5 1000 = 1000 kill rounds, ~41 min)
+spikes/engine/s4 serve 8790   (LAN fixture; GDM_FIXTURE_TRACE=1 prints each request + Range)
+powershell -File spikes/engine/bench.ps1 -UrlFile spikes/engine/bench-lan.txt -Out lan.csv [-Fixed 8] -Root D:\gdm-bench
+python -I spikes/engine/bench_report.py docs/p0/bench/lan-d-a.csv ...
+```
+
+S7 ត្រូវការ `%LOCALAPPDATA%\gdm-spike-tools\{yt-dlp,ffmpeg,ffprobe}.exe` (sha256 ខាងលើ)។
+
+### Council (ChatGPT/Codex, read-only, 2 ជុំ, 2026-11-09)
+
+**ជុំ ១ (request changes):** Codex រកឃើញ: S7 PASS ទទេ (redirect) និង re-resolve; S5 1000 រង្វង់មិនទាន់រត់; sidecar រចនាសម្ព័ន្ធត្រឹមត្រូវតែកុហក; partial write; final rename; EICAR "បាត់" មិនមែនភស្តុតាង AV; FS matrix មិនពេញ; S3/S8/S2 ពាក្យខ្លាំងពេក; ការវាយតម្លៃ benchmark។
+**ការសម្រេច (Claude ជាអ្នកដឹកនាំ):** ផ្ទៀងគ្រប់ចំណុចជាមួយកូដ/ការវាស់។ ពិត ហើយបានកែ: S7 (ធ្ងន់ជាងគេនិយាយ: request ទី ២ ត្រូវបញ្ជូនដោយមិនពិនិត្យ), partial write, seam check (+ bug probe offset ដែលរកឃើញពេលធ្វើ), sidecar ចុងក្រោយ, ច្បាប់ AV, 1000 រង្វង់។ **ទម្លាក់:** harness ចាក់សោ write សម្រាប់ "write មិនទាន់ចប់ពេល revoke" (អំណះអំណាងរចនាសម្ព័ន្ធគ្រប់គ្រាន់, Codex យល់ព្រមជុំ ២); ការពន្យល់ parent rename S8 (កញ្ចប់ verify/extract ពី bytes ក្នុង memory)។
+**ជុំ ២:** Codex យល់ព្រម: អំណះអំណាង worker តាមលំដាប់, S8 bytes ក្នុង memory, ការកែ partial write / sidecar ចុងក្រោយ / probe guard, resolver ដែលពិនិត្យ (rebinding), ការរក្សា durability។ ចំណុចដែលនៅសល់ ហើយបានអនុវត្ត: បង្រួមការអះអាង seam check (+ NOTE interior corruption ដែលបង្ហាញ sha ខុស), ពាក្យ "សង្ស័យ security software", gate 90% តែលើ paced loopback, ពន្យល់ល្បឿនជា contributors, 1000 រង្វង់មុនបិទ (រួចហើយ)។
+**ការឯកភាព:** G3 បិទជា **ការវាយតម្លៃ** ដែល gate ល្បឿនផលិតផលធ្លាក់ មិនមែន "PASS ទាំងស្រុង"; fallback P1 ទទួលយកតែកន្លែងដែល plan អនុញ្ញាត។

@@ -406,8 +406,19 @@ async fn seam_ok(client: &Client, url: &str, validator: Option<&str>, headers: &
     for (k, v) in headers { rq = rq.header(k, v); }
     let Ok(r) = rq.send().await else { return false };
     if r.status() != StatusCode::PARTIAL_CONTENT || content_range(r.headers()).map(|(x, y, _)| (x, y)) != Some((a, Some(b - 1))) { return false; }
-    let Ok(body) = r.bytes().await else { return false };
-    let mut disk = vec![0u8; (b - a) as usize];
+    let want = (b - a) as usize;
+    if r.content_length().is_some_and(|n| n != want as u64) { return false; }
+    // bounded read: a hostile server cannot make this buffer grow past the 64 KiB we asked for
+    let mut r = r;
+    let mut body = Vec::with_capacity(want);
+    loop {
+        match r.chunk().await {
+            Ok(Some(c)) => { if body.len() + c.len() > want { return false; } body.extend_from_slice(&c); }
+            Ok(None) => break,
+            Err(_) => return false,
+        }
+    }
+    let mut disk = vec![0u8; want];
     body.len() == disk.len() && f.seek_read(&mut disk, a).is_ok_and(|n| n == disk.len()) && body[..] == disk[..]
 }
 

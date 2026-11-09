@@ -1,0 +1,65 @@
+﻿cloudflare pair 0 AB GDM: 33.405s 11.48 MB/s conns 3 sha_ok True
+cloudflare pair 0 AB IDM: 164.514s 2.33 MB/s conns 8 sha_ok True
+cloudflare pair 1 BA IDM: 600.059s 0.64 MB/s conns 8 sha_ok False
+cloudflare pair 1 BA GDM: 34.802s 11.02 MB/s conns 3 sha_ok True
+cloudflare pair 2 BA IDM: 37.879s 10.13 MB/s conns 8 sha_ok True
+cloudflare pair 2 BA GDM: 33.002s 11.62 MB/s conns 3 sha_ok True
+cloudflare pair 3 AB GDM: 32.776s 11.7 MB/s conns 3 sha_ok True
+cloudflare pair 3 AB IDM: 70.396s 5.45 MB/s conns 8 sha_ok True
+cloudflare pair 4 AB GDM: 32.504s 11.8 MB/s conns 3 sha_ok True
+cloudflare pair 4 AB IDM: 75.821s 5.06 MB/s conns 8 sha_ok True
+cloudflare pair 5 AB GDM: 32.178s 11.92 MB/s conns 3 sha_ok True
+cloudflare pair 5 AB IDM: 600.143s 0.64 MB/s conns 2 sha_ok False
+cloudflare pinned sha256 b6e72874f8cb5c4ed77f9b03d7f1fde851b9455a7ff02a1e1119c876318ebc65
+fastly pair 0 AB GDM: 24.206s 9.91 MB/s conns 3 sha_ok True
+fastly pair 0 AB IDM: 64.339s 3.73 MB/s conns 8 sha_ok True
+fastly pair 1 AB GDM: 23.27s 10.31 MB/s conns 3 sha_ok True
+fastly pair 1 AB IDM: 126.961s 1.89 MB/s conns 8 sha_ok True
+fastly pair 2 AB GDM: 22.004s 10.9 MB/s conns 3 sha_ok True
+fastly pair 2 AB IDM: 600.189s 0.4 MB/s conns 2 sha_ok False
+fastly pair 3 BA IDM: 290.129s 0.83 MB/s conns 8 sha_ok True
+fastly pair 3 BA GDM: 23.543s 10.19 MB/s conns 3 sha_ok True
+fastly pair 4 BA IDM: 163.456s 1.47 MB/s conns 8 sha_ok True
+fastly pair 4 BA GDM: 29.421s 8.16 MB/s conns 3 sha_ok True
+fastly pair 5 AB GDM: 22.676s 10.58 MB/s conns 3 sha_ok True
+fastly pair 5 AB IDM: 600.156s 0.4 MB/s conns 2 sha_ok False
+fastly pinned sha256 1376ce98485a0c8de4635d0bfb88760924e4a818c0439d830738bb1c690b7ca4
+cloudfront pair 0 AB GDM: 47.08s 10.4 MB/s conns 4 sha_ok True
+cloudfront pair 0 AB IDM: 46.434s 10.55 MB/s conns 8 sha_ok True
+cloudfront pair 1 BA IDM: 43.908s 11.15 MB/s conns 8 sha_ok True
+cloudfront pair 1 BA GDM: 43.247s 11.32 MB/s conns 4 sha_ok True
+cloudfront pair 2 AB GDM: 41.901s 11.69 MB/s conns 4 sha_ok True
+cloudfront pair 2 AB IDM: 45.509s 10.76 MB/s conns 8 sha_ok True
+cloudfront pair 3 AB GDM: 45.418s 10.78 MB/s conns 4 sha_ok True
+cloudfront pair 3 AB IDM: 43.398s 11.29 MB/s conns 8 sha_ok True
+cloudfront pair 4 AB GDM: 44.695s 10.96 MB/s conns 4 sha_ok True
+cloudfront pair 4 AB IDM: 43.435s 11.28 MB/s conns 8 sha_ok True
+cloudfront pair 5 BA IDM: 44.616s 10.98 MB/s conns 8 sha_ok True
+cloudfront pair 5 BA GDM: 42.847s 11.43 MB/s conns 4 sha_ok True
+cloudfront pinned sha256 2bd9c4ae8d6626db437f9c83b08200cbfdd73214c765e4291152d88b35d6596e
+github pair 0 AB GDM: 62.865s 11.07 MB/s conns 4 sha_ok True
+github pair 0 AB IDM: 64.948s 10.72 MB/s conns 8 sha_ok True
+github pair 1 AB GDM: 68.774s 10.12 MB/s conns 4 sha_ok True
+github pair 1 AB IDM: 60.726s 11.46 MB/s conns 8 sha_ok True
+github pair 2 BA IDM: 63.2s 11.01 MB/s conns 8 sha_ok True
+github pair 2 BA GDM: 77.194s 9.02 MB/s conns 4 sha_ok True
+github pair 3 BA IDM: 71.492s 9.74 MB/s conns 8 sha_ok True
+github pair 3 BA GDM: 77.808s 8.95 MB/s conns 4 sha_ok True
+github pair 4 AB GDM: 66.688s 10.44 MB/s conns 4 sha_ok True
+github pair 4 AB IDM: 67.517s 10.31 MB/s conns 8 sha_ok True
+github pair 5 AB GDM: 76.723s 9.07 MB/s conns 4 sha_ok True
+github pair 5 AB IDM: 66.608s 10.45 MB/s conns 8 sha_ok True
+github pinned sha256 6d5755ea64fe03565648297b7a68366ab026437d5dd4289bfb8cbbec6ee36971
+google pair 0 AB GDM: 37.945s 11.05 MB/s conns 3 sha_ok True
+google pair 0 AB IDM: 89.708s 4.67 MB/s conns 8 sha_ok True
+google pair 1 AB GDM: 36.745s 11.41 MB/s conns 3 sha_ok True
+google pair 1 AB IDM: 91.681s 4.57 MB/s conns 8 sha_ok True
+google pair 2 AB GDM: 34.558s 12.14 MB/s conns 3 sha_ok True
+google pair 2 AB IDM: 48.298s 8.68 MB/s conns 8 sha_ok True
+google pair 3 BA IDM: 408.574s 1.03 MB/s conns 8 sha_ok True
+google pair 3 BA GDM: 37.707s 11.12 MB/s conns 3 sha_ok True
+google pair 4 AB GDM: 39.024s 10.75 MB/s conns 3 sha_ok True
+google pair 4 AB IDM: 185.499s 2.26 MB/s conns 8 sha_ok True
+google pair 5 BA IDM: 40.918s 10.25 MB/s conns 8 sha_ok True
+google pair 5 BA GDM: 38.924s 10.77 MB/s conns 3 sha_ok True
+google pinned sha256 f1b9af0ac61980db80da03dbf5fc66fc6df48354eaa2c3b01a9ab779fae30e37
