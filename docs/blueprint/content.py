@@ -25,7 +25,7 @@ S00 = r"""
 <div class="kpi"><b>{{NSCEN}}</b><span>សេនារីយ៉ូដេញដោល តាម 17 មុខងារ (§12)</span></div>
 <div class="kpi"><b>{{N_CRITICAL}}</b><span>critical ដែលការរចនាត្រូវបិទមុន MVP</span></div>
 <div class="kpi"><b>0 $</b><span>ថ្លៃអ្នកប្រើ, គ្មានគណនី, គ្មាន telemetry</span></div>
-<div class="kpi"><b>18</b><span>ចំណុចដែលម្ចាស់ត្រូវសម្រេច (§19)</span></div>
+<div class="kpi"><b>19</b><span>ចំណុចក្នុង §19 (ខ្លះសម្រេចរួច)</span></div>
 </div>
 <p><strong>សេចក្ដីសម្រេចសំខាន់:</strong> GDM ជាកម្មវិធី Windows ដំបូង សរសេរដោយ Rust (engine) + Tauri v2 + React (UI)។ វាឥតគិតថ្លៃសម្រាប់អ្នកប្រើ ហើយប្រភពកូដអាចមើលបាន (source-available) ក្រោមអាជ្ញាប័ណ្ណកម្មសិទ្ធិរបស់ Golden IQ និង CHHIT Sungchhay (ម្ចាស់សម្រេច 2026-11-09)។ <strong>វាមិនមែនជា open source តាមនិយមន័យ OSI ទេ</strong>។ វារក្សាគ្រប់មុខងារ IDM និង NDM ដែលនៅមានន័យ ហើយកែចំណុចខ្សោយដែលអ្នកប្រើត្អូញត្អែរពិតប្រាកដ។</p>
 <ul>
@@ -425,8 +425,9 @@ S19 = r"""
 <tr><td>D5</td><td>ប៊ូតុងវីដេអូលើទំព័រ: បិទលំនាំដើម ហើយសួរនៅ onboarding?</td><td>បាទ</td><td>NDM/IDM ត្រូវត្អូញត្អែរថារំខាន; ChatGPT និងខ្ញុំឯកភាព។</td></tr>
 <tr><td>D6</td><td>Keyboard focus: ច្បាប់ម្ចាស់ហាម outline។ ស្នើ focus = ផ្ទៃ fill ប្ដូរពណ៌ (accent-soft) + អក្សរដិត។ យល់ព្រម?</td><td>យល់ព្រម</td><td>WCAG 2.4.7 តម្រូវឱ្យ focus មើលឃើញ, មិនតម្រូវឱ្យជា outline ទេ។ ក្រុមអ្នកប្រើ keyboard ត្រូវការ។</td></tr>
 <tr><td>D7</td><td>macOS: ពន្យារទៅ P4 (Apple $99/ឆ្នាំ)?</td><td>ពន្យារ</td><td>NDM ពេញនិយមលើ Mac។ Core ឯករាជ្យពី platform ដូច្នេះមិនបិទផ្លូវ។</td></tr>
-<tr><td>D8</td><td>Installer នៅលើ GitHub: ទុកគ្មានហត្ថលេខា (SmartScreen ព្រមាន) ឬទិញ OV certificate ឈ្មោះ Golden IQ?</td><td>Store MSIX ជាផ្លូវចម្បង; GitHub គ្មានហត្ថលេខាសិន; ទិញ cert ពេលមានថវិកា</td><td>Licence តឹងរឹងធ្វើឱ្យ SignPath មិនអាចប្រើបាន។ អ្នកប្រើភាគច្រើនដំឡើងពី Store (គ្មានការព្រមាន)។</td></tr>
-<tr><td>D9</td><td>Microsoft Store: គណនីបុគ្គល (ឥតគិតថ្លៃ, publisher = ឈ្មោះផ្ទាល់ខ្លួន) ឬគណនីក្រុមហ៊ុន (ថ្លៃម្ដង + ផ្ទៀងផ្ទាត់)?</td><td>ម្ចាស់សម្រេចតាម policy</td><td>Store policy 10.14: គណនីក្រុមហ៊ុនតម្រូវមិនត្រឹមតែសម្រាប់នីតិបុគ្គលដែលបានចុះបញ្ជីប៉ុណ្ណោះទេ ថែមទាំងសម្រាប់អ្នកដែលធ្វើសកម្មភាពក្នុងអាជីវកម្ម/វិជ្ជាជីវៈរបស់ខ្លួន និងឈ្មោះដែលត្រូវបានយល់ថាជាអាជីវកម្មផងដែរ។ ការបោះពុម្ពជា "Golden IQ" ទំនងជាត្រូវការគណនីក្រុមហ៊ុន។ គណនីបុគ្គលសមស្របតែពេលបោះពុម្ពជាឈ្មោះផ្ទាល់ខ្លួន ហើយមិនមែនជាអាជីវកម្ម។ Store ត្រូវបានចាត់ទុកថាអនុម័ត តែក្រោយ D18 (ខ) ត្រូវបានយល់ព្រម។</td></tr>
+<tr><td>D8</td><td>ផ្លូវចុះហត្ថលេខា និងចែកចាយ</td><td><strong>សម្រេចរួច (2026-11-09)</strong>: GitHub Releases ជាផ្លូវចម្បង, មិនពឹងលើភាគីទីបី</td><td>ម្ចាស់: "មិនចង់នៅក្រោមក្បាលអ្នកណាទេ" ⇒ Microsoft Store លែងជាផ្លូវចម្បង (នៅតែជាជម្រើសពេលក្រោយ)។ Installer GitHub ចេញដោយគ្មាន Authenticode ជាមួយ sha256 + GitHub attestation + minisign updater។ SmartScreen នឹងព្រមាននៅដំបូង ហើយទំព័រ download ពន្យល់ពីរបៀបផ្ទៀងផ្ទាត់។ ផ្លូវ certificate ឥតគិតថ្លៃមើល D19។</td></tr>
+<tr><td>D19</td><td>ម្ចាស់ចង់បាន certificate តាមផ្លូវ "Open Source" (SignPath) ហើយក៏ចង់ហាមអ្នកដទៃយកកូដទៅរកប្រាក់ ("កុំឱ្យឆ្នាំងបាយខ្លួនឯងទៅគេស៊ី") ដែរ។ ចំណុចទាំងពីរនេះផ្ទុយគ្នា: SignPath ទទួលតែ licence OSI, ហើយ Open Source Definition (OSD) ចំណុច 3 និង 6 តម្រូវឱ្យអនុញ្ញាតការកែប្រែ និងការប្រើពាណិជ្ជកម្ម។ ជ្រើសផ្លូវណា?</td><td>រក្សា licence បច្ចុប្បន្ន (ការពារកូដ), ចេញដោយគ្មាន certificate សិន</td><td>(ក) <strong>រក្សា licence</strong>: កូដត្រូវបានការពារ ហើយអ្នកប្រើនៅតែប្រើបានដោយសេរី ប៉ុន្តែគ្មាន certificate ឥតគិតថ្លៃ (SmartScreen ព្រមានរហូតដល់ reputation កើន ឬទិញ cert)។ (ខ) <strong>ប្ដូរទៅ GPL-3.0</strong>: SignPath ទទួលយក ហើយអ្នកណាដែលចែកចាយ fork ត្រូវបើកកូដរបស់គេ ប៉ុន្តែគេ<em>អាច</em>លក់ ឬប្រើពាណិជ្ជកម្មបាន ដែលផ្ទុយនឹងគោលបំណងចម្បងរបស់ម្ចាស់។ មិនមាន licence ណាដែលបានទាំងពីរយ៉ាងនេះទេ (ផ្ទៀងផ្ទាត់: signpath.org/terms, opensource.org/osd)។ ម្ចាស់សម្រេច។</td></tr>
+<tr><td>D9</td><td>Microsoft Store (ជម្រើសពេលក្រោយ, D8): គណនីបុគ្គល (ឥតគិតថ្លៃ, publisher = ឈ្មោះផ្ទាល់ខ្លួន) ឬគណនីក្រុមហ៊ុន (ថ្លៃម្ដង + ផ្ទៀងផ្ទាត់)?</td><td>ម្ចាស់សម្រេចតាម policy</td><td>Store policy 10.14: គណនីក្រុមហ៊ុនតម្រូវមិនត្រឹមតែសម្រាប់នីតិបុគ្គលដែលបានចុះបញ្ជីប៉ុណ្ណោះទេ ថែមទាំងសម្រាប់អ្នកដែលធ្វើសកម្មភាពក្នុងអាជីវកម្ម/វិជ្ជាជីវៈរបស់ខ្លួន និងឈ្មោះដែលត្រូវបានយល់ថាជាអាជីវកម្មផងដែរ។ ការបោះពុម្ពជា "Golden IQ" ទំនងជាត្រូវការគណនីក្រុមហ៊ុន។ គណនីបុគ្គលសមស្របតែពេលបោះពុម្ពជាឈ្មោះផ្ទាល់ខ្លួន ហើយមិនមែនជាអាជីវកម្ម។ Store ត្រូវបានចាត់ទុកថាអនុម័ត តែក្រោយ D18 (ខ) ត្រូវបានយល់ព្រម។</td></tr>
 <tr><td>D10</td><td>YouTube តាម component yt-dlp opt-in ក្នុង app (មិនមែនក្នុង extension Chrome)?</td><td>បាទ ជាមួយ notice</td><td>ជាតម្រូវការអ្នកប្រើខ្លាំង; ហានិភ័យច្បាប់កាត់បន្ថយដោយ component opt-in, គ្មាន DRM, គ្មាននៅក្នុង extension store។</td></tr>
 <tr><td>D11</td><td>ឈ្មោះផ្លូវការ: "Galaxy Download Manage" (ដូចបានសរសេរ) ឬ "Galaxy Download <strong>Manager</strong>"?</td><td>Manager</td><td>"Manage" ទំនងជាកំហុសវាយ។ ឯកសារនេះប្រើ "Manager" រហូតដល់ម្ចាស់សម្រេច។</td></tr>
 <tr><td>D12</td><td>អក្សរកាត់ "GDM" ជាន់ GNOME Display Manager (Linux)។ ប្រើ "GDM" តែក្នុង UI, ID package ប្រើ <code>GoldenIQ.GalaxyDownloadManager</code>?</td><td>បាទ</td><td>ជៀសការច្រឡំក្នុង winget/Flathub/ការស្វែងរក។</td></tr>
@@ -478,7 +479,7 @@ SECTIONS = [
     ("s16", "16", "Logo និង asset", S16),
     ("s17", "17", "ផែនការអភិវឌ្ឍ និង exit criteria", S17),
     ("s18", "18", "Council: Claude × ChatGPT", COUNCIL_HTML),
-    ("s19", "19", "ម្ចាស់ត្រូវសម្រេច (18)", S19),
+    ("s19", "19", "ម្ចាស់ត្រូវសម្រេច (19)", S19),
     ("s20", "20", "Coverage, ទំនុកចិត្ត, ដែនកំណត់", S20),
     ("s21", "21", "ចំណូល: app ឥតគិតថ្លៃ, លុយពីជុំវិញ", MONEY_HTML),
 ]
