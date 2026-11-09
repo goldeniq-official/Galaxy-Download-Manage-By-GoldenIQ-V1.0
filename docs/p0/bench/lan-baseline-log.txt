@@ -1,0 +1,5 @@
+﻿lan1g pair 0 AB GDM: 24.012s 44.72 MB/s conns 4 sha_ok True
+lan1g pair 0 AB IDM: 11.7s 91.77 MB/s conns 8 sha_ok True
+lan1g pair 1 BA IDM: 12.259s 87.59 MB/s conns 8 sha_ok True
+lan1g pair 1 BA GDM: 30.444s 35.27 MB/s conns 5 sha_ok True
+lan1g pair 2 BA IDM: 11.112s 96.63 MB/s conns 8 sha_ok True

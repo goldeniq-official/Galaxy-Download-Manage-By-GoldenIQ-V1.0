@@ -28,6 +28,8 @@ fn main() {
     let mut cfg = Config { fixed: a.get(4).and_then(|v| v.parse().ok()), ..Config::default() };
     // experiment knob only (profiling): GDM_FLUSH_MB overrides the 8 MiB commit threshold
     if let Some(mb) = std::env::var("GDM_FLUSH_MB").ok().and_then(|v| v.parse::<u64>().ok()) { cfg.flush_bytes = mb << 20; cfg.flush_every = std::time::Duration::from_secs(3600); }
+    if let Some(ms) = std::env::var("GDM_FLUSH_MS").ok().and_then(|v| v.parse::<u64>().ok()) { cfg.flush_every = std::time::Duration::from_millis(ms); }
+    cfg.write_through = std::env::var("GDM_WRITE_THROUGH").is_ok_and(|v| v == "1");
     let part = dir.join(format!("{name}.part"));
     let t0 = Instant::now();
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();

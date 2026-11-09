@@ -1,12 +1,12 @@
-# SPDX-License-Identifier: RPL-1.5
+﻿# SPDX-License-Identifier: RPL-1.5
 # Benchmark harness for plan.md section ង: GDM spike (bench.exe) vs IDM, paired runs, seeded AB/BA order.
-# Usage: .\bench.ps1 -UrlFile urls.txt -Out raw.csv [-Pairs 5] [-Seed 20261109] [-Fixed 0|8] [-Warmup 1]
+# Usage: .\bench.ps1 -UrlFile urls.txt -Out raw.csv [-Pairs 5] [-Seed 20261109] [-Fixed 0|8] [-Warmup 1] [-Root dir]
 # urls.txt lines: id|url|bytes|sha256   (sha256 may be empty: then the warm-up pair pins it, both tools must agree)
-param([string]$UrlFile, [string]$Out, [int]$Pairs = 5, [int]$Seed = 20261109, [int]$Fixed = 0, [int]$Warmup = 1, [string]$Config = "a")
+param([string]$UrlFile, [string]$Out, [int]$Pairs = 5, [int]$Seed = 20261109, [int]$Fixed = 0, [int]$Warmup = 1, [string]$Config = "a", [string]$Root = "$env:USERPROFILE\gdm-bench", [int]$TimeoutS = 600)
 $ErrorActionPreference = 'Stop'
 $bench = "$env:LOCALAPPDATA\gdm-spike-target\release\bench.exe"
 $idm = "C:\Program Files (x86)\Internet Download Manager\IDMan.exe"
-$root = "$env:USERPROFILE\gdm-bench\run-$Seed-$Config"
+$root = "$Root\run-$Seed-$Config"
 New-Item -ItemType Directory -Force $root | Out-Null
 $rng = New-Object System.Random $Seed
 
@@ -30,20 +30,20 @@ function Measure-Run($tool, $u, $dir, $name) {
         $p = Start-Process $bench -ArgumentList $al -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $dir "gdm.out")
         $procId = $p.Id
         while (-not $p.HasExited) {
+            if ($sw.Elapsed.TotalSeconds -gt $TimeoutS) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue; break }  # stalled run = timeout, recorded
             try { $q = Get-Process -Id $procId -ErrorAction Stop; $peakPriv = [math]::Max($peakPriv, $q.PrivateMemorySize64) } catch {}
             $c = @(Get-NetTCPConnection -OwningProcess $procId -State Established -ErrorAction SilentlyContinue).Count; $peakConn = [math]::Max($peakConn, $c)
             Start-Sleep -Milliseconds 250
         }
         $done = $sw.Elapsed.TotalSeconds
         $cpuSec = $p.TotalProcessorTime.TotalSeconds
-        $line = (Get-Content (Join-Path $dir "gdm.out") -Raw).Trim()
-        $parts = $line.Split(',')
-        $transfer = [double]$parts[1]; $segPeak = [int]$parts[3]
+        $line = Get-Content (Join-Path $dir "gdm.out") -Raw -ErrorAction SilentlyContinue
+        if ($line -and $line.Trim()) { $parts = $line.Trim().Split(','); $transfer = [double]$parts[1]; $segPeak = [int]$parts[3] } else { $transfer = ''; $segPeak = '' }  # timeout / failure
     } else {
         $q = Get-Process IDMan; $procId = $q.Id; $cpu0 = $q.TotalProcessorTime.TotalSeconds
         Start-Process $idm -ArgumentList "/d `"$($u.url)`" /p `"$dir`" /f `"$name`" /n" | Out-Null
         $f = Join-Path $dir $name
-        while ($sw.Elapsed.TotalSeconds -lt 3600) {
+        while ($sw.Elapsed.TotalSeconds -lt $TimeoutS) {  # a stalled IDM run is recorded as timeout (sha missing)
             try { $q = Get-Process -Id $procId -ErrorAction Stop; $peakPriv = [math]::Max($peakPriv, $q.PrivateMemorySize64) } catch {}
             $c = @(Get-NetTCPConnection -OwningProcess $procId -State Established -ErrorAction SilentlyContinue | Where-Object { $_.RemoteAddress -ne '127.0.0.1' -or $u.url -like 'http://127.0.0.1*' }).Count; $peakConn = [math]::Max($peakConn, $c)
             $it = Get-Item $f -ErrorAction SilentlyContinue
@@ -56,7 +56,7 @@ function Measure-Run($tool, $u, $dir, $name) {
     }
     Stop-Process -Id $typeperf.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 300
-    $cpuRows = @(Import-Csv $tp -ErrorAction SilentlyContinue | ForEach-Object { [double]($_.PSObject.Properties | Select-Object -Last 1).Value })
+    $cpuRows = @(Import-Csv $tp -ErrorAction SilentlyContinue | ForEach-Object { ($_.PSObject.Properties | Select-Object -Last 1).Value -as [double] } | Where-Object { $null -ne $_ })  # typeperf leaves a blank last sample when stopped
     $cpuAvg = if ($cpuRows.Count) { ($cpuRows | Measure-Object -Average).Average } else { -1 }
     $cpuMax = if ($cpuRows.Count) { ($cpuRows | Measure-Object -Maximum).Maximum } else { -1 }
     $file = Join-Path $dir $name

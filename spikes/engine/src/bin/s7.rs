@@ -6,7 +6,7 @@
 //! Tools: %LOCALAPPDATA%\gdm-spike-tools\{yt-dlp,ffmpeg,ffprobe}.exe (pinned by sha256 in results.md).
 use base64::Engine;
 use gdm_spikes::fixture::{pct_encode, Fixture};
-use gdm_spikes::seg::{download, Config};
+use gdm_spikes::seg::{check_addrs, download, Config, NetPolicy};
 use gdm_spikes::Check;
 use std::collections::HashSet;
 use std::hash::{BuildHasher, Hasher};
@@ -112,7 +112,38 @@ async fn start_proxy(allow: HashSet<SocketAddr>) -> Proxy {
                     if up.write_all(out.as_bytes()).await.is_err() { return; }
                 }
                 let _ = up.write_all(&buf).await;
-                let _ = tokio::io::copy_bidirectional(&mut s, &mut up).await;
+                if method == "CONNECT" { let _ = tokio::io::copy_bidirectional(&mut s, &mut up).await; return; }
+                // plain HTTP: exactly one request per client connection. A kept-alive second request must open a
+                // new connection and be checked again (before: it went raw to the first, already-checked upstream).
+                // ponytail: a request body beyond the first read is not forwarded (yt-dlp -J only GETs); parse
+                // Content-Length if POST ever matters.
+                // The upstream may ignore "Connection: close", so do not wait for its EOF: relay its bytes until the
+                // client sends anything else (a second request) or closes, then drop both sockets.
+                // Rewrite the response head with "Connection: close" so the client opens a new (checked) connection
+                // for its next request instead of reusing this one.
+                let mut rb = Vec::new();
+                let head_end = loop {
+                    let mut t = [0u8; 4096];
+                    let n = match up.read(&mut t).await { Ok(0) | Err(_) => return, Ok(n) => n };
+                    rb.extend_from_slice(&t[..n]);
+                    if let Some(i) = rb.windows(4).position(|w| w == b"\r\n\r\n") { break i; }
+                    if rb.len() > 64 * 1024 { return; }
+                };
+                let head = String::from_utf8_lossy(&rb[..head_end]).to_string();
+                let mut out = String::new();
+                for (i, l) in head.split("\r\n").enumerate() {
+                    let k = l.split(':').next().unwrap_or("").trim().to_ascii_lowercase();
+                    if i > 0 && (k == "connection" || k == "keep-alive" || k == "proxy-connection") { continue; }
+                    out.push_str(l); out.push_str("\r\n");
+                }
+                out.push_str("Connection: close\r\n\r\n");
+                if s.write_all(out.as_bytes()).await.is_err() || s.write_all(&rb[head_end + 4..]).await.is_err() { return; }
+                let (mut cr, mut cw) = s.split();
+                let mut probe = [0u8; 1];
+                tokio::select! {
+                    _ = tokio::io::copy(&mut up, &mut cw) => {}
+                    _ = cr.read(&mut probe) => {}
+                }
             });
         }
     });
@@ -158,13 +189,14 @@ fn streams(file: &Path) -> String {
 }
 
 /// engine side: the same policy before any media byte is fetched
+fn policy(allow: &HashSet<SocketAddr>) -> NetPolicy {
+    let allow = allow.clone();
+    Arc::new(move |a: SocketAddr| !forbidden(a.ip()) || allow.contains(&a))
+}
+
+/// engine side: the same policy on every connection (resolver + literal + redirect checks inside seg)
 async fn engine_fetch(url: &str, part: &Path, allow: &HashSet<SocketAddr>) -> Result<String, String> {
-    let rest = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://")).ok_or("scheme")?;
-    let auth = rest.split('/').next().unwrap_or("");
-    let hp = if auth.contains(':') { auth.to_string() } else { format!("{auth}:80") };
-    check_target(&hp, allow).await?;
-    // ponytail: checked here, then reqwest resolves again; P1 pins the checked address (ClientBuilder::resolve)
-    download(url, part, Config::default()).await.map(|d| d.sha256).map_err(|e| format!("{e:?}"))
+    download(url, part, Config { net_policy: Some(policy(allow)), retries: 1, ..Config::default() }).await.map(|d| d.sha256).map_err(|e| format!("{e:?}"))
 }
 
 #[tokio::main]
@@ -235,15 +267,30 @@ async fn main() {
     let (_, _, err2) = ytdlp(&px, &fx.url(&format!("/redirect?to={}", pct_encode(&format!("http://127.0.0.1:{cport}/x")))), &dir);
     for q in fx.log() { println!("     fixture saw: {} {}", q.method, q.target); }
     for (t, ok) in &px.decisions.lock().unwrap()[d0..] { println!("     proxy: {t} -> {}", if *ok { "allowed" } else { "REFUSED" }); }
+    let refused_canary = px.decisions.lock().unwrap()[d0..].iter().any(|(t, ok)| !ok && t.starts_with(&format!("127.0.0.1:{cport}")));
+    let fx_abs = fx.log().iter().any(|q| q.target.starts_with("http://"));
+    c.ok(*hits.lock().unwrap() == 0 && refused_canary && !fx_abs, &format!("redirect to loopback: proxy REFUSED 127.0.0.1:{cport} on its own connection, fixture got no smuggled request, canary 0 (yt-dlp: {})", err2.lines().last().unwrap_or("")));
+    let (okr, jr, er) = ytdlp(&px, &fx.url(&format!("/redirect?to={}", pct_encode(&fx.url("/static/page.html")))), &dir);
+    c.ok(okr && jr.contains("/static/p.mp4"), &format!("control: the same redirect route to an allowed page works through the proxy {}", if okr { "" } else { &er[..er.len().min(200)] }));
     let (_, j3, _) = ytdlp(&px, &fx.url("/static/evil.html"), &dir);
-    c.ok(*hits.lock().unwrap() == 0, &format!("redirect to loopback and a page pointing at loopback: canary saw 0 connections (yt-dlp: {})", err2.lines().last().unwrap_or("")));
+    c.ok(*hits.lock().unwrap() == 0, "a page pointing at loopback: canary saw 0 connections");
     let evil_url = serde_json::from_str::<serde_json::Value>(&j3).ok().and_then(|j| j["url"].as_str().map(String::from));
     if let Some(u) = &evil_url {
         let r = engine_fetch(u, &dir.join("evil.part"), &allow).await;
         c.ok(r.is_err() && *hits.lock().unwrap() == 0, &format!("yt-dlp returned loopback media URL; GDM engine refused it before fetching ({r:?})"));
     } else { c.note("yt-dlp did not return the loopback media URL (it could not reach it); engine refusal tested directly below"); }
     let r = engine_fetch(&format!("http://127.0.0.1:{cport}/secret.mp4"), &dir.join("evil2.part"), &allow).await;
-    c.ok(r.is_err() && *hits.lock().unwrap() == 0, "GDM engine applies the same policy to media URLs (loopback refused, canary 0)");
+    c.ok(r.as_ref().is_err_and(|e| e.contains("Forbidden")) && *hits.lock().unwrap() == 0, &format!("GDM engine: loopback literal refused before connecting, canary 0 ({r:?})"));
+    let r = engine_fetch(&format!("http://localtest.me:{cport}/secret.mp4"), &dir.join("evil3.part"), &allow).await;
+    c.ok(r.as_ref().is_err_and(|e| e.contains("Forbidden")) && *hits.lock().unwrap() == 0, &format!("GDM engine: public DNS name -> 127.0.0.1 refused by the checking resolver, canary 0 ({r:?})"));
+    let r = engine_fetch(&fx.url(&format!("/redirect?to={}", pct_encode(&format!("http://127.0.0.1:{cport}/x")))), &dir.join("evil4.part"), &allow).await;
+    c.ok(r.as_ref().is_err_and(|e| e.contains("Forbidden") || e.contains("forbidden")) && *hits.lock().unwrap() == 0, &format!("GDM engine: allowed site redirecting to loopback refused at the redirect hop, canary 0 ({r:?})"));
+    let r = engine_fetch(&fx.url(&format!("/redirect?to={}", pct_encode(&fx.url("/file?size=1048576&seed=3")))), &dir.join("ok4.part"), &allow).await;
+    c.ok(r.is_ok(), &format!("control: the same redirect route to an allowed target downloads ({r:?})"));
+    let pol = policy(&HashSet::new());
+    let mixed: Vec<SocketAddr> = vec!["93.184.216.34:443".parse().unwrap(), "127.0.0.1:443".parse().unwrap()];
+    c.ok(check_addrs(&mixed, &pol).is_err() && check_addrs(&mixed[..1], &pol).is_ok(), "DNS answer with public + private address refused as a whole (public alone allowed)");
+    c.note("rebinding: one lookup per connection, and reqwest connects only to the addresses the checking resolver returned (no second lookup). A live rebinding DNS server was not run.");
 
     // 5. argv injection: a URL that looks like an option stays a URL after `--`
     let (ok, _, err) = ytdlp(&px, "--exec=cmd /c echo pwned>pwned.txt", &dir);
@@ -266,6 +313,6 @@ async fn main() {
     px.task.abort();
     tokio::time::sleep(Duration::from_millis(200)).await;
     c.ok(TcpStream::connect(px.addr).await.is_err(), "proxy port closed after the run (not an API)");
-    c.note("ADR-6 guarantee = only requests that honour the pinned --proxy are policed; a bypassing extractor is not confined (no WFP, not admin). Engine fetch checks then re-resolves (pin in P1). Job Object limits not in this spike.");
+    c.note("ADR-6 guarantee = only requests that honour the pinned --proxy are policed; a bypassing extractor is not confined (no WFP, not admin). Job Object limits not in this spike.");
     c.finish();
 }

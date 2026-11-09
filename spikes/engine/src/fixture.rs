@@ -248,7 +248,7 @@ impl Fixture {
             }
             None => {
                 s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nAccept-Ranges: bytes\r\nETag: {etag}\r\nLast-Modified: {lm}\r\nContent-Length: {size}\r\n\r\n").as_bytes()).await?;
-                if !head_only { send_bytes(s, seed, 0, size, rate, None).await?; }
+                if !head_only { send_bytes(s, seed, 0, size, rate, pace).await?; } // a request without Range shares the link cap too
                 Ok(true)
             }
         }
@@ -325,11 +325,13 @@ async fn send_bytes(s: &mut TcpStream, seed: u64, a: u64, b: u64, rate: u64, pac
             let at = {
                 let mut c = clock.lock().unwrap();
                 let now = Instant::now();
-                let at = c.map_or(now, |x| x.max(now));
+                let at = c.map_or(now, |x| x.max(now - Duration::from_millis(20))); // 20 ms credit repays timer oversleep
                 *c = Some(at + Duration::from_secs_f64(n as f64 / t as f64));
                 at
             };
-            tokio::time::sleep_until(at.into()).await;
+            // Windows timers tick ~15.6 ms: sleeping per 256 KiB chunk capped each connection at ~17 MB/s.
+            // Sleep only when >= 20 ms ahead of the shared clock; the average stays <= t (burst <= 20 ms).
+            if at > Instant::now() + Duration::from_millis(20) { tokio::time::sleep_until(at.into()).await; }
         }
         fill(seed, pos, &mut buf[..n]);
         s.write_all(&buf[..n]).await?;

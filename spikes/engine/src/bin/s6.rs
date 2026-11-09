@@ -82,7 +82,24 @@ struct Evidence { pre_exists: bool, hr: String, post_exists: bool, zone: Option<
 
 fn finalize(part: &Path, dest: &Path, total: u64, sha: Option<&str>, source: &str, fake_fs: Option<&str>) -> (Final, Evidence) {
     let mut ev = Evidence { pre_exists: part.exists(), hr: String::new(), post_exists: false, zone: None, fs: String::new() };
-    if !ev.pre_exists { return (Final::Blocked("file gone before Save (quarantined on write)".into()), ev); }
+    if !ev.pre_exists {
+        // Bitdefender gives no error code (measured: removed silently after close, ERROR_FILE_NOT_FOUND only).
+        // Evidence = differential probe: a benign file of the same size written the same way in the same folder
+        // survives => antivirus very likely removed ours. If the probe vanishes too => neutral failure.
+        // Limit: another process deleting the .part is indistinguishable without an AV API (P1: Defender
+        // MpThreatDetection / AMSI verdict as positive evidence).
+        let probe = part.with_extension("probe");
+        let survived = std::fs::write(&probe, vec![b'G'; total.min(1 << 20) as usize]).is_ok() && {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            probe.exists()
+        };
+        let _ = std::fs::remove_file(&probe);
+        return if survived {
+            (Final::Blocked("suspected security-software removal: file removed after write while a benign probe written the same way survived (remover not identified)".into()), ev)
+        } else {
+            (Final::Failed("file and benign probe both removed: storage or cleanup, not antivirus evidence".into()), ev)
+        };
+    }
     // 1. byte count + hash through one handle (share read only: nobody can write meanwhile)
     let id1;
     {
@@ -151,6 +168,11 @@ fn main() {
     let (st, ev) = finalize(&p4, &d.join("eicar.com"), eicar.len() as u64, None, src, None);
     println!("     eicar: wrote={wrote} pre_exists={} Save={} post_exists={}", ev.pre_exists, ev.hr, ev.post_exists);
     c.ok(matches!(st, Final::Blocked(_)) && !d.join("eicar.com").exists(), &format!("EICAR -> {} ({st:?}); never Complete, no final name", st.label_km()));
+    let p4b = d.join("benign.bin.part"); // limit of the inference: a benign .part deleted by another process
+    std::fs::write(&p4b, &body).unwrap();
+    std::fs::remove_file(&p4b).unwrap();
+    let (st, _) = finalize(&p4b, &d.join("benign.bin"), body.len() as u64, None, src, None);
+    c.note(&format!("LIMIT: a benign .part deleted by another process is classified {} ({st:?}) - indistinguishable without an AV API (P1)", st.label_km()));
 
     // 5. untaggable target: the FS check is real code, the FAT/exFAT volume is injected (no FAT volume, not admin)
     let p5 = d.join("e.exe.part");

@@ -46,6 +46,7 @@ async fn main() {
         loop {
             tokio::time::sleep(Duration::from_secs(5)).await;
             let log = fx.log();
+            if std::env::var("GDM_FIXTURE_TRACE").is_ok() { for r in fx.log() { println!("conn {} {} range={:?}", r.conn, r.target, r.headers.iter().find(|(k, _)| k == "range").map(|(_, v)| v)); } fx.clear_log(); continue; }
             if !log.is_empty() { println!("requests={} distinct_conns={} peak_active={}", log.len(), log.iter().map(|r| r.conn).collect::<std::collections::HashSet<_>>().len(), fx.peak_conns()); }
         }
     }

@@ -1,0 +1,4 @@
+﻿cloudflare pair 0 AB GDM: 33.061s 11.6 MB/s conns 4 sha_ok True
+cloudflare pair 0 AB IDM: 1088.558s 0.35 MB/s conns 8 sha_ok True
+cloudflare pair 1 BA IDM: 37.525s 10.22 MB/s conns 8 sha_ok True
+cloudflare pair 1 BA GDM: 34s 11.28 MB/s conns 3 sha_ok True

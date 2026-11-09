@@ -1,0 +1,37 @@
+== S7 yt-dlp policy proxy + media gate
+PASS no Proxy-Authorization -> 407
+PASS wrong Proxy-Authorization -> 407
+PASS right token, allowed (test-only) target -> forwarded 200
+PASS SSRF matrix: 23/23 targets refused for GET and CONNECT (loopback, mapped/compat/NAT64/6to4 IPv6, decimal/hex/short/octal IPv4, localhost, public DNS name -> 127.0.0.1, metadata, RFC1918, CGNAT, ULA, link-local, multicast)
+PASS odd CONNECT authority 'evil@127.0.0.1:53513' -> refused
+PASS odd CONNECT authority '127.0.0.1' -> refused
+PASS odd CONNECT authority 'x/../127.0.0.1:53513' -> refused
+PASS policy unit: documentation range refused, public v4/v6 allowed
+PASS test media generated locally (lavfi) 
+PASS yt-dlp -J (generic extractor) through the proxy returned the media URL 'http://127.0.0.1:53514/static/p.mp4' 
+PASS every fixture request yt-dlp made passed the proxy (1 proxied, 1 at the fixture)
+     fixture saw: GET /redirect?to=http%3A%2F%2F127.0.0.1%3A53513%2Fx
+     proxy: 127.0.0.1:53514 -> allowed
+     proxy: 127.0.0.1:53513 (forbidden 127.0.0.1:53513) -> REFUSED
+PASS redirect to loopback: proxy REFUSED 127.0.0.1:53513 on its own connection, fixture got no smuggled request, canary 0 (yt-dlp: ERROR: [generic] redirect?to=http://127.0.0: Unable to download webpage: HTTP Error 403: Forbidden by GDM policy (caused by <HTTPError 403: Forbidden by GDM policy>))
+PASS control: the same redirect route to an allowed page works through the proxy 
+PASS a page pointing at loopback: canary saw 0 connections
+PASS yt-dlp returned loopback media URL; GDM engine refused it before fetching (Err("Forbidden(\"forbidden 127.0.0.1:53513\")"))
+PASS GDM engine: loopback literal refused before connecting, canary 0 (Err("Forbidden(\"forbidden 127.0.0.1:53513\")"))
+PASS GDM engine: public DNS name -> 127.0.0.1 refused by the checking resolver, canary 0 (Err("Forbidden(\"forbidden 127.0.0.1:0\")"))
+PASS GDM engine: allowed site redirecting to loopback refused at the redirect hop, canary 0 (Err("Forbidden(\"forbidden 127.0.0.1:53513\")"))
+PASS control: the same redirect route to an allowed target downloads (Ok("7dbd50eb96b7332824cab768f122b7054d161f09bdf31f2b1e14c2313dcddeac"))
+PASS DNS answer with public + private address refused as a whole (public alone allowed)
+NOTE rebinding: one lookup per connection, and reqwest connects only to the addresses the checking resolver returned (no second lookup). A live rebinding DNS server was not run.
+PASS '--exec=…' after `--` is treated as a URL: no command ran (ERROR: [generic] '--exec=cmd /c echo pwned>pwned.txt' is not a valid URL)
+PASS separate video + audio: engine download -> ffmpeg mux (file,pipe) -> ffprobe 'video,audio' 
+PASS progressive file from the yt-dlp JSON: engine download -> ffprobe video,audio
+PASS ffmpeg with -protocol_whitelist file,pipe refuses an http input ([http @ 0000020e32b20480] Protocol 'http' not on whitelist 'file,pipe'!)
+PASS local playlist pointing at http: refused by the whitelist, canary 0 ([http @ 0000020c00f68500] Protocol 'http' not on whitelist 'file,pipe'!)
+PASS proxy port closed after the run (not an API)
+NOTE ADR-6 guarantee = only requests that honour the pinned --proxy are policed; a bypassing extractor is not confined (no WFP, not admin). Job Object limits not in this spike.
+== S7 yt-dlp policy proxy + media gate: ALL PASS
+
+real	0m26.631s
+user	0m0.015s
+sys	0m0.000s

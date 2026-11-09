@@ -1,0 +1,24 @@
+== S4 hostile fixture
+PASS /file 206 exact range bytes
+PASS /file If-Range mismatch -> 200 full
+PASS /file range past end -> 416
+PASS oracle sha256 of empty body is the known constant
+PASS /norange ignores Range (200, full body)
+PASS /range-then-200: 206 then 200 mid-download
+PASS /etag-change: same size, new ETag, new bytes
+PASS /infinite: no length, body keeps coming (read 8 MiB)
+PASS /overlong: more bytes than Content-Range
+PASS /short: body ends at half and connection closes
+PASS /bad-cr: Content-Range start differs from requested
+PASS /slowloris: < 6 header bytes in 4 s, never finishes
+PASS /slowbody: 1 byte per 2 s
+PASS /redirect: 302 to another origin (different port)
+PASS /429: first 429 + Retry-After: 2, then 200
+PASS /html: text/html instead of binary
+PASS /multipart: multipart/byteranges to a single range
+PASS server log records every request with headers (trace evidence)
+== S4 hostile fixture: ALL PASS
+
+real	0m9.444s
+user	0m0.000s
+sys	0m0.000s

@@ -1,0 +1,28 @@
+== S3 named pipe DACL + server verification
+PASS genuine server created the pipe (READY)
+PASS client verified the server image and got a reply (Ok("{\"ok\":true,\"imp\":1}"))
+PASS server sees the client token at SecurityIdentification only (SQOS): it cannot act as the client
+PASS DACL read back = protected, one ACE for the current user only (Ok("D:P(A;;FA;;;S-1-5-21-<user>)"))
+PASS Anonymous principal cannot open the pipe (ERROR_ACCESS_DENIED) -> Err(5)
+PASS Anonymous principal cannot create a second instance while the server runs -> Err(5)
+PASS UserSidDenyOnly principal cannot open the pipe (ERROR_ACCESS_DENIED) -> Err(5)
+PASS UserSidDenyOnly principal cannot create a second instance while the server runs -> Err(5)
+PASS same-user second instance while the server runs fails (max instances 1) -> Err(231)
+PASS 100 KiB message (> 64 KiB) rejected ({"ok":false,"err":"message > 64 KiB"})
+PASS 5000-deep JSON (10 KB) rejected by the parser depth limit (Ok("{\"ok\":false,\"err\":\"json: recursion limit exceeded at line 1 column 128\"}"))
+PASS server still serves after hostile messages
+PASS remote path \\127.0.0.1\pipe\… refused (PIPE_REJECT_REMOTE_CLIENTS / SMB) -> Err(5)
+PASS squatter (default security) owns the name first
+PASS control: Anonymous CAN open the squatter's default-DACL pipe, so the denials above are real -> Ok(())
+PASS control: UserSidDenyOnly CAN open the squatter's default-DACL pipe, so the denials above are real -> Ok(())
+NOTE control for the remote test: squatter pipe (no reject flag) via \\127.0.0.1 -> Ok(())
+PASS genuine server fails closed when the name is squatted (FAILCLOSED 5, exit Some(3))
+PASS client refused the squatter 50/50 times, squatter received 0 messages
+PASS control: an UNverified client does leak to the squatter (GOT 12 bytes: {"canary":1}), so verification is what protects
+NOTE same-user process that edits the per-user install is out of scope (threat model). Real second account / other session not tested (needs admin).
+NOTE pre-SignPath fallback = image path check (install dir %LOCALAPPDATA%\Programs\…, folder ACL); after SignPath add an Authenticode signer check on the held handle
+== S3 named pipe DACL + server verification: ALL PASS
+
+real	0m1.219s
+user	0m0.015s
+sys	0m0.015s

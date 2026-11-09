@@ -1,0 +1,5 @@
+"tool","done_s","transfer_s","MBps","tcp_conns_peak","gdm_segments_peak","cpu_machine_avg","cpu_machine_max","proc_cpu_s","priv_MB_peak","sha256","url_id","pair","order","config","sha_ok"
+"GDM","33.061","32.317","11.6","4","3","13.7","35.7","1.77","12.3","b6e72874f8cb5c4ed77f9b03d7f1fde851b9455a7ff02a1e1119c876318ebc65","cloudflare","0","AB","pa","True"
+"IDM","1088.558","","0.35","8","","8.6","38.2","4.12","17.2","b6e72874f8cb5c4ed77f9b03d7f1fde851b9455a7ff02a1e1119c876318ebc65","cloudflare","0","AB","pa","True"
+"IDM","37.525","","10.22","8","","15.4","33.4","4.27","17.9","b6e72874f8cb5c4ed77f9b03d7f1fde851b9455a7ff02a1e1119c876318ebc65","cloudflare","1","BA","pa","True"
+"GDM","34","33.346","11.28","3","3","8.9","18.7","1.73","13.2","b6e72874f8cb5c4ed77f9b03d7f1fde851b9455a7ff02a1e1119c876318ebc65","cloudflare","1","BA","pa","True"

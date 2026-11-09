@@ -1,0 +1,1 @@
+﻿cloudflare pair 0 AB GDM: 38.946s 9.85 MB/s conns 1 sha_ok True

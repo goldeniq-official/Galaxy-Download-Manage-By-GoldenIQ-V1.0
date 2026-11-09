@@ -1,0 +1,60 @@
+Folder C:\Users\yrgol\AppData\Roaming\IDM\DwnlData\yrgol\blender-4.2.0-window_12047\ was created.
+Rebuilding old downloaded file parts...
+Connecting...
+Windows 10.0
+v6.43b10   Time: Mon Nov 09 19:10:24.617 2026 (1794226224 sec)
+owp 
+Url https://download.blender.org/release/Blender4.2/blender-4.2.0-windows-x64.zip
+User : anonymous, password :xxx
+EM = 0x7538fc70, 0x7538fc70,
+DM = 0x7538fcd0, 0x7538fcd0.
+Time: 1794226224.618
+C0:gethost
+C0:Found 104.20.41.146
+Time: 1794226224.620
+C0:Connecting...
+C0:Checking connect, socket = 3088 
+C0:Connect OK.
+Time: 1794226224.686
+C0:176 bytes of handshake (2) data sent
+C0:1412 bytes of handshake data received (L711)
+C0:InitializeSecurityContext (2) ret=0x90312
+C0:InitializeSecurityContext (2) ret=0x80090318
+C0:2212 bytes of handshake data received (L711)
+C0:93 bytes of handshake (4) data sent
+C0:258 bytes of handshake data received (L711)
+C0:InitializeSecurityContext (2) ret=0x0
+C0:Handshake was successful
+C0:Protocol: 0x800
+Cipher: 0x660e
+Cipher strength: 128
+Hash: 0x800c
+Hash strength: 0
+Key exchange: 0xae06
+Key exchange strength: 255
+C0:Send GET...
+C0:SC step1, Time: 1794226224.824
+C0:SC step12, Time: 1794226224.838
+C0:SC step16, Time: 1794226224.838, cookies: NULL
+C0:Header: 13, Trailer: 16, MaxMessage: 16384
+C0:340 bytes of request sent
+C0:HTTP/1.1 200 OK
+C0:Date: Mon, 09 Nov 2026 12:10:25 GMT
+C0:Content-Type: application/zip
+C0:Content-Length: 383542405
+C0:Connection: keep-alive
+C0:Server: cloudflare
+C0:last-modified: Tue, 16 Jul 2024 08:53:20 GMT
+C0:etag: "66963500-16dc6485"
+C0:Cache-Control: public, max-age=2592000
+C0:x-content-type-options: nosniff
+C0:strict-transport-security: max-age=63072000; includeSubDomains; preload
+C0:Accept-Ranges: bytes
+C0:Cross-Origin-Opener-Policy: same-origin-allow-popups
+C0:Age: 1085181
+C0:cf-cache-status: HIT
+C0:X-Permitted-Cross-Domain-Policies: none
+C0:CF-RAY: a57cb6d41e65ce5b-SIN
+C0:
+C0:Time: 1794226224.918
+C0:Receiving data...

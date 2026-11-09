@@ -1,0 +1,45 @@
+== S5 segmenter
+PASS probe = GET Range: bytes=0- + Accept-Encoding: identity
+PASS 64 MiB ranged download: byte count = total and sha256 matches
+PASS ramp from 2 added connections under per-connection throttling, capped at 8 (peak 5 in 7.2s)
+PASS every follow-up request asks a closed range (lease) with If-Range
+PASS splits never smaller than 1 MiB
+PASS follow-up requests carry If-Range with the strong ETag
+PASS flat total speed: one exploratory add (2 -> 3), then no more (peak Ok(3))
+PASS fixed 8 connections: peak 8, hash ok (Ok(8))
+PASS 200 ignoring Range -> single stream, correct file  [got Ok("33abaacbe55a") in 0.1s]
+PASS 206 then 200 mid-download -> stop all, restart one stream from 0, correct file  [got Ok("09e8da7237ed") in 0.0s]
+PASS ETag change mid-download -> FileChanged, never Complete  [got Err(FileChanged) in 0.0s]
+PASS infinite body (no length) -> SizeExceeded at cap  [got Err(SizeExceeded) in 0.0s]
+PASS overlong 206 -> extra bytes never written (correct file or LongBody)  [got Ok("9170e1f2b111") in 0.0s]
+PASS short 206 bodies -> retry, never a wrong file  [got Err(TooManyRetries("Retry(\"error decoding response body Some(reqwest::Error { kind: Body, source: hyper::Error(Body, Custom { kind: UnexpectedEof, error: IncompleteBody }) })\")")) in 0.0s]
+PASS Content-Range start mismatch -> BadContentRange, nothing written  [got Err(BadContentRange) in 0.0s]
+PASS slowloris headers -> Timeout  [got Err(Timeout) in 3.0s]
+PASS slow body -> Timeout  [got Err(Timeout) in 12.0s]
+PASS 429 + Retry-After: 2 -> waits, then correct file  [got Ok("f72a184cb305") in 2.0s]
+PASS text/html instead of binary -> Html  [got Err(Html) in 0.0s]
+PASS multipart/byteranges -> Multipart (rejected)  [got Err(Multipart) in 0.0s]
+PASS cross-origin redirect (other port): destination saw no Cookie/Authorization (1 requests)
+PASS cross-origin redirect (other host): destination saw no Cookie/Authorization (1 requests)
+PASS control: same-origin redirect keeps the cookie (test is not vacuous)
+PASS failpoint lease_revoke:1: crashed, committed 16.0 MiB all correct on disk, resume probe 'bytes=8388608-', final sha256 ok
+PASS failpoint after_ack:1: crashed, committed 16.0 MiB all correct on disk, resume probe 'bytes=8388608-', final sha256 ok
+PASS failpoint mid_write:5: crashed, committed 8.0 MiB all correct on disk, resume probe 'bytes=4194304-', final sha256 ok
+PASS failpoint after_sync:2: crashed, committed 8.0 MiB all correct on disk, resume probe 'bytes=4194304-', final sha256 ok
+PASS failpoint after_sidecar_tmp:2: crashed, committed 8.0 MiB all correct on disk, resume probe 'bytes=4194304-', final sha256 ok
+PASS failpoint after_commit:2: crashed, committed 16.0 MiB all correct on disk, resume probe 'bytes=8388608-', final sha256 ok
+ff67a0f3722d8ef26fbe72e48313c5bf9ac119d7a08f47c3c2dd740140fa3c16
+PASS crash before final rename: .part kept, resume asked 320 KiB in 6 requests (1-byte probe + seam checks), sha256 ok
+PASS tampered sidecar (overlap, committed past data) rejected by the loader
+PASS after tampered sidecar: restart from 0, final sha256 ok
+PASS valid-looking lying sidecar (claims 50331648 B, honest 16777216 B): loader accepts it, seam check refetches (7 closed-range requests), final sha256 ok
+NOTE LIMIT: 4 KiB corrupted inside a committed prefix (seam intact) -> resume result sha256 DIFFERS from the oracle; detection needs a known expected hash (finalisation's optional SHA-256)
+PASS 30 TerminateProcess kills: committed bytes always correct on disk (invariant 6), 0 bad
+PASS committed progress never went backwards across kills within a file (0 regressions)
+PASS after 30 kills + resumes: 1/1 files completed with correct sha256 (66s)
+NOTE TerminateProcess is a process crash, not a power cut: OS caches survive, so this proves crash recovery only
+== S5 segmenter: ALL PASS
+
+real	2m24.094s
+user	0m0.015s
+sys	0m0.031s

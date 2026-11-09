@@ -1,0 +1,29 @@
+== S8 update install + recover
+PASS signed 1.1.0 over 1.0.0 -> installed, launcher starts 1.1.0
+PASS 1 flipped byte -> sha256 refused
+PASS 1 flipped byte with a matching (attacker) sha256 -> minisign refused
+PASS signed by another key -> refused
+PASS genuine but older (1.0.5 < 1.1.0) -> downgrade refused
+PASS same version again -> refused
+PASS after all refusals the launcher still starts 1.1.0
+     U-06 attacker: overwrite staged file: blocked
+     U-06 attacker: delete staged file: blocked
+     U-06 attacker: rename staged file: blocked
+     U-06 attacker: rename parent staging folder: blocked
+PASS while the verified handle is held: overwrite / delete / rename of the staged file are blocked
+PASS installed bytes = the verified bytes even if the folder was swapped (parent rename blocked)
+     failpoint verified: launcher -> Some(("1.0.0", false))
+     failpoint file: launcher -> Some(("1.0.0", false))
+     failpoint extracted: launcher -> Some(("1.0.0", false))
+     failpoint renamed: launcher -> Some(("1.0.0", false))
+     failpoint previous: launcher -> Some(("1.0.0", false))
+     failpoint switched: launcher -> Some(("1.1.0", false))
+PASS crash at each install step: launcher starts 1.0.0 or verified 1.1.0, and the retry finishes on 1.1.0
+PASS 20/20 random kills during install: launcher starts a verified version (2 x 1.0.0, 18 x 1.1.0, 20s)
+PASS new version files damaged after install -> launcher falls back to 1.0.0 with the 'Update បរាជ័យ' banner flag
+NOTE NSIS passive in-place install is NOT the tested path: plan.md plan B (A/B folders + pointer) is what passed; the real Tauri/NSIS updater path is a P1 decision
+== S8 update install + recover: ALL PASS
+
+real	0m27.556s
+user	0m0.000s
+sys	0m0.030s

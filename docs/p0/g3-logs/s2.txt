@@ -1,0 +1,25 @@
+== S2 MV3 handoff (host side)
+PASS allowed origin + in-scope cookie -> accepted; stdout only protocol frames; no file written
+PASS other extension origin -> rejected
+PASS declared 10 MB message (> 64 KiB) -> rejected without reading the body
+PASS short length header -> clean exit, no crash
+PASS length larger than payload (truncated) -> clean exit, no crash
+PASS invalid UTF-8 / JSON -> rejected, host keeps running
+PASS cookie for a sibling host (hostOnly) -> rejected ({"ok":false,"err":"cookie 'sid' out of scope"})
+PASS cookie for another site -> rejected ({"ok":false,"err":"cookie 'sid' out of scope"})
+PASS Secure cookie to http:// -> rejected ({"ok":false,"err":"cookie 'sid' out of scope"})
+PASS cookie Path /admin to /files -> rejected ({"ok":false,"err":"cookie 'sid' out of scope"})
+PASS Path /fil must not match /files -> rejected ({"ok":false,"err":"cookie 'sid' out of scope"})
+PASS cookie value with header injection -> rejected ({"ok":false,"err":"cookie 'a' out of scope"})
+PASS file:// URL -> rejected ({"ok":false,"err":"bad url"})
+PASS URL with userinfo -> rejected ({"ok":false,"err":"bad url"})
+PASS expired ticket -> rejected ({"ok":false,"err":"ticket expired or too long-lived"})
+PASS ticket living > 60 s -> rejected ({"ok":false,"err":"ticket expired or too long-lived"})
+PASS unknown field (e.g. a save path) -> rejected ({"ok":false,"err":"schema: unknown field `path`, expected one of `url`, `referrer`, `cookies`, `expires_at` at line 1 column 77"})
+PASS control: hostOnly cookie for the exact host with matching path -> accepted
+NOTE browser side (real MV3 service worker, chrome.cookies, connectNative, durable ticket + 200 handoffs) NOT TESTED here: S1a in G2 owns the real browser round trip
+== S2 MV3 handoff (host side): ALL PASS
+
+real	0m0.428s
+user	0m0.015s
+sys	0m0.000s

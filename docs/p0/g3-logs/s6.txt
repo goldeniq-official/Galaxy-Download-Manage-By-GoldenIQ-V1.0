@@ -1,0 +1,18 @@
+== S6 finalisation
+     fs=NTFS Save=S_OK zone=Some("[ZoneTransfer] | ZoneId=3 | HostUrl=https://downloads.example.com/tool/setup.exe\0")
+PASS NTFS: Save S_OK, renamed -> បានបញ្ចប់ (Complete("C:\\Users\\yrgol\\AppData\\Local\\Temp\\gdm-s6-27992\\setup.exe"))
+PASS MOTW Zone.Identifier ZoneId=3 survives the rename (ADS kept)
+PASS HostUrl present: true (policy-dependent, not promised)
+PASS byte count != total -> Failed, no final name
+PASS sha256 mismatch -> Failed, no final name
+PASS existing destination: no replace, user file intact (Failed("rename: 0x800700b7 Cannot create a file when that file already exists."))
+     eicar: wrote=true pre_exists=false Save= post_exists=false
+PASS EICAR -> ត្រូវបានរារាំង (Blocked("suspected security-software removal: file removed after write while a benign probe written the same way survived (remover not identified)")); never Complete, no final name
+NOTE LIMIT: a benign .part deleted by another process is classified ត្រូវបានរារាំង (Blocked("suspected security-software removal: file removed after write while a benign probe written the same way survived (remover not identified)")) - indistinguishable without an AV API (P1)
+PASS exFAT (injected fs name) -> គោលដៅមិនការពារ (Unprotected("C:\\Users\\yrgol\\AppData\\Local\\Temp\\gdm-s6-27992\\e.exe"))
+NOTE NOT TESTED on a real FAT/exFAT volume: needs admin (VHD) or a USB stick; run `s6 <path-on-fat-volume>` there
+== S6 finalisation: ALL PASS
+
+real	0m4.944s
+user	0m0.000s
+sys	0m0.046s

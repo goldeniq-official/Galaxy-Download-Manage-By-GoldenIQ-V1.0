@@ -143,7 +143,7 @@ async fn main() {
     let (ksize, kseed) = (48 * MIB, 31);
     let kurl = a.url(&format!("/file?size={ksize}&seed={kseed}&rate=6000000"));
     let want = expected_sha256(kseed, ksize);
-    for fp in ["mid_write:5", "after_sync:2", "after_sidecar_tmp:2", "after_commit:2"] {
+    for fp in ["lease_revoke:1", "after_ack:1", "mid_write:5", "after_sync:2", "after_sidecar_tmp:2", "after_commit:2"] {
         let d = tmpdir("fp");
         let part = d.join("f.part");
         let st = child(&exe, &kurl, &part, Some(fp)).status().unwrap();
@@ -155,6 +155,25 @@ async fn main() {
         c.ok(!st.success() && good && sha == want, &format!("failpoint {fp}: crashed, committed {:.1} MiB all correct on disk, resume probe '{resumed_from}', final sha256 ok", committed as f64 / MIB as f64));
     }
 
+    // 5b. crash after the last byte but before the final rename (S6 renames by handle): the .part + sidecar stay;
+    //     the next run must finish from the sidecar (refetch bounded by one commit window) with a correct file
+    {
+        let d = tmpdir("prerename");
+        let part = d.join("f.part");
+        let ok1 = child(&exe, &kurl, &part, None).status().unwrap().success();
+        a.clear_log();
+        let out = child(&exe, &kurl, &part, None).output().unwrap();
+        // bytes asked for: closed ranges by length, an open range "a-" as total - a (the probe)
+        let asked: Vec<u64> = a.log().iter().filter_map(|q| q.headers.iter().find(|(k, _)| k == "range").and_then(|(_, v)| {
+            let (x, y) = v.strip_prefix("bytes=")?.split_once('-')?;
+            let x: u64 = x.parse().ok()?;
+            Some(if y.is_empty() { ksize - x } else { y.parse::<u64>().ok()? + 1 - x })
+        })).collect();
+        let sha = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let total_asked: u64 = asked.iter().sum();
+        c.ok(ok1 && sha == want && part.exists() && total_asked <= 2 * MIB, &format!("crash before final rename: .part kept, resume asked {} KiB in {} requests (1-byte probe + seam checks), sha256 ok", total_asked / 1024, asked.len()));
+    }
+
     // 6. tampered sidecar: overlapping / out-of-range segments are refused, download restarts and is correct
     let d = tmpdir("tamper");
     let part = d.join("f.part");
@@ -163,6 +182,39 @@ async fn main() {
     c.ok(load_sidecar(&part).is_none(), "tampered sidecar (overlap, committed past data) rejected by the loader");
     let out = child(&exe, &kurl, &part, None).output().unwrap();
     c.ok(String::from_utf8_lossy(&out.stdout).trim() == want, "after tampered sidecar: restart from 0, final sha256 ok");
+
+    // 6b. structurally valid lie: every segment claims "committed = end" although most bytes were never written.
+    //     The loader must accept it (it is well-formed), the seam check must catch it, the file must still be right.
+    {
+        let d = tmpdir("lie");
+        let part = d.join("f.part");
+        let _ = child(&exe, &kurl, &part, Some("after_commit:2")).status();
+        let mut sc = load_sidecar(&part).expect("sidecar after a commit");
+        let honest: u64 = sc.segs.iter().map(|s| s[2] - s[0]).sum();
+        for s in sc.segs.iter_mut() { s[2] = s[1]; }
+        std::fs::write(sidecar_path(&part), serde_json::to_vec(&sc).unwrap()).unwrap();
+        let accepted = load_sidecar(&part).is_some();
+        a.clear_log();
+        let out = child(&exe, &kurl, &part, None).output().unwrap();
+        let seams = a.log().iter().filter(|q| q.headers.iter().any(|(k, v)| k == "range" && v.split('-').nth(1).is_some_and(|e| !e.is_empty()))).count();
+        c.ok(accepted && String::from_utf8_lossy(&out.stdout).trim() == want, &format!("valid-looking lying sidecar (claims {ksize} B, honest {honest} B): loader accepts it, seam check refetches ({seams} closed-range requests), final sha256 ok"));
+    }
+
+    // 6c. limit (council r2): the seam check validates segment boundaries only. Interior corruption inside a
+    //     committed prefix with an intact seam is NOT detected by resume; only a known expected SHA-256 catches it.
+    {
+        let d = tmpdir("interior");
+        let part = d.join("f.part");
+        let _ = child(&exe, &kurl, &part, Some("after_commit:2")).status();
+        let sc = load_sidecar(&part).expect("sidecar");
+        let seg = sc.segs.iter().find(|s| s[2] - s[0] >= 2 * MIB).copied().expect("a segment with >= 2 MiB committed");
+        let f = std::fs::OpenOptions::new().write(true).open(&part).unwrap();
+        f.seek_write(&[0xAAu8; 4096], seg[0] + MIB).unwrap(); // inside the prefix, far from the 64 KiB seam
+        drop(f);
+        let out = child(&exe, &kurl, &part, None).output().unwrap();
+        let sha = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        c.note(&format!("LIMIT: 4 KiB corrupted inside a committed prefix (seam intact) -> resume result sha256 {} the oracle; detection needs a known expected hash (finalisation's optional SHA-256)", if sha == want { "MATCHES (refetched)" } else { "DIFFERS from" }));
+    }
 
     // 7. seeded TerminateProcess kill/resume rounds
     let d = tmpdir("kill");
