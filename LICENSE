@@ -1,0 +1,332 @@
+GoldenIQ Restricted Personal-Use License
+Version 1.0, 9 November 2026
+
+Copyright (c) 2026 GoldenIQ & CHHIT SUNGCHHAY. All rights reserved.
+
+Software: Galaxy Download Manage
+Contact for permission: yr.goldeniq@gmail.com
+
+This is NOT an open-source license. Read it fully before you download,
+install, view, or use the Software. By doing any of those things you agree to
+every term below. If you do not agree, do not use the Software and delete
+every copy you have.
+
+-------------------------------------------------------------------------------
+1. DEFINITIONS
+-------------------------------------------------------------------------------
+
+"Licensor" means GoldenIQ and CHHIT SUNGCHHAY, jointly and each of them.
+
+"Software" means Galaxy Download Manage in every form: source code, object
+code, compiled binaries, installers, user interfaces, designs, documentation,
+blueprints, images, logos, icons, names and any other material in this
+repository or distributed by the Licensor, including any part, update or
+later version of it.
+
+"You" means any person or legal entity that obtains or uses the Software.
+
+"Personal Use" means use by one natural person, for that person's own private,
+non-commercial purposes, on devices that person owns or controls.
+
+"Commercial Use" means any use that is meant for, or results in, money,
+payment, commercial advantage or business benefit, directly or indirectly.
+This includes selling, renting, leasing, licensing, sublicensing, hosting,
+offering as a service, bundling with a product or service, using it inside a
+business, organisation or government body, showing paid advertising with it,
+charging for installation, support or access, and using it to build or promote
+a competing product.
+
+"Modify" means to change, adapt, translate, patch, rebrand, port, decompile,
+combine with other code, or create any derivative work of the Software, in
+whole or in part.
+
+-------------------------------------------------------------------------------
+2. WHAT YOU MAY DO
+-------------------------------------------------------------------------------
+
+Subject to full compliance with this License, the Licensor grants You a
+limited, personal, non-exclusive, non-transferable, non-sublicensable,
+revocable, royalty-free right to:
+
+  (a) download and install unmodified official copies of the Software that the
+      Licensor publishes, and use them for Personal Use only;
+  (b) read the source code for your own private reference only; and
+  (c) keep one backup copy for your own Personal Use.
+
+Nothing else is granted. Every right that is not expressly granted in this
+section is reserved by the Licensor.
+
+-------------------------------------------------------------------------------
+3. WHAT YOU MAY NOT DO
+-------------------------------------------------------------------------------
+
+Unless You first obtain the Licensor's written permission (Section 4), You
+must not, and must not let or help anyone else:
+
+  (a) Modify the Software, in whole or in part, for any purpose;
+  (b) copy, reproduce, publish, upload, mirror, redistribute, share, sell or
+      otherwise make the Software or any part of it available to anyone,
+      whether original or modified, free or paid;
+  (c) make any Commercial Use of the Software or of any part of its source
+      code, design or assets;
+  (d) copy, paste, reuse, extract or rewrite any part of the source code,
+      structure, design or logic into another project, including by
+      re-typing it, translating it into another programming language, or
+      producing a close imitation;
+  (e) remove, hide or change any copyright notice, license text, name, logo,
+      credit or other ownership mark in the Software;
+  (f) claim the Software, or any part of it, as your own work, or credit any
+      person other than the Licensor as its author;
+  (g) reverse engineer, decompile or disassemble any compiled form of the
+      Software, except where applicable law expressly allows it and cannot be
+      excluded by contract;
+  (h) bypass, disable or interfere with any security, signing, update or
+      protection feature of the Software;
+  (i) use the Software, its source code or its assets to train, fine-tune,
+      evaluate or improve any machine-learning or artificial-intelligence
+      model or dataset;
+  (j) rent, lend, transfer, assign or sublicense any right under this License;
+  (k) use the names "GoldenIQ", "Galaxy Download Manage", "CHHIT SUNGCHHAY",
+      or any logo or icon of the Software, to name, endorse or promote any
+      product, service or fork; or
+  (l) use the Software to break any law, including to infringe copyright or to
+      circumvent any technical protection measure (DRM).
+
+Hosting platforms: if the Software is published on a platform (for example
+GitHub) whose own terms let other users view or "fork" public repositories,
+You receive only the minimum right those terms require, only inside that
+platform, and every restriction of this License still applies to any such
+fork. A fork does not give You any right to Modify, redistribute or make
+Commercial Use of the Software.
+
+-------------------------------------------------------------------------------
+4. PERMISSION FROM GOLDENIQ IS REQUIRED
+-------------------------------------------------------------------------------
+
+Any act that is not expressly allowed in Section 2 requires prior written
+permission from GoldenIQ. Permission:
+
+  (a) must be requested at yr.goldeniq@gmail.com before You act;
+  (b) is valid only if it is given in writing by GoldenIQ from that address
+      or in a document signed by GoldenIQ or CHHIT SUNGCHHAY;
+  (c) covers only what it states, for whom it states and for as long as it
+      states; and
+  (d) may be refused or withdrawn by the Licensor at its sole discretion.
+
+Silence, delay, a public post, a merged pull request, or any other conduct is
+never permission.
+
+-------------------------------------------------------------------------------
+5. OWNERSHIP AND CREDIT
+-------------------------------------------------------------------------------
+
+The Software is licensed, not sold. GoldenIQ and CHHIT SUNGCHHAY own and keep
+all right, title and interest in the Software, including all copyright,
+trademark, trade secret and other intellectual-property rights. GoldenIQ is
+the sole author of the Software.
+
+-------------------------------------------------------------------------------
+6. FEEDBACK AND CONTRIBUTIONS
+-------------------------------------------------------------------------------
+
+The Licensor has no duty to accept any suggestion, issue, patch or pull
+request. If You send any of these anyway, You grant the Licensor a perpetual,
+irrevocable, worldwide, royalty-free, unrestricted right to use, change,
+publish and commercialise it in any way without credit or payment, and You
+waive any moral rights in it to the extent the law allows. Sending it gives
+You no right in the Software.
+
+-------------------------------------------------------------------------------
+7. THIRD-PARTY COMPONENTS
+-------------------------------------------------------------------------------
+
+The Software may include or call third-party components (for example Tauri,
+React, yt-dlp or FFmpeg). Those components remain under their own licenses,
+and this License does not reduce any right those licenses give You in those
+components. This License applies to everything else in the Software.
+
+-------------------------------------------------------------------------------
+8. TERMINATION
+-------------------------------------------------------------------------------
+
+This License ends automatically and at once, without notice, if You break any
+of its terms. The Licensor may also end it for any person at any time by
+notice. When it ends You must stop all use and destroy every copy of the
+Software in your possession or control. Sections 3, 5, 6, 8, 9, 10, 11 and 12
+survive termination.
+
+-------------------------------------------------------------------------------
+9. NO WARRANTY
+-------------------------------------------------------------------------------
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING ANY WARRANTY OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY OR UNINTERRUPTED
+OPERATION. YOU USE IT AT YOUR OWN RISK.
+
+-------------------------------------------------------------------------------
+10. LIMITATION OF LIABILITY AND YOUR RESPONSIBILITY
+-------------------------------------------------------------------------------
+
+TO THE FULLEST EXTENT ALLOWED BY LAW, THE LICENSOR IS NOT LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR PUNITIVE DAMAGES, OR
+FOR ANY LOSS OF DATA, PROFIT, DEVICE OR BUSINESS, ARISING FROM THE SOFTWARE
+OR THIS LICENSE, EVEN IF ADVISED OF THE POSSIBILITY.
+
+You alone are responsible for what You download with the Software and for
+following the law and the terms of every website and rights holder. You will
+indemnify and hold the Licensor harmless from any claim, loss or cost
+(including reasonable legal fees) that arises from your use of the Software
+or your breach of this License.
+
+-------------------------------------------------------------------------------
+11. ENFORCEMENT
+-------------------------------------------------------------------------------
+
+Any use beyond this License is copyright infringement as well as a breach of
+this License. Because a breach can cause the Licensor harm that money cannot
+fully repair, the Licensor may seek an injunction or other urgent court order,
+in addition to damages, an account of profits, recovery of legal costs and
+any other remedy the law allows, in any court with jurisdiction.
+
+-------------------------------------------------------------------------------
+12. GOVERNING LAW AND GENERAL TERMS
+-------------------------------------------------------------------------------
+
+  (a) This License is governed by the laws of the Kingdom of Cambodia,
+      including the Law on Copyright and Related Rights (2003), without regard
+      to conflict-of-law rules. The courts of Phnom Penh have jurisdiction,
+      and the Licensor may also bring action wherever You are located.
+  (b) If any term is found unenforceable, it is enforced to the maximum extent
+      allowed and the rest of this License stays in force.
+  (c) A failure or delay by the Licensor to enforce any term is not a waiver.
+  (d) This License is the entire agreement about the Software unless a
+      written agreement signed by the Licensor says otherwise.
+  (e) The Licensor may publish a new version of this License. The version
+      included with a copy of the Software applies to that copy.
+  (f) This License is written in English with a Khmer translation below. If
+      the two differ, the English text controls.
+
+===============================================================================
+
+អាជ្ញាប័ណ្ណប្រើប្រាស់ឯកជនដែលមានការរឹតបន្តឹងរបស់ GoldenIQ
+កំណែ 1.0 ថ្ងៃទី 9 ខែវិច្ឆិកា ឆ្នាំ 2026
+
+រក្សាសិទ្ធិគ្រប់យ៉ាង (c) 2026 GoldenIQ & CHHIT SUNGCHHAY ។
+
+កម្មវិធី: Galaxy Download Manage
+ទំនាក់ទំនងសុំការអនុញ្ញាត: yr.goldeniq@gmail.com
+
+នេះមិនមែនជាអាជ្ញាប័ណ្ណកូដចំហ (open source) ទេ។ ការទាញយក ដំឡើង មើល ឬប្រើកម្មវិធី
+មានន័យថាអ្នកយល់ព្រមលើលក្ខខណ្ឌទាំងអស់ខាងក្រោម។ បើមិនយល់ព្រម សូមកុំប្រើ ហើយលុបច្បាប់
+ចម្លងទាំងអស់ចោល។
+
+1. និយមន័យ
+- "ម្ចាស់សិទ្ធិ" គឺ GoldenIQ និង CHHIT SUNGCHHAY រួមគ្នា និងម្នាក់ៗ។
+- "កម្មវិធី" គឺ Galaxy Download Manage គ្រប់ទម្រង់: កូដប្រភព កូដ compile ឯកសារដំឡើង
+  ផ្ទៃប្រើប្រាស់ ការរចនា ឯកសារ blueprint រូបភាព ឡូហ្គោ រូបតំណាង ឈ្មោះ និងផ្នែក ឬកំណែ
+  ថ្មីណាមួយ។
+- "ការប្រើប្រាស់ឯកជន" គឺការប្រើដោយបុគ្គលម្នាក់ សម្រាប់គោលបំណងផ្ទាល់ខ្លួន មិនរកប្រាក់
+  ចំណូល លើឧបករណ៍ដែលខ្លួនជាម្ចាស់ ឬគ្រប់គ្រង។
+- "ការប្រើប្រាស់ពាណិជ្ជកម្ម" គឺការប្រើណាមួយដើម្បី ឬនាំឲ្យបាន ប្រាក់ ការទូទាត់ ឬផលប្រយោជន៍
+  អាជីវកម្ម ដោយផ្ទាល់ ឬប្រយោល ដូចជាលក់ ជួល ផ្ដល់ជាសេវា ភ្ជាប់ជាមួយផលិតផល ប្រើក្នុង
+  ក្រុមហ៊ុន ឬស្ថាប័ន ដាក់ពាណិជ្ជកម្មបង់ប្រាក់ គិតថ្លៃដំឡើង ឬបង្កើតផលិតផលប្រកួតប្រជែង។
+- "កែប្រែ" គឺការផ្លាស់ប្ដូរ បកប្រែ patch ដាក់ម៉ាកថ្មី port decompile បញ្ចូលជាមួយកូដផ្សេង
+  ឬបង្កើតស្នាដៃបន្តពីកម្មវិធី ទាំងស្រុង ឬមួយផ្នែក។
+
+2. អ្វីដែលអ្នកអាចធ្វើបាន
+ម្ចាស់សិទ្ធិផ្ដល់សិទ្ធិមានកំណត់ ផ្ទាល់ខ្លួន មិនផ្ដាច់មុខ មិនអាចផ្ទេរ មិនអាចផ្ដល់បន្ត អាចដក
+វិញបាន និងឥតគិតថ្លៃ ដើម្បី:
+  (ក) ទាញយក និងដំឡើងច្បាប់ផ្លូវការដែលមិនបានកែប្រែ សម្រាប់ការប្រើប្រាស់ឯកជនតែប៉ុណ្ណោះ;
+  (ខ) អានកូដប្រភពសម្រាប់ជាឯកសារយោងផ្ទាល់ខ្លួនតែប៉ុណ្ណោះ; និង
+  (គ) ទុកច្បាប់បម្រុងមួយសម្រាប់ការប្រើប្រាស់ឯកជនរបស់ខ្លួន។
+ក្រៅពីនេះ គ្មានសិទ្ធិអ្វីផ្សេងទៀតត្រូវបានផ្ដល់ឡើយ។ សិទ្ធិទាំងអស់ផ្សេងទៀតជារបស់ម្ចាស់សិទ្ធិ។
+
+3. អ្វីដែលហាមឃាត់
+បើគ្មានការអនុញ្ញាតជាលាយលក្ខណ៍អក្សរ (ផ្នែកទី 4) អ្នកមិនត្រូវ ហើយមិនត្រូវឲ្យ ឬជួយអ្នក
+ផ្សេង:
+  (ក) កែប្រែកម្មវិធី ទាំងស្រុង ឬមួយផ្នែក ដោយហេតុផលណាក៏ដោយ;
+  (ខ) ចម្លង ផលិតឡើងវិញ ផ្សព្វផ្សាយ upload mirror ចែកចាយ ចែករំលែក ឬលក់ ទោះជាច្បាប់
+      ដើម ឬកែប្រែ ឥតគិតថ្លៃ ឬបង់ប្រាក់;
+  (គ) ប្រើកម្មវិធី កូដប្រភព ការរចនា ឬធនធានណាមួយ សម្រាប់ពាណិជ្ជកម្ម;
+  (ឃ) លួចចម្លង ប្រើឡើងវិញ ទាញយកចេញ ឬសរសេរឡើងវិញនូវផ្នែកណាមួយនៃកូដ រចនាសម្ព័ន្ធ
+      ការរចនា ឬតក្កវិជ្ជា ទៅក្នុងគម្រោងផ្សេង រួមទាំងការវាយឡើងវិញ បកប្រែជាភាសា
+      programming ផ្សេង ឬធ្វើត្រាប់តាមយ៉ាងជិត;
+  (ង) លុប លាក់ ឬផ្លាស់ប្ដូរ សេចក្ដីជូនដំណឹងរក្សាសិទ្ធិ អត្ថបទអាជ្ញាប័ណ្ណ ឈ្មោះ ឡូហ្គោ ឬ
+      សញ្ញាម្ចាស់កម្មសិទ្ធិណាមួយ;
+  (ច) អះអាងថាកម្មវិធីជាស្នាដៃរបស់ខ្លួន ឬដាក់ឈ្មោះអ្នកផ្សេងជាអ្នកនិពន្ធ;
+  (ឆ) reverse engineer, decompile ឬ disassemble ទម្រង់ compile លើកលែងតែច្បាប់អនុញ្ញាត
+      ច្បាស់លាស់ ហើយមិនអាចដកចេញដោយកិច្ចសន្យាបាន;
+  (ជ) រំលង បិទ ឬរំខានមុខងារសុវត្ថិភាព ការចុះហត្ថលេខា ការ update ឬការការពារណាមួយ;
+  (ឈ) ប្រើកម្មវិធី កូដ ឬធនធាន ដើម្បីបង្ហាត់ ឬកែលម្អម៉ូដែល AI / machine learning ឬ dataset;
+  (ញ) ជួល ឲ្យខ្ចី ផ្ទេរ ឬផ្ដល់បន្តនូវសិទ្ធិណាមួយក្រោមអាជ្ញាប័ណ្ណនេះ;
+  (ដ) ប្រើឈ្មោះ "GoldenIQ", "Galaxy Download Manage", "CHHIT SUNGCHHAY" ឬឡូហ្គោ
+      ដើម្បីដាក់ឈ្មោះ គាំទ្រ ឬផ្សព្វផ្សាយផលិតផល សេវា ឬ fork ណាមួយ; ឬ
+  (ឋ) ប្រើកម្មវិធីដើម្បីល្មើសច្បាប់ រួមទាំងរំលោភសិទ្ធិអ្នកនិពន្ធ ឬរំលង DRM ។
+វេទិកា hosting: បើកម្មវិធីដាក់លើវេទិកា (ឧ. GitHub) ដែលលក្ខខណ្ឌរបស់វាអនុញ្ញាតឲ្យមើល
+ឬ "fork" អ្នកទទួលបានតែសិទ្ធិអប្បបរមាដែលលក្ខខណ្ឌនោះតម្រូវ ក្នុងវេទិកានោះតែប៉ុណ្ណោះ ហើយ
+ការហាមឃាត់ទាំងអស់នៅតែអនុវត្តលើ fork នោះ។ Fork មិនផ្ដល់សិទ្ធិកែប្រែ ចែកចាយ ឬប្រើ
+ពាណិជ្ជកម្មឡើយ។
+
+4. ត្រូវតែសុំការអនុញ្ញាតពី GoldenIQ
+រាល់សកម្មភាពដែលមិនបានអនុញ្ញាតច្បាស់ក្នុងផ្នែកទី 2 ត្រូវមានការអនុញ្ញាតជាលាយលក្ខណ៍អក្សរ
+ពី GoldenIQ ជាមុន។ ការអនុញ្ញាត:
+  (ក) ត្រូវស្នើមុននឹងធ្វើ តាម yr.goldeniq@gmail.com;
+  (ខ) មានសុពលភាពតែពេល GoldenIQ ផ្ដល់ជាលាយលក្ខណ៍អក្សរពីអាសយដ្ឋាននោះ ឬក្នុងឯកសារ
+      ដែល GoldenIQ ឬ CHHIT SUNGCHHAY ចុះហត្ថលេខា;
+  (គ) គ្របដណ្ដប់តែអ្វី អ្នកណា និងរយៈពេលដែលបានចែងប៉ុណ្ណោះ; និង
+  (ឃ) ម្ចាស់សិទ្ធិអាចបដិសេធ ឬដកវិញបាន តាមការសម្រេចចិត្តផ្ទាល់។
+ភាពស្ងៀមស្ងាត់ ការពន្យារពេល ការបង្ហោះជាសាធារណៈ pull request ដែលបាន merge ឬទង្វើ
+ផ្សេងៗ មិនមែនជាការអនុញ្ញាតឡើយ។
+
+5. កម្មសិទ្ធិ និងការទទួលស្គាល់ស្នាដៃ
+កម្មវិធីនេះផ្ដល់ជាអាជ្ញាប័ណ្ណ មិនមែនលក់ទេ។ GoldenIQ និង CHHIT SUNGCHHAY រក្សាកម្មសិទ្ធិ
+និងសិទ្ធិទាំងអស់ រួមទាំងសិទ្ធិអ្នកនិពន្ធ ពាណិជ្ជសញ្ញា អាថ៌កំបាំងពាណិជ្ជកម្ម និងកម្មសិទ្ធិ
+បញ្ញាផ្សេងៗ។ GoldenIQ ជាអ្នកនិពន្ធតែម្នាក់គត់នៃកម្មវិធីនេះ។
+
+6. មតិយោបល់ និងការរួមចំណែក
+ម្ចាស់សិទ្ធិគ្មានកាតព្វកិច្ចទទួលយកសំណើ issue patch ឬ pull request ណាមួយឡើយ។ បើអ្នក
+ផ្ញើមក អ្នកផ្ដល់ឲ្យម្ចាស់សិទ្ធិនូវសិទ្ធិអចិន្ត្រៃយ៍ មិនអាចដកវិញ ទូទាំងពិភពលោក ឥតគិតថ្លៃ
+ដើម្បីប្រើ កែ ផ្សព្វផ្សាយ និងធ្វើពាណិជ្ជកម្ម ដោយមិនបាច់ដាក់ឈ្មោះ ឬបង់ប្រាក់ ហើយអ្នកលះបង់
+សិទ្ធិសីលធម៌តាមដែលច្បាប់អនុញ្ញាត។ ការផ្ញើមិនផ្ដល់សិទ្ធិណាមួយលើកម្មវិធីឡើយ។
+
+7. សមាសធាតុភាគីទីបី
+កម្មវិធីអាចមាន ឬហៅសមាសធាតុភាគីទីបី (ឧ. Tauri, React, yt-dlp, FFmpeg)។ សមាសធាតុទាំង
+នោះនៅក្រោមអាជ្ញាប័ណ្ណរបស់ខ្លួន ហើយអាជ្ញាប័ណ្ណនេះមិនកាត់បន្ថយសិទ្ធិដែលអាជ្ញាប័ណ្ណទាំងនោះ
+ផ្ដល់ឡើយ។ អាជ្ញាប័ណ្ណនេះអនុវត្តលើផ្នែកផ្សេងទៀតទាំងអស់។
+
+8. ការបញ្ចប់
+អាជ្ញាប័ណ្ណនេះបញ្ចប់ដោយស្វ័យប្រវត្តិភ្លាមៗ ដោយមិនបាច់ជូនដំណឹង ពេលអ្នកបំពានលក្ខខណ្ឌណា
+មួយ។ ម្ចាស់សិទ្ធិក៏អាចបញ្ចប់សម្រាប់នរណាម្នាក់ពេលណាក៏បាន ដោយជូនដំណឹង។ ពេលបញ្ចប់
+អ្នកត្រូវឈប់ប្រើ ហើយបំផ្លាញច្បាប់ចម្លងទាំងអស់។ ផ្នែកទី 3, 5, 6, 8, 9, 10, 11 និង 12
+នៅតែមានសុពលភាពក្រោយការបញ្ចប់។
+
+9. គ្មានការធានា
+កម្មវិធីផ្ដល់ជូន "តាមស្ថានភាពជាក់ស្ដែង" ដោយគ្មានការធានាណាមួយ ទាំងច្បាស់ ឬដោយប្រយោល។
+អ្នកប្រើដោយទទួលហានិភ័យខ្លួនឯង។
+
+10. ការកំណត់ការទទួលខុសត្រូវ និងការទទួលខុសត្រូវរបស់អ្នក
+តាមដែលច្បាប់អនុញ្ញាតអតិបរមា ម្ចាស់សិទ្ធិមិនទទួលខុសត្រូវលើការខូចខាតណាមួយ ទាំងផ្ទាល់
+ឬប្រយោល ការបាត់បង់ទិន្នន័យ ប្រាក់ចំណេញ ឧបករណ៍ ឬអាជីវកម្ម ដែលកើតចេញពីកម្មវិធី ឬ
+អាជ្ញាប័ណ្ណនេះ។ អ្នកតែម្នាក់ឯងទទួលខុសត្រូវលើអ្វីដែលអ្នកទាញយក និងការគោរពច្បាប់ និង
+លក្ខខណ្ឌរបស់គេហទំព័រ និងម្ចាស់សិទ្ធិនានា។ អ្នកត្រូវសងការខូចខាត និងការពារម្ចាស់សិទ្ធិពី
+ការទាមទារ ការខាតបង់ ឬថ្លៃដើម (រួមទាំងថ្លៃមេធាវីសមរម្យ) ដែលកើតពីការប្រើ ឬការបំពានរបស់
+អ្នក។
+
+11. ការអនុវត្ត
+ការប្រើលើសពីអាជ្ញាប័ណ្ណនេះ គឺជាការរំលោភសិទ្ធិអ្នកនិពន្ធ និងការបំពានអាជ្ញាប័ណ្ណ។ ម្ចាស់
+សិទ្ធិអាចស្នើតុលាការចេញដីកាហាមឃាត់ ឬវិធានការបន្ទាន់ ព្រមទាំងទាមទារសំណង ប្រាក់ចំណេញ
+ដែលបានពីការរំលោភ ថ្លៃមេធាវី និងដំណោះស្រាយផ្សេងតាមច្បាប់ នៅតុលាការណាដែលមានសមត្ថកិច្ច។
+
+12. ច្បាប់គ្រប់គ្រង និងលក្ខខណ្ឌទូទៅ
+  (ក) អាជ្ញាប័ណ្ណនេះស្ថិតក្រោមច្បាប់នៃព្រះរាជាណាចក្រកម្ពុជា រួមទាំងច្បាប់ស្ដីពីសិទ្ធិអ្នក
+      និពន្ធ និងសិទ្ធិប្រហាក់ប្រហែល (2003)។ តុលាការភ្នំពេញមានសមត្ថកិច្ច ហើយម្ចាស់សិទ្ធិ
+      ក៏អាចប្ដឹងនៅទីកន្លែងដែលអ្នកស្ថិតនៅបាន។
+  (ខ) បើលក្ខខណ្ឌណាមួយមិនអាចអនុវត្តបាន វាត្រូវអនុវត្តតាមកម្រិតអតិបរមាដែលអាចធ្វើបាន
+      ហើយលក្ខខណ្ឌផ្សេងនៅតែមានសុពលភាព។
+  (គ) ការមិន ឬពន្យារការអនុវត្តលក្ខខណ្ឌណាមួយ មិនមែនជាការលះបង់សិទ្ធិឡើយ។
+  (ឃ) អាជ្ញាប័ណ្ណនេះជាកិច្ចព្រមព្រៀងពេញលេញ លើកលែងតែមានកិច្ចព្រមព្រៀងជាលាយលក្ខណ៍
+      អក្សរដែលម្ចាស់សិទ្ធិចុះហត្ថលេខា។
+  (ង) ម្ចាស់សិទ្ធិអាចចេញកំណែថ្មីនៃអាជ្ញាប័ណ្ណនេះ។ កំណែដែលភ្ជាប់ជាមួយច្បាប់ចម្លងណាមួយ
+      អនុវត្តលើច្បាប់ចម្លងនោះ។
+  (ច) បើអត្ថបទអង់គ្លេស និងខ្មែរខុសគ្នា អត្ថបទអង់គ្លេសជាគោល។
