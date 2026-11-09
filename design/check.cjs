@@ -9,7 +9,7 @@ const { chromium } = require("playwright-core");
 
 const ROOT = path.resolve(__dirname, "..");
 const SHOTS = path.join(__dirname, "mockups", "shots");
-const SCREENS = { main: [1100, 700], details: [1280, 760], info: [1100, 700], settings: [1100, 700], onboarding: [1100, 700] };
+const SCREENS = { main: [1100, 700], details: [1280, 760], info: [1100, 700], settings: [1100, 700], onboarding: [1100, 700], states: [1100, 700] };
 const LANGS = ["km", "en"], THEMES = ["dark", "light"], SCALES = [1, 1.25, 1.5];
 const FONTS_OK = ["Kantumruy Pro", "Outfit", "JetBrains Mono"];   // platform names carry the weight, e.g. "Kantumruy Pro SemiBold"
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".woff2": "font/woff2", ".png": "image/png" };

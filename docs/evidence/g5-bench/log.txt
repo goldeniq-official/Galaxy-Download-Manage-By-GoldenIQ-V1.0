@@ -1,0 +1,82 @@
+﻿== start 2026-11-10T00:21:58.9572124+07:00 commit 4242fcd
+lan1g pair 0 AB GDM: 18.818s 57.06 MB/s conns 3 sha_ok True
+lan1g pair 0 AB IDM: 12.701s 84.54 MB/s conns 8 sha_ok True
+lan1g pair 1 BA IDM: 12.826s 83.71 MB/s conns 8 sha_ok True
+lan1g pair 1 BA GDM: 18.757s 57.24 MB/s conns 3 sha_ok True
+lan1g pair 2 AB GDM: 18.214s 58.95 MB/s conns 3 sha_ok True
+lan1g pair 2 AB IDM: 13.842s 77.57 MB/s conns 8 sha_ok True
+lan1g pair 3 AB GDM: 19.092s 56.24 MB/s conns 3 sha_ok True
+lan1g pair 3 AB IDM: 13.01s 82.53 MB/s conns 8 sha_ok True
+lan1g pair 4 AB GDM: 18.787s 57.15 MB/s conns 3 sha_ok True
+lan1g pair 4 AB IDM: 12.814s 83.8 MB/s conns 8 sha_ok True
+lan1g pair 5 BA IDM: 12.889s 83.31 MB/s conns 8 sha_ok True
+lan1g pair 5 BA GDM: 18.208s 58.97 MB/s conns 3 sha_ok True
+lan1g pinned sha256 1ed28033bde49911ca9b47e5b78b677d7b70bbf24353b0a98e65bc771cac4fd1
+lan1g-percon pair 0 AB GDM: 20.387s 52.67 MB/s conns 5 sha_ok True
+lan1g-percon pair 0 AB IDM: 12.942s 82.97 MB/s conns 9 sha_ok True
+lan1g-percon pair 1 AB GDM: 21.449s 50.06 MB/s conns 5 sha_ok True
+lan1g-percon pair 1 AB IDM: 13.055s 82.25 MB/s conns 8 sha_ok True
+lan1g-percon pair 2 AB GDM: 20.508s 52.36 MB/s conns 5 sha_ok True
+lan1g-percon pair 2 AB IDM: 13.047s 82.3 MB/s conns 8 sha_ok True
+lan1g-percon pair 3 BA IDM: 12.988s 82.67 MB/s conns 8 sha_ok True
+lan1g-percon pair 3 BA GDM: 20.456s 52.49 MB/s conns 5 sha_ok True
+lan1g-percon pair 4 AB GDM: 20.671s 51.94 MB/s conns 5 sha_ok True
+lan1g-percon pair 4 AB IDM: 13.113s 81.89 MB/s conns 8 sha_ok True
+lan1g-percon pair 5 BA IDM: 13.314s 80.65 MB/s conns 8 sha_ok True
+lan1g-percon pair 5 BA GDM: 21.197s 50.66 MB/s conns 5 sha_ok True
+lan1g-percon pinned sha256 e293e3fcad639fe09c2818d150faf0365c07bbf6421d25bc62e67980330a30bf
+== D b 2026-11-10T00:30:06.3934214+07:00
+lan1g pair 0 AB GDM: 20.936s 51.29 MB/s conns 8 sha_ok True
+lan1g pair 0 AB IDM: 12.687s 84.63 MB/s conns 8 sha_ok True
+lan1g pair 1 BA IDM: 12.987s 82.68 MB/s conns 8 sha_ok True
+lan1g pair 1 BA GDM: 19.506s 55.05 MB/s conns 8 sha_ok True
+lan1g pair 2 AB GDM: 21.101s 50.89 MB/s conns 8 sha_ok True
+lan1g pair 2 AB IDM: 12.637s 84.96 MB/s conns 8 sha_ok True
+lan1g pair 3 AB GDM: 20.169s 53.24 MB/s conns 8 sha_ok True
+lan1g pair 3 AB IDM: 12.614s 85.12 MB/s conns 8 sha_ok True
+lan1g pair 4 AB GDM: 20.767s 51.71 MB/s conns 8 sha_ok True
+lan1g pair 4 AB IDM: 12.963s 82.83 MB/s conns 8 sha_ok True
+lan1g pair 5 BA IDM: 12.699s 84.55 MB/s conns 8 sha_ok True
+lan1g pair 5 BA GDM: 19.957s 53.8 MB/s conns 8 sha_ok True
+lan1g pinned sha256 1ed28033bde49911ca9b47e5b78b677d7b70bbf24353b0a98e65bc771cac4fd1
+lan1g-percon pair 0 AB GDM: 21.347s 50.3 MB/s conns 8 sha_ok True
+lan1g-percon pair 0 AB IDM: 13.286s 80.82 MB/s conns 8 sha_ok True
+lan1g-percon pair 1 AB GDM: 20.275s 52.96 MB/s conns 8 sha_ok True
+lan1g-percon pair 1 AB IDM: 13.026s 82.43 MB/s conns 8 sha_ok True
+lan1g-percon pair 2 AB GDM: 19.501s 55.06 MB/s conns 8 sha_ok True
+lan1g-percon pair 2 AB IDM: 13.385s 80.22 MB/s conns 8 sha_ok True
+lan1g-percon pair 3 BA IDM: 13.001s 82.59 MB/s conns 8 sha_ok True
+lan1g-percon pair 3 BA GDM: 20.752s 51.74 MB/s conns 8 sha_ok True
+lan1g-percon pair 4 AB GDM: 20.938s 51.28 MB/s conns 8 sha_ok True
+lan1g-percon pair 4 AB IDM: 13.054s 82.25 MB/s conns 8 sha_ok True
+lan1g-percon pair 5 BA IDM: 12.92s 83.11 MB/s conns 8 sha_ok True
+lan1g-percon pair 5 BA GDM: 19.824s 54.16 MB/s conns 8 sha_ok True
+lan1g-percon pinned sha256 e293e3fcad639fe09c2818d150faf0365c07bbf6421d25bc62e67980330a30bf
+== C a 2026-11-10T00:38:20.2638548+07:00
+lan1g pair 0 AB GDM: 19.431s 55.26 MB/s conns 3 sha_ok True
+lan1g pair 0 AB IDM: 39.08s 27.48 MB/s conns 8 sha_ok True
+lan1g pair 1 BA IDM: 13.005s 82.56 MB/s conns 8 sha_ok True
+lan1g pair 1 BA GDM: 25.134s 42.72 MB/s conns 5 sha_ok True
+lan1g pair 2 AB GDM: 19.238s 55.81 MB/s conns 3 sha_ok True
+lan1g pair 2 AB IDM: 14.906s 72.03 MB/s conns 8 sha_ok True
+lan1g pair 3 AB GDM: 22.616s 47.48 MB/s conns 3 sha_ok True
+lan1g pair 3 AB IDM: 13.576s 79.09 MB/s conns 8 sha_ok True
+lan1g pair 4 AB GDM: 39.937s 26.89 MB/s conns 3 sha_ok True
+lan1g pair 4 AB IDM: 12.738s 84.3 MB/s conns 8 sha_ok True
+lan1g pair 5 BA IDM: 13.543s 79.28 MB/s conns 8 sha_ok True
+lan1g pair 5 BA GDM: 30.717s 34.96 MB/s conns 4 sha_ok True
+lan1g pinned sha256 1ed28033bde49911ca9b47e5b78b677d7b70bbf24353b0a98e65bc771cac4fd1
+lan1g-percon pair 0 AB GDM: 20.924s 51.32 MB/s conns 6 sha_ok True
+lan1g-percon pair 0 AB IDM: 15.293s 70.21 MB/s conns 8 sha_ok True
+lan1g-percon pair 1 AB GDM: 25.27s 42.49 MB/s conns 4 sha_ok True
+lan1g-percon pair 1 AB IDM: 14.441s 74.36 MB/s conns 8 sha_ok True
+lan1g-percon pair 2 AB GDM: 26.45s 40.6 MB/s conns 3 sha_ok True
+lan1g-percon pair 2 AB IDM: 14.472s 74.2 MB/s conns 8 sha_ok True
+lan1g-percon pair 3 BA IDM: 14.358s 74.78 MB/s conns 8 sha_ok True
+lan1g-percon pair 3 BA GDM: 28.576s 37.58 MB/s conns 4 sha_ok True
+lan1g-percon pair 4 AB GDM: 19.856s 54.08 MB/s conns 6 sha_ok True
+lan1g-percon pair 4 AB IDM: 12.907s 83.19 MB/s conns 8 sha_ok True
+lan1g-percon pair 5 BA IDM: 12.984s 82.7 MB/s conns 8 sha_ok True
+lan1g-percon pair 5 BA GDM: 23.737s 45.23 MB/s conns 6 sha_ok True
+lan1g-percon pinned sha256 e293e3fcad639fe09c2818d150faf0365c07bbf6421d25bc62e67980330a30bf
+== end 2026-11-10T00:48:11.7627954+07:00

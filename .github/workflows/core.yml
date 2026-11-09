@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: RPL-1.5
+# GDM download core (G5). Actions pinned by commit SHA; read-only token.
+name: core
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 18 * * *" # nightly: 1000 TerminateProcess cycles (E-04)
+    - cron: "0 20 * * 0" # weekly: N-01 fuzz campaign
+  workflow_dispatch:
+permissions: read-all
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  check:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: toolchain
+        run: rustup toolchain install $env:RUST_VERSION --profile minimal -c clippy,rustfmt; rustup default $env:RUST_VERSION
+      - name: no TLS bypass anywhere (W-03)
+        shell: bash
+        run: "! grep -rn --include=*.rs -e danger_accept_invalid -e NoCertificateVerification -e webpki_roots crates fixtures src-tauri"
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: cargo-deny (licences, advisories, sources)
+        run: cargo install cargo-deny --version 0.20.2 --locked; cargo deny --config deny.toml check
+      - name: exFAT volume + SMB share for the N-09 matrix (hosted runners are admin)
+        shell: pwsh
+        run: |
+          $vhd = "$env:RUNNER_TEMP\fat.vhdx"
+          @("create vdisk file=`"$vhd`" maximum=256 type=expandable", "select vdisk file=`"$vhd`"", "attach vdisk",
+            "create partition primary", "format fs=exfat quick label=GDMFAT", "assign letter=X") | Set-Content "$env:RUNNER_TEMP\dp.txt"
+          diskpart /s "$env:RUNNER_TEMP\dp.txt"
+          New-Item -ItemType Directory X:\dl | Out-Null
+          New-Item -ItemType Directory "$env:RUNNER_TEMP\share" | Out-Null
+          New-SmbShare -Name gdmtest -Path "$env:RUNNER_TEMP\share" -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
+          "GDM_TEST_FAT_DIR=X:\dl" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "GDM_TEST_SMB_DIR=\localhost\gdmtest" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: tests (cards E-01..E-04, N-01..N-05, N-09, W-01..W-03, D-01, L-01; hostile fixture wire tests)
+        run: cargo test --workspace --locked -- --nocapture
+        env:
+          GDM_NET_TESTS: "1"
+
+  kill1000:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 18 * * *')
+    runs-on: windows-2025
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install $env:RUST_VERSION --profile minimal; rustup default $env:RUST_VERSION
+      - name: 1000 TerminateProcess cycles, 0 corrupt files (E-04)
+        run: cargo test --release --locked -p gdm-core --test e04_kill -- --nocapture
+        env:
+          GDM_KILL_ROUNDS: "1000"
+
+  fuzz:
+    # N-01 asks for 24 h weekly; a hosted job stops at 6 h, so 5.5 h here (24 h needs a self-hosted runner)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 20 * * 0')
+    runs-on: windows-2025
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install nightly --profile minimal; cargo install cargo-fuzz --version 0.13.1 --locked
+      - name: fuzz the filename sanitizer and the sidecar parser
+        working-directory: fuzz
+        run: |
+          cargo +nightly fuzz run names -- -max_total_time=9900
+          cargo +nightly fuzz run sidecar -- -max_total_time=9900

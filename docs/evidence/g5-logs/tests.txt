@@ -1,0 +1,93 @@
+== cargo test --workspace (debug), 2026-11-10T01:24:55+07:00, commit d4d8a28
+rustc 1.97.1 (8bab26f4f 2026-07-14)
+     Running unittests src\lib.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\gdm_core-407d93d71419cb2b.exe)
+test fsx::tests::create_rename_relative ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running unittests src\bin\gdm-get.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\gdm_get-1966459d012f3200.exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\d01_store.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\d01_store-cad8b38e00bab38f.exe)
+test sidecar_untrusted_shapes_rejected ... ok
+test d02_newer_schema_opens_read_only ... ok
+test backups_are_checked_and_seven_kept ... ok
+test l01_job_limit_under_global ... ok
+test l01_global_limit_five_jobs_three_connections_each ... ok
+test l01_engine_five_jobs_never_exceed_global ... ok
+test d01_truncated_database_restored_and_jobs_recovered ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.33s
+     Running tests\e01_e03_hostile.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\e01_e03_hostile-8732af8b09eb84d2.exe)
+test e03_declared_size_larger_than_free_space_refused_before_preallocation ... ok
+test e01_body_past_its_own_content_range_is_refused ... ok
+test e02_file_changed_mid_download_pauses_never_complete ... ok
+test e03_infinite_body_stops_at_cap_disk_not_filled ... ok
+test e01_bad_content_range_and_multipart_rejected ... ok
+test short_bodies_retry_never_wrong_file ... ok
+test e03_overlong_body_extra_bytes_never_written ... ok
+test e01_200_ignoring_range_single_stream ... ok
+test e05_429_retry_after_honoured ... ok
+test e02_416_on_resume_is_size_changed ... ok
+test e02_changed_between_sessions_is_detected_on_resume ... ok
+test e01_206_then_200_mid_download_restarts_from_zero ... ok
+test control_ranged_ramp_probe_headers ... ok
+test e07_slow_body_times_out ... ok
+test e02_no_validator_unverified_and_restart_asks ... ok
+test e07_slowloris_headers_time_out ... ok
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.22s
+     Running tests\e04_kill.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\e04_kill-76255932f7a83fc9.exe)
+test e04_published_file_changed_after_crash_is_not_completed ... ok
+test e04_intent_survives_a_failed_state ... ok
+test e04_kill_rounds ... ok
+test e04_failpoints_then_resume_correct has been running for over 60 seconds
+test e04_failpoints_then_resume_correct ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 101.93s
+     Running tests\n01_n02_names.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\n01_n02_names-b34510e1d34b0978.exe)
+test last_segment_only ... ok
+test content_disposition_and_url ... ok
+test n02_bidi_stripped_real_extension_dangerous ... ok
+test n04_counter_keeps_extension ... ok
+test long_names_truncated_keep_extension ... ok
+test hostile_table_never_escapes_or_breaks_windows_rules ... ok
+test randomized_200k_invariants_and_idempotence ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.78s
+     Running tests\n03_n09_files.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\n03_n09_files-f5e27d051015533f.exe)
+test n05_only_internet_zone_counts_as_protected ... ok
+test n09_unprotected_targets ... ok
+test n03_ancestor_cannot_be_renamed_while_held ... ok
+test n03_foreign_part_not_adopted ... ok
+test n03_hard_link_at_part_name_never_written ... ok
+test n03_destination_is_a_junction_refused ... ok
+test n03_junction_planted_at_part_name_job_fails_target_untouched ... ok
+test n02_rtlo_name_on_disk ... ok
+test n05_mark_of_the_web_zone3_without_query_secrets ... ok
+test n04_two_jobs_same_name_and_existing_file ... ok
+test n05_eicar_blocked_never_complete ... ok
+test one_run_per_job ... ok
+test n10_replaced_part_is_not_reused ... ok
+test n03_destination_cannot_be_swapped_while_downloading ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.80s
+     Running tests\w01_w03_network.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\w01_w03_network-fcb15e52ca91bc97.exe)
+test w02_address_classes_and_mixed_answers ... ok
+test w01_creds_scoped_to_scheme_host_port ... ok
+test w02_redirect_rules ... ok
+test w03_badssl_online ... ok
+test w03_no_tls_bypass_in_source ... ok
+test w04_crlf_in_credentials_refused ... ok
+test w02_untyped_private_url_needs_confirmation ... ok
+test w01_cross_origin_redirect_drops_credentials ... ok
+test w02_redirect_to_loopback_is_stopped ... ok
+test w03_self_signed_expired_wrong_host_all_fail_closed ... ok
+test w01_same_origin_segments_keep_credentials ... ok
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.43s
+     Running unittests src\lib.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\gdm_fixture-81fa469e48a9e701.exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\main.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\gdm_fixture-1297a99296a0e7d2.exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\wire.rs (C:\Users\yrgol\AppData\Local/gdm-t3\debug\deps\wire-8e6d62c0b18ac466.exe)
+test etag_change ... ok
+test norange_and_range_then_200 ... ok
+test file_ranges_validators_416 ... ok
+test redirect_429_html_multipart ... ok
+test infinite_overlong_short_badcr ... ok
+test slowloris_and_slowbody ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.03s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

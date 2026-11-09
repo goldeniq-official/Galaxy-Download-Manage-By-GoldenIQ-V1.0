@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: RPL-1.5
+[workspace]
+resolver = "2"
+members = ["crates/gdm-core", "fixtures/hostile"]
+# the Tauri app and the G2/G3 throwaway spikes keep their own lock files
+exclude = ["src-tauri", "spikes"]
+
+[profile.release]
+debug = 1
