@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: RPL-1.5
-//! Finalisation (§09 step 8, N-05, N-09). The SHA-256 is taken through the download's own handle after the final
-//! sync (seg.rs). Then: the handle is closed (antivirus gets its on-close scan) -> IAttachmentExecute Save with the
-//! FINAL name (MOTW + AV judge the real type) -> reopen through the held directory with read + DELETE access,
-//! share READ only (the antivirus on-open gate; nobody can write, delete or rename it from now on) -> same file
-//! object -> byte count -> rename through that handle, never replacing.
-//! Why not re-hash after Save (council round 2 plan): measured G5, a new handle on a formerly sparse 1 GiB file
-//! reads from disk at ~170 MB/s (5.7-7.2 s here) vs 0.7 s through the writing handle. Residual (§10 A4, out of
-//! scope): a same-user process writing the file during the ~50 ms closed window (Save) is not detected.
+//! Finalisation (§09 step 8, N-05, N-09). Order (council G5): the .part handle is closed (the antivirus gets its
+//! on-close scan) -> IAttachmentExecute Save with the FINAL name (MOTW + AV judge the real type; Save may alter
+//! the file) -> reopen through the held directory with read + DELETE access, share READ only (the antivirus
+//! on-open gate; nobody can write, delete or rename it from now on) -> same file object -> byte count -> SHA-256
+//! through that handle -> rename through the SAME handle, never replacing. The bytes that get the final name are
+//! exactly the bytes that were hashed, AFTER every party that may change them had its chance.
+//! Measured cost (G5): this read of a formerly sparse file comes from disk (~170 MB/s on the D: HDD, ~6 s/GiB),
+//! while the writing handle would read it from cache in 0.7 s; the faster order was rejected by council because
+//! Save may alter the file. Out of scope (§10 A4): a same-user process holding a writable mapping across the
+//! closed-handle window.
 use crate::fsx::{self, Dir, FsError};
 use crate::{failpoint, Fail};
 use sha2::{Digest, Sha256};
@@ -95,7 +97,6 @@ pub fn finalize(
     part: &str,
     name: &str,
     total: u64,
-    sha: &str,
     expected: Option<&str>,
     source: &str,
     referrer: Option<&str>,
@@ -130,7 +131,9 @@ pub fn finalize(
             return Err(Fail::Io(format!("IAttachmentExecute::Save {:#010x}", e.code().0)));
         }
     }
-    let sha = sha.to_string();
+    let t = std::time::Instant::now();
+    let sha = sha_handle(&f).map_err(|e| Fail::Io(e.to_string()))?;
+    failpoint::phase("sha256", t);
     if expected.is_some_and(|e| !e.eq_ignore_ascii_case(&sha)) {
         return Err(Fail::HashMismatch);
     }

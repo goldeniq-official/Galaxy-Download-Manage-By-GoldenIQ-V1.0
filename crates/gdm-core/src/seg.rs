@@ -100,8 +100,6 @@ pub struct Done {
     pub transfer: Duration,
     pub flushes: u64,
     pub flush_time: Duration,
-    /// SHA-256 of the file, read back through the download's own handle after the final sync
-    pub sha256: String,
 }
 
 struct Seg {
@@ -562,12 +560,6 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     if total.is_some_and(|t| t != got) || len != got {
         return Err(Fail::Io(format!("byte count {got}/{len} != total {total:?}")));
     }
-    // hash through THIS handle: it reads the just-written bytes from cache (0.7 s/GiB); a new handle on a
-    // formerly sparse file re-reads from disk (measured 5.7-7.2 s/GiB on this machine)
-    let th = Instant::now();
-    let f = file.clone();
-    let sha256 = tokio::task::spawn_blocking(move || crate::finalize::sha_handle(&f)).await.expect("hash task").map_err(io)?;
-    failpoint::phase("sha256", th);
     let ts = Instant::now();
     crate::fsx::set_sparse(&file, false); // every byte is written: clearing the flag allocates nothing new
     failpoint::phase("clear_sparse", ts);
@@ -581,7 +573,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         segs: segs.iter().map(|s| [s.start, s.end, s.end]).collect(),
     })?;
     failpoint::hit("after_final_checkpoint");
-    Ok(Done { total: got, final_url: final_url.to_string(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time, sha256 })
+    Ok(Done { total: got, final_url: final_url.to_string(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time })
 }
 
 /// bytes [a, b) on the server (same validator) == bytes [a, b) on disk; any doubt => false (refetch)

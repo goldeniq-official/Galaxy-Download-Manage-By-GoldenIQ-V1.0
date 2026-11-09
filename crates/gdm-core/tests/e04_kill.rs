@@ -214,3 +214,25 @@ async fn e04_published_file_changed_after_crash_is_not_completed() {
     assert!(line.starts_with("FAIL NeedsDecision"), "{line}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// the rename happened, then recording "complete" failed and the run marked the job failed: the next run must
+/// finish from the recorded intent, never download a second copy
+#[tokio::test(flavor = "multi_thread")]
+async fn e04_intent_survives_a_failed_state() {
+    let a = Fixture::start("127.0.0.1:0").await;
+    let root = tmpdir("intent-failed");
+    let (db, dir) = (root.join("gdm.db"), root.join("dl"));
+    std::fs::create_dir_all(&dir).unwrap();
+    let url = a.url(&format!("/file?size={}&seed=78", 4 * MIB));
+    assert!(!child(&db, &url, &dir, Some("after_rename:1")).status().unwrap().success());
+    {
+        let (st, _) = Store::open(&db).unwrap();
+        st.conn.execute("UPDATE jobs SET state = 'failed', error_code = 'Io: simulated'", []).unwrap();
+    }
+    let out = child(&db, &url, &dir, None).output().unwrap();
+    let (sha, _) = ok_line(&out).unwrap_or_else(|| panic!("{}", String::from_utf8_lossy(&out.stdout)));
+    assert_eq!(sha, expected_sha256(78, 4 * MIB));
+    let names: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(names.len(), 1, "one file, no second download: {names:?}");
+    let _ = std::fs::remove_dir_all(&root);
+}

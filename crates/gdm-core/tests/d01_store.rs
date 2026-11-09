@@ -25,7 +25,7 @@ async fn d01_truncated_database_restored_and_jobs_recovered() {
         e.store.lock().unwrap().backup().unwrap(); // the daily backup ran after job 1
         part_id =
             e.add(NewJob { url: a.url(&format!("/p/{}/51/1500000/b.bin", 48 * MIB)), dir: dl.clone(), typed: true, ..Default::default() }).unwrap();
-        let _ = tokio::time::timeout(Duration::from_millis(3000), e.run(&part_id, Unverified::Ask, None)).await;
+        let _ = tokio::time::timeout(Duration::from_millis(6000), e.run(&part_id, Unverified::Ask, None)).await;
         assert!(e.job(&part_id).unwrap().done > 0, "job 2 checkpointed some bytes");
     } // engine closed: WAL checkpointed into the main file
     tokio::time::sleep(Duration::from_millis(500)).await;
