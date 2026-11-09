@@ -114,6 +114,7 @@ async fn e04_failpoints_then_resume_correct() {
         assert_eq!(sha_file(Path::new(&path)), want, "{fp}: file on disk");
         let finals: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
         assert_eq!(finals.len(), 1, "{fp}: exactly one file, no duplicate, no leftovers: {finals:?}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
 
@@ -184,4 +185,5 @@ async fn e04_kill_rounds() {
     assert!(bad.is_empty(), "{bad:?}");
     assert_eq!(regress, 0);
     assert_eq!(files_ok, files);
+    let _ = std::fs::remove_dir_all(&root);
 }

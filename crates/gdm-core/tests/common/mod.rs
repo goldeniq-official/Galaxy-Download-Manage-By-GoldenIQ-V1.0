@@ -34,6 +34,15 @@ pub fn engine(tag: &str, cfg: seg::Config) -> T {
     T { root, dl, engine }
 }
 
+/// a passing test removes its folder (downloads can be 100+ MiB); a failing one keeps it for inspection
+impl Drop for T {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+}
+
 impl T {
     pub fn job(&self, url: &str) -> NewJob {
         NewJob { url: url.into(), dir: self.dl.clone(), typed: true, ..Default::default() }

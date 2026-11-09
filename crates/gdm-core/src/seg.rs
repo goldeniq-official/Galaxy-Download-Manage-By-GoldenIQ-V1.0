@@ -538,14 +538,14 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     drop(tasks);
     drop(sh); // closes the writer queue
     let _ = wthread.join();
-    let f = file.clone();
-    let tf = Instant::now();
-    tokio::task::spawn_blocking(move || f.sync_data()).await.expect("flush task").map_err(io)?;
-    flush_time += tf.elapsed();
     let got: u64 = segs.iter().map(|s| s.end - s.start).sum();
     if total.is_none() {
-        file.set_len(got).map_err(io)?;
+        file.set_len(got).map_err(io)?; // before the final sync, so the length is flushed too
     }
+    let f = file.clone();
+    let tf = Instant::now();
+    tokio::task::spawn_blocking(move || f.sync_all()).await.expect("flush task").map_err(io)?;
+    flush_time += tf.elapsed();
     let len = file.metadata().map_err(io)?.len();
     if total.is_some_and(|t| t != got) || len != got {
         return Err(Fail::Io(format!("byte count {got}/{len} != total {total:?}")));

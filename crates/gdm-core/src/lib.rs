@@ -359,8 +359,10 @@ impl Engine {
             Ok(f) => {
                 let fid = fsx::file_id(&f).map_err(s)?;
                 if job.file_id.as_deref().is_some_and(|x| x != fid_str(fid)) {
-                    resume = None;
-                } // another file object: restart
+                    // N-10: not the file object we created (other disk, or replaced): never resume into it or
+                    // truncate it; the user decides
+                    return Err(Fail::NeedsDecision("the .part is a different file than the one this job created".into()));
+                }
                 f
             }
             Err(fsx::FsError::NotFound) => {

@@ -16,7 +16,15 @@ async fn main() {
     let t0 = Instant::now();
     let arg = |k: &str| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).cloned();
     let fixed = arg("--fixed").and_then(|v| v.parse().ok());
-    let e = match Engine::open(std::path::Path::new(&a[1]), seg::Config { fixed, ..seg::Config::default() }) {
+    let mut cfg = seg::Config { fixed, ..seg::Config::default() };
+    // measurement knobs only (benchmark contributors, G3 method); the product default stays 8 MiB or 2 s (E-04)
+    if let Some(mb) = std::env::var("GDM_FLUSH_MB").ok().and_then(|v| v.parse::<u64>().ok()) {
+        cfg.flush_bytes = mb << 20;
+    }
+    if let Some(ms) = std::env::var("GDM_FLUSH_MS").ok().and_then(|v| v.parse::<u64>().ok()) {
+        cfg.flush_every = std::time::Duration::from_millis(ms);
+    }
+    let e = match Engine::open(std::path::Path::new(&a[1]), cfg) {
         Ok(e) => e,
         Err(f) => {
             println!("FAIL {} {f}", f.code());

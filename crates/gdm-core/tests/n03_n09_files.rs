@@ -185,3 +185,19 @@ async fn n09_unprotected_targets() {
         eprintln!("N-09 real-volume matrix not run here");
     }
 }
+
+/// N-10 / N-03: the .part was replaced by another file between sessions: never resumed into, never truncated
+#[tokio::test(flavor = "multi_thread")]
+async fn n10_replaced_part_is_not_reused() {
+    let a = fx().await;
+    let t = engine("n10", quick());
+    let id = t.engine.add(t.job(&a.url(&format!("/file?size={}&seed=11&rate=1500000", 48 * MIB)))).unwrap();
+    let _ = tokio::time::timeout(std::time::Duration::from_millis(2500), t.engine.run(&id, Unverified::Ask, None)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let part = t.dl.join(format!("{}.part", t.engine.job(&id).unwrap().name));
+    std::fs::remove_file(&part).unwrap();
+    std::fs::write(&part, b"someone else's data").unwrap();
+    let r = t.engine.run(&id, Unverified::Ask, None).await;
+    assert!(matches!(r, Err(Fail::NeedsDecision(_))), "{r:?}");
+    assert_eq!(std::fs::read(&part).unwrap(), b"someone else's data", "untouched");
+}
