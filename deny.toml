@@ -21,6 +21,8 @@ confidence-threshold = 0.93
 # GDM itself is RPL-1.5 (LICENSE); only our own crates may carry it.
 exceptions = [
   { crate = "galaxy-download-manager", allow = ["RPL-1.5"] },
+  { crate = "gdm-core", allow = ["RPL-1.5"] },
+  { crate = "gdm-fixture", allow = ["RPL-1.5"] },
 ]
 
 [advisories]
@@ -29,6 +31,8 @@ ignore = []
 [bans]
 multiple-versions = "allow"
 wildcards = "deny"
+# our own unpublished path crates (publish = false) only
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

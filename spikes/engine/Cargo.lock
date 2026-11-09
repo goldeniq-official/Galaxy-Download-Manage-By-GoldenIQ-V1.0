@@ -244,11 +244,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gdm-fixture"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "gdm-spikes"
 version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "futures-util",
+ "gdm-fixture",
  "minisign",
  "minisign-verify",
  "reqwest",

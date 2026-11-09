@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: RPL-1.5
-//! S4 hostile HTTP/1.1 fixture server (raw tokio TCP, so it can send framing hyper would refuse).
-//! Self-contained: moves to fixtures/hostile/ in P1. Every request is logged (the trace is the evidence).
+//! Hostile HTTP/1.1 fixture server (raw tokio TCP, so it can send framing hyper would refuse).
+//! Moved from spikes/engine (G3 S4) in G5. Every request is logged (the trace is the evidence).
 //!
 //! Routes (query: size, seed, rate=bytes/s, after=N, to=URL):
 //!   /file          206 ranges, strong ETag, If-Range honoured          (control)
@@ -15,6 +15,7 @@
 //!   /slowbody      headers fine, then 1 body byte every 2 s
 //!   /redirect      302 Location: <to>                                  (W-01)
 //!   /echo          200 "ok" (the log shows which headers arrived)
+//!   /novalidator   206 ranges with no ETag and no Last-Modified          (E-02 unverified)
 //!   /429           first request per seed: 429 Retry-After: 2, then /file
 //!   /html          200 text/html page                                   (R-03)
 //!   /multipart     206 multipart/byteranges                             (not requested => reject)
@@ -148,6 +149,19 @@ impl Fixture {
                 let n = self.bump(format!("rt2-{seed}"));
                 let r = if n == 1 { range } else { None };
                 self.ranged(s, size, seed, rate, trate, r, None, head_only, &format!("\"s{seed}-{size}\"")).await
+            }
+            "/novalidator" => {
+                let (a, b) = clamp(range, size);
+                let (code, cr) = if range.is_some() { (206, format!("Content-Range: bytes {a}-{}/{size}
+", b.max(1) - 1)) } else { (200, String::new()) };
+                s.write_all(format!("HTTP/1.1 {code} X
+Content-Type: application/octet-stream
+Accept-Ranges: bytes
+{cr}Content-Length: {}
+
+", b - a).as_bytes()).await?;
+                if !head_only { send_bytes(s, seed, a, b, rate, None).await?; }
+                Ok(true)
             }
             "/norange" => {
                 s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {size}\r\n\r\n").as_bytes()).await?;

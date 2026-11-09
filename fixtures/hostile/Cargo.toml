@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: RPL-1.5
+[package]
+name = "gdm-fixture"
+version = "0.1.0"
+edition = "2021"
+publish = false
+authors = ["GoldenIQ"]
+license = "RPL-1.5"
+description = "Hostile HTTP/1.1 fixture server for GDM tests (never shipped)"
+
+[dependencies]
+tokio = { version = "1", features = ["net", "io-util", "time", "rt-multi-thread", "macros", "sync"] }
+sha2 = "0.10"

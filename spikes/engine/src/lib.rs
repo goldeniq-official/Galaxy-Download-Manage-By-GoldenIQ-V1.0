@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: RPL-1.5
 //! G3 (P0-C) throwaway spikes. One binary per spike in src/bin, each is its own check (exit 0 = pass).
-pub mod fixture;
+pub use gdm_fixture as fixture; // moved to fixtures/hostile (G5)
 pub mod seg;
 
 /// assert that prints a PASS/FAIL line and counts failures
