@@ -5,7 +5,7 @@ from parity import PARITY_HTML
 from design import DESIGN_HTML
 from codereview import CODE_HTML
 from council import COUNCIL_HTML
-from goal import MONEY_HTML, GOAL_HTML
+from goal import MONEY_HTML
 
 
 def code(s):
@@ -481,5 +481,4 @@ SECTIONS = [
     ("s19", "19", "ម្ចាស់ត្រូវសម្រេច (18)", S19),
     ("s20", "20", "Coverage, ទំនុកចិត្ត, ដែនកំណត់", S20),
     ("s21", "21", "ចំណូល: app ឥតគិតថ្លៃ, លុយពីជុំវិញ", MONEY_HTML),
-    ("goal", "22", "goal", GOAL_HTML),
 ]
