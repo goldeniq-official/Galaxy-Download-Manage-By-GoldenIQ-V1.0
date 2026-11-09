@@ -27,3 +27,11 @@ pub fn hit(name: &str) {
         std::process::abort();
     }
 }
+
+/// GDM_TIMING=1: phase timings on stderr (benchmark breakdown; off by default)
+pub fn phase(name: &str, since: std::time::Instant) {
+    static ON: OnceLock<bool> = OnceLock::new();
+    if *ON.get_or_init(|| std::env::var("GDM_TIMING").is_ok_and(|v| v == "1")) {
+        eprintln!("phase {name} {:.3}", since.elapsed().as_secs_f64());
+    }
+}

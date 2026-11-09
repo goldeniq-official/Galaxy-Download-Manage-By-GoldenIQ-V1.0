@@ -333,6 +333,7 @@ impl Engine {
             transfer: Default::default(),
             flushes: 0,
             flush_time: Default::default(),
+            sha256: sha.clone(),
         };
         Ok(Some(Outcome { path: dir.path.join(&target), name: target, sha256: sha, protection: prot, unverified: job.unverified, transfer }))
     }
@@ -448,10 +449,10 @@ impl Engine {
         let fin = {
             let (dir, part, name, exp, url, refr) =
                 (&dir, part.clone(), job.name.clone(), job.sha256_expected.clone(), job.url.clone(), job.referrer.clone());
-            let total = done.total;
+            let (total, sha) = (done.total, done.sha256.clone());
             let mut intent = |target: &str, sha: &str| self.st().set_intent(id, target, sha).map_err(Fail::Io);
             tokio::task::block_in_place(|| {
-                finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid), &mut intent)
+                finalize::finalize(dir, &part, &name, total, &sha, exp.as_deref(), &url, refr.as_deref(), Some(fid), &mut intent)
             })?
         };
         let (state, prot) = match &fin.protection {
