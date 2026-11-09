@@ -297,7 +297,25 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let fresh = !ranged || resume.is_none();
     if fresh {
         epoch += u64::from(resume.is_some()); // a 200 on resume: new epoch, nothing old may land
+    }
+    let mut segs: Vec<Seg> = match (&resume, ranged) {
+        (Some(s), true) => s.segs.iter().map(|x| Seg::new(x[0], x[1], x[2])).collect(),
+        _ => vec![Seg::new(0, total.unwrap_or(unknown_cap), 0)],
+    };
+    let snap = |segs: &[Seg], pos: &dyn Fn(&Seg) -> u64, epoch: u64| Snapshot {
+        epoch,
+        final_url: final_url.to_string(),
+        validator: validator.clone(),
+        total,
+        segs: segs.iter().map(|s| [s.start, s.end, pos(s)]).collect(),
+    };
+    if fresh {
+        // the zero-progress checkpoint is persisted BEFORE the file is truncated: a crash in between can never
+        // leave old offsets pointing at zeroed bytes (council G5)
+        (rq.checkpoint)(&snap(&segs, &|s| s.committed, epoch))?;
+        failpoint::hit("after_reset_checkpoint");
         file.set_len(0).map_err(io)?;
+        failpoint::hit("after_truncate");
     }
     if let Some(t) = total {
         if file.metadata().map_err(io)?.len() != t {
@@ -306,10 +324,6 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             file.set_len(t).map_err(io)?;
         }
     }
-    let mut segs: Vec<Seg> = match (&resume, ranged) {
-        (Some(s), true) => s.segs.iter().map(|x| Seg::new(x[0], x[1], x[2])).collect(),
-        _ => vec![Seg::new(0, total.unwrap_or(unknown_cap), 0)],
-    };
     let epoch_cell = Arc::new(AtomicU64::new(epoch));
     let (wtx, wrx) = mpsc::channel::<Chunk>(cfg.queue.max(1));
     let (ev_tx, mut ev_rx) = mpsc::unbounded_channel::<Ev>();
@@ -331,23 +345,18 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     // seam check (E-04): a persisted offset is only a claim. For every resumed segment re-fetch the last
     // <= 64 KiB below its committed offset and compare with the disk; a mismatch drops that segment's progress.
     if ranged && resume.is_some() {
+        let mut dropped = false;
         for s in segs.iter_mut().filter(|s| s.committed > s.start) {
             let a = s.committed - (s.committed - s.start).min(64 * 1024);
             if !seam_ok(&sh, &file, a, s.committed).await {
                 *s = Seg::new(s.start, s.end, s.start);
+                dropped = true;
             }
         }
+        if dropped {
+            (rq.checkpoint)(&snap(&segs, &|s| s.committed, epoch))?; // the refused claims are gone before rewriting
+        }
     }
-    let snap = |segs: &[Seg], pos: &dyn Fn(&Seg) -> u64, epoch: u64| Snapshot {
-        epoch,
-        final_url: final_url.to_string(),
-        validator: validator.clone(),
-        total,
-        segs: segs.iter().map(|s| [s.start, s.end, pos(s)]).collect(),
-    };
-    if fresh {
-        (rq.checkpoint)(&snap(&segs, &|s| s.committed, epoch))?;
-    } // reset before any new byte can land
 
     let mut ctl: HashMap<usize, mpsc::UnboundedSender<Ctl>> = HashMap::new();
     let mut tasks = Tasks::default();
@@ -560,6 +569,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         total: Some(got),
         segs: segs.iter().map(|s| [s.start, s.end, s.end]).collect(),
     })?;
+    failpoint::hit("after_final_checkpoint");
     Ok(Done { total: got, final_url: final_url.to_string(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time })
 }
 
@@ -661,14 +671,35 @@ async fn run_worker(
                 if http::strong_etag(r.headers()).is_some_and(|e| Some(e) != sh.validator) {
                     return Err(WErr::Fatal(Fail::FileChanged));
                 }
-            } else if start != 0 {
-                return Err(WErr::Retry("non-ranged restart must begin at 0".into()));
+            } else {
+                // a non-ranged retry must be the SAME representation as the probe (council G5)
+                if start != 0 {
+                    return Err(WErr::Retry("non-ranged restart must begin at 0".into()));
+                }
+                if ct.starts_with("text/html") {
+                    return Err(WErr::Fatal(Fail::Html));
+                }
+                if sh.validator.is_some() && http::validator(r.headers()) != sh.validator {
+                    return Err(WErr::Fatal(Fail::FileChanged));
+                }
+                let len =
+                    if r.status() == StatusCode::PARTIAL_CONTENT { http::content_range(r.headers()).and_then(|x| x.2) } else { r.content_length() };
+                if sh.total.is_some() && len != sh.total {
+                    return Err(WErr::Fatal(Fail::SizeChanged));
+                }
             }
             r
         }
     };
-    // bytes this response may deliver: ranged = up to the lease end; else the declared length or the cap
-    let promised = if ranged { end } else { sh.total.unwrap_or(end) };
+    // bytes THIS response may deliver: never past the lease end, never past its own Content-Range end, never past
+    // the declared total; a body that keeps going past that is LongBody (E-01/E-03)
+    let declared = if resp.status() == StatusCode::PARTIAL_CONTENT { http::content_range(resp.headers()).map(|(_, b, _)| b + 1) } else { None };
+    let promised = match (ranged, declared) {
+        (true, Some(d)) => end.min(d),
+        (true, None) => end,
+        (false, Some(d)) => sh.total.map_or(d, |t| t.min(d)),
+        (false, None) => sh.total.unwrap_or(end),
+    };
     let mut body = resp.bytes_stream();
     let mut buf: Vec<u8> = Vec::with_capacity(sh.cfg.buf);
     let (mut win_t, mut win_b) = (tokio::time::Instant::now(), 0u64);

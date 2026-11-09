@@ -28,6 +28,9 @@ const MIGRATIONS: &[&str] = &[
     CREATE TABLE history(id INTEGER PRIMARY KEY, job_id TEXT NOT NULL, at INTEGER NOT NULL, event TEXT NOT NULL, detail TEXT);
     CREATE INDEX history_job ON history(job_id);
     "#,
+    // 2: finalisation intent (council G5): the name the file is being published under, recorded with its
+    //    hash before the rename, so a crash between rename and "complete" is reconciled, never re-downloaded
+    "ALTER TABLE jobs ADD COLUMN target TEXT;",
 ];
 pub const SCHEMA: i64 = MIGRATIONS.len() as i64;
 
@@ -52,6 +55,7 @@ pub struct Job {
     pub error_code: Option<String>,
     pub file_id: Option<String>,
     pub allow_private: Option<String>,
+    pub target: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -254,7 +258,7 @@ impl Store {
     pub fn job(&self, id: &str) -> Result<Option<Job>, String> {
         self.conn.query_row(
             "SELECT j.id, j.url, j.final_url, j.referrer, j.name, d.path, j.dir_id, j.state, j.size, j.done, j.validator, j.sha256_expected, j.sha256,
-                    j.epoch, j.unverified, j.protection, j.error_code, j.file_id, j.allow_private
+                    j.epoch, j.unverified, j.protection, j.error_code, j.file_id, j.allow_private, j.target
              FROM jobs j JOIN dirs d ON d.id = j.dir_id WHERE j.id = ?1",
             params![id],
             |r| Ok(Job {
@@ -262,7 +266,7 @@ impl Store {
                 dir: PathBuf::from(r.get::<_, String>(5)?), dir_id: r.get(6)?, state: r.get(7)?,
                 size: r.get::<_, Option<i64>>(8)?.map(|v| v as u64), done: r.get::<_, i64>(9)? as u64, validator: r.get(10)?,
                 sha256_expected: r.get(11)?, sha256: r.get(12)?, epoch: r.get::<_, i64>(13)? as u64, unverified: r.get(14)?,
-                protection: r.get(15)?, error_code: r.get(16)?, file_id: r.get(17)?, allow_private: r.get(18)?,
+                protection: r.get(15)?, error_code: r.get(16)?, file_id: r.get(17)?, allow_private: r.get(18)?, target: r.get(19)?,
             }),
         ).optional().map_err(err)
     }
@@ -320,25 +324,38 @@ impl Store {
         self.conn.execute("UPDATE jobs SET file_id = ?2 WHERE id = ?1", params![id, fid]).map(|_| ()).map_err(err)
     }
 
-    pub fn finish(&self, id: &str, state: &str, name: &str, sha256: &str, protection: &str) -> Result<(), String> {
+    /// finalisation intent: state, target name and hash, written before the rename (one statement)
+    pub fn set_intent(&self, id: &str, target: &str, sha256: &str) -> Result<(), String> {
         self.conn
-            .execute(
-                "UPDATE jobs SET state = ?2, name = ?3, sha256 = ?4, protection = ?5, finished_at = ?6, error_code = NULL WHERE id = ?1",
-                params![id, state, name, sha256, protection, now()],
-            )
-            .map_err(err)?;
-        self.conn
-            .execute("INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, ?3, ?4)", params![id, now(), state, sha256])
-            .map_err(err)?;
-        Ok(())
-    }
-
-    /// a renamed final file also owns its name in the directory
-    pub fn claim_name(&self, dir_id: i64, name: &str, job: &str) -> Result<(), String> {
-        self.conn
-            .execute("INSERT OR REPLACE INTO names(dir_id, name_key, job_id) VALUES (?1, ?2, ?3)", params![dir_id, name_key(name), job])
+            .execute("UPDATE jobs SET state = 'finalizing', target = ?2, sha256 = ?3 WHERE id = ?1", params![id, target, sha256])
             .map(|_| ())
             .map_err(err)
+    }
+
+    /// one transaction: final state, name, hash, protection, history, and the published name's reservation
+    /// (INSERT OR IGNORE: never takes another job's reservation)
+    pub fn finish(&mut self, id: &str, state: &str, name: &str, sha256: &str, protection: &str) -> Result<(), String> {
+        let tx = self.conn.transaction().map_err(err)?;
+        tx.execute(
+            "UPDATE jobs SET state = ?2, name = ?3, target = ?3, sha256 = ?4, protection = ?5, finished_at = ?6, error_code = NULL WHERE id = ?1",
+            params![id, state, name, sha256, protection, now()],
+        )
+        .map_err(err)?;
+        tx.execute("INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, ?3, ?4)", params![id, now(), state, sha256]).map_err(err)?;
+        tx.execute(
+            "INSERT OR IGNORE INTO names(dir_id, name_key, job_id) SELECT dir_id, ?2, id FROM jobs WHERE id = ?1",
+            params![id, name_key(name)],
+        )
+        .map_err(err)?;
+        tx.commit().map_err(err)
+    }
+
+    /// forget every committed offset (new epoch) BEFORE the .part is truncated or replaced (council G5)
+    pub fn reset(&mut self, id: &str, epoch: u64) -> Result<(), String> {
+        let tx = self.conn.transaction().map_err(err)?;
+        tx.execute("DELETE FROM segments WHERE job_id = ?1", params![id]).map_err(err)?;
+        tx.execute("UPDATE jobs SET done = 0, epoch = ?2 WHERE id = ?1", params![id, epoch as i64]).map_err(err)?;
+        tx.commit().map_err(err)
     }
 
     pub fn history(&self, id: &str) -> Result<Vec<(String, Option<String>)>, String> {

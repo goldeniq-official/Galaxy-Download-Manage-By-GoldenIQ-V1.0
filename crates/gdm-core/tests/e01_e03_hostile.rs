@@ -190,3 +190,16 @@ async fn e05_429_retry_after_honoured() {
     let o = t.get(&a.url(&format!("/429?size={}&seed=27", 4 * MIB))).await.1.unwrap();
     assert!(t0.elapsed() >= Duration::from_secs(2) && o.sha256 == expected_sha256(27, 4 * MIB), "Retry-After honoured");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn e01_body_past_its_own_content_range_is_refused() {
+    // 206 "bytes a-(a+1023)/size" without Content-Length, then the whole lease: only 1 KiB may be accepted
+    let a = fx().await;
+    let t = engine("crlie", quick());
+    let (id, r) = t.get(&a.url(&format!("/cr-lie?size={}&seed=44", 4 * MIB))).await;
+    match r {
+        Ok(o) => assert_eq!(o.sha256, expected_sha256(44, 4 * MIB)),
+        Err(e) => assert_eq!(e, Fail::LongBody),
+    }
+    assert_ne!(t.engine.job(&id).unwrap().state, "complete", "never complete from bytes past a declared range");
+}

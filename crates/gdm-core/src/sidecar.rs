@@ -18,6 +18,8 @@ pub struct Sidecar {
     pub validator: Option<String>,
     pub total: u64,
     pub epoch: u64,
+    /// file id of the .part this job created (volume serial:file index); recovery only resumes into that object
+    pub fid: String,
     /// [start, end exclusive, committed]
     pub segs: Vec<[u64; 3]>,
 }
@@ -62,6 +64,9 @@ pub fn decode(raw: &[u8]) -> Option<Sidecar> {
         if !matches!(p.scheme(), "http" | "https") || p.query().is_some() || !p.username().is_empty() || p.fragment().is_some() {
             return None;
         }
+    }
+    if sc.fid.len() != 25 || !sc.fid.bytes().all(|b| b.is_ascii_hexdigit() || b == b':') {
+        return None;
     }
     if sc.name != crate::name::sanitize(&sc.name) {
         return None;

@@ -112,6 +112,15 @@ pub struct Engine {
     pub global: Arc<limiter::Bucket>,
     /// creds per job live only here (never in SQLite or the sidecar)
     creds: Mutex<std::collections::HashMap<String, net::Creds>>,
+    /// one execution per job at a time
+    running: Mutex<std::collections::HashSet<String>>,
+}
+
+struct RunGuard<'a>(&'a Engine, String);
+impl Drop for RunGuard<'_> {
+    fn drop(&mut self) {
+        self.0.running.lock().unwrap_or_else(|p| p.into_inner()).remove(&self.1);
+    }
 }
 
 fn s(e: impl std::fmt::Display) -> Fail {
@@ -134,7 +143,8 @@ impl Engine {
     /// then recover jobs from sidecars found in the known download folders (D-01)
     pub fn open(db: &Path, cfg: seg::Config) -> Result<Engine, Fail> {
         let (st, report) = store::Store::open(db).map_err(Fail::Io)?;
-        let e = Engine { store: Mutex::new(st), report, cfg, global: limiter::Bucket::new(0), creds: Default::default() };
+        let e =
+            Engine { store: Mutex::new(st), report, cfg, global: limiter::Bucket::new(0), creds: Default::default(), running: Default::default() };
         if e.report.restored_from.is_some() || e.report.quarantined.is_some() {
             e.recover_sidecars()?;
         }
@@ -185,8 +195,9 @@ impl Engine {
                     unverified: sc.validator.is_none(),
                     protection: None,
                     error_code: Some("Recovered".into()),
-                    file_id: None,
+                    file_id: Some(sc.fid.clone()),
                     allow_private: None,
+                    target: None,
                 };
                 // the recovered job keeps exactly its own name (its .part is on disk): no counter
                 let name = st.insert_job(&j, &|_| false).map_err(Fail::Io)?;
@@ -194,6 +205,7 @@ impl Engine {
                     continue;
                 }
                 st.save_checkpoint(&sc.job, &sc.final_url, sc.validator.as_deref(), Some(sc.total), sc.epoch, &sc.segs).map_err(Fail::Io)?;
+                st.set_file_id(&sc.job, &sc.fid).map_err(Fail::Io)?;
                 got.push(sc.job);
             }
         }
@@ -203,6 +215,9 @@ impl Engine {
     /// create a job: validate the URL, sanitize the name, reserve it (N-04). Nothing is downloaded yet.
     pub fn add(&self, nj: NewJob) -> Result<String, Fail> {
         let url = url::Url::parse(&nj.url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        if !url.username().is_empty() || url.password().is_some() {
+            return Err(Fail::Forbidden("credentials in the URL are not stored; use the login fields".into()));
+        }
         if !matches!(url.scheme(), "http" | "https") {
             return Err(Fail::Forbidden(format!("scheme {}", url.scheme())));
         }
@@ -239,6 +254,7 @@ impl Engine {
             error_code: None,
             file_id: None,
             allow_private: nj.typed.then(|| url.host_str().unwrap_or("").to_string()),
+            target: None,
         };
         let taken = |n: &str| dirh.exists(n) || dirh.exists(&format!("{n}.part")) || dirh.exists(&sidecar::leaf(n));
         st.insert_job(&j, &taken).map_err(Fail::Io)?;
@@ -264,6 +280,10 @@ impl Engine {
 
     /// download (or resume) and finalise one job
     pub async fn run(&self, id: &str, unverified: Unverified, limit: Option<Arc<limiter::JobLimit>>) -> Result<Outcome, Fail> {
+        if !self.running.lock().unwrap_or_else(|p| p.into_inner()).insert(id.to_string()) {
+            return Err(Fail::Io("this job is already running".into()));
+        }
+        let _guard = RunGuard(self, id.to_string());
         let r = self.run_inner(id, unverified, limit).await;
         if let Err(f) = &r {
             let state = match f {
@@ -278,6 +298,45 @@ impl Engine {
         r
     }
 
+    /// crash after the final rename, before "complete" was recorded: the published file is ours only when it is
+    /// the recorded target, the same file object, the recorded size and the hash recorded before the rename
+    fn reconcile(&self, job: &store::Job, dir: &fsx::Dir) -> Result<Option<Outcome>, Fail> {
+        let (Some(target), Some(want_id), Some(want_sha)) = (job.target.clone(), job.file_id.clone(), job.sha256.clone()) else { return Ok(None) };
+        let f = match dir.open_locked(&target) {
+            Ok(f) => f,
+            Err(fsx::FsError::NotFound) => return Ok(None),
+            Err(e) => return Err(Fail::Io(format!("published file: {e}"))),
+        };
+        let len = f.metadata().map_err(s)?.len();
+        if fsx::file_id(&f).map(fid_str).ok() != Some(want_id) || Some(len) != job.size {
+            return Err(Fail::NeedsDecision(format!("{target} is not the file this job published")));
+        }
+        let sha = finalize::sha_handle(&f).map_err(s)?;
+        if sha != want_sha {
+            return Err(Fail::NeedsDecision(format!("{target} changed after it was published (sha256 differs)")));
+        }
+        let zone = fsx::zone_identifier(dir, &target);
+        let prot = if finalize::zone_internet(zone.as_deref()) && matches!(fsx::fs_name(&f).as_str(), "NTFS" | "ReFS") {
+            finalize::Protection::Protected
+        } else {
+            finalize::Protection::Unprotected("filesystem without Mark-of-the-Web".into())
+        };
+        let (state, p) = if prot == finalize::Protection::Protected { ("complete", "protected") } else { ("unprotected", "unprotected") };
+        let _ = dir.delete(&sidecar::leaf(&job.name));
+        self.st().finish(&job.id, state, &target, &sha, p).map_err(Fail::Io)?;
+        let transfer = seg::Done {
+            total: len,
+            final_url: job.final_url.clone().unwrap_or_default(),
+            validator: job.validator.clone(),
+            ranged: true,
+            peak_conns: 0,
+            transfer: Default::default(),
+            flushes: 0,
+            flush_time: Default::default(),
+        };
+        Ok(Some(Outcome { path: dir.path.join(&target), name: target, sha256: sha, protection: prot, unverified: job.unverified, transfer }))
+    }
+
     async fn run_inner(&self, id: &str, unverified: Unverified, limit: Option<Arc<limiter::JobLimit>>) -> Result<Outcome, Fail> {
         if self.st().read_only {
             return Err(Fail::Io("database is from a newer GDM: read-only".into()));
@@ -290,6 +349,11 @@ impl Engine {
         let part = format!("{}.part", job.name);
         let side = sidecar::leaf(&job.name);
         let url = url::Url::parse(&job.url).map_err(s)?;
+        if job.state == "finalizing" && !dir.exists(&part) {
+            if let Some(o) = self.reconcile(&job, &dir)? {
+                return Ok(o);
+            }
+        }
         let segs = self.st().segments(id).map_err(Fail::Io)?;
         let mut resume = (!segs.is_empty() && job.size.is_some()).then(|| seg::Snapshot {
             epoch: job.epoch,
@@ -306,46 +370,8 @@ impl Engine {
                 Unverified::SameSession | Unverified::Continue => {}
             }
         }
-        // crash after the final rename, before the database said so: the final file is ours when it is the same
-        // file object we created (file id); finish the bookkeeping instead of downloading a duplicate
-        if job.state == "finalizing" && !dir.exists(&part) {
-            if let (Some(want), Ok(f)) = (job.file_id.clone(), dir.open_locked(&job.name)) {
-                if fsx::file_id(&f).map(fid_str).ok() == Some(want) {
-                    let sha = finalize::sha_handle(&f).map_err(s)?;
-                    if job.sha256_expected.as_deref().is_some_and(|e| !e.eq_ignore_ascii_case(&sha)) {
-                        return Err(Fail::HashMismatch);
-                    }
-                    let prot = if fsx::zone_identifier(&dir, &job.name).is_some() && matches!(fsx::fs_name(&f).as_str(), "NTFS" | "ReFS") {
-                        finalize::Protection::Protected
-                    } else {
-                        finalize::Protection::Unprotected("filesystem without Mark-of-the-Web".into())
-                    };
-                    let (state, p) = if prot == finalize::Protection::Protected { ("complete", "protected") } else { ("unprotected", "unprotected") };
-                    self.st().finish(id, state, &job.name, &sha, p).map_err(Fail::Io)?;
-                    let _ = dir.delete(&side);
-                    let total = f.metadata().map_err(s)?.len();
-                    let transfer = seg::Done {
-                        total,
-                        final_url: job.final_url.clone().unwrap_or_default(),
-                        validator: job.validator.clone(),
-                        ranged: true,
-                        peak_conns: 0,
-                        transfer: Default::default(),
-                        flushes: 0,
-                        flush_time: Default::default(),
-                    };
-                    return Ok(Outcome {
-                        path: dir.path.join(&job.name),
-                        name: job.name.clone(),
-                        sha256: sha,
-                        protection: prot,
-                        unverified: job.unverified,
-                        transfer,
-                    });
-                }
-            }
-        }
-        // the .part: open ours (resume) or create it new relative to the held directory (N-03)
+        // The .part (N-03, N-10). A job that never created one must not adopt a file it finds there, except an
+        // empty single-link file (its own crash between create and recording the file id: nothing to lose).
         let mut opened = dir.open_rw(&part);
         for _ in 0..50 {
             // a cancelled run's writer thread may still be closing its handle
@@ -355,29 +381,42 @@ impl Engine {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             opened = dir.open_rw(&part);
         }
-        let file = match opened {
-            Ok(f) => {
-                let fid = fsx::file_id(&f).map_err(s)?;
-                if job.file_id.as_deref().is_some_and(|x| x != fid_str(fid)) {
-                    // N-10: not the file object we created (other disk, or replaced): never resume into it or
-                    // truncate it; the user decides
+        let file = match (opened, job.file_id.as_deref()) {
+            (Ok(f), Some(want)) => {
+                if fsx::file_id(&f).map(fid_str).map_err(s)? != want {
                     return Err(Fail::NeedsDecision("the .part is a different file than the one this job created".into()));
                 }
                 f
             }
-            Err(fsx::FsError::NotFound) => {
+            (Ok(f), None) => {
+                if f.metadata().map_err(s)?.len() != 0 {
+                    return Err(Fail::NeedsDecision("a .part this job did not create is in the folder".into()));
+                }
                 resume = None;
-                dir.create_new(&part).map_err(|e| Fail::Reparse(e.to_string()))?
+                f
             }
-            Err(fsx::FsError::Reparse(m)) => return Err(Fail::Reparse(m)),
-            Err(e) => return Err(Fail::Io(e.to_string())),
+            (Err(fsx::FsError::NotFound), _) => {
+                resume = None;
+                self.forget(id, &dir, &side, job.epoch + 1)?; // before a new file replaces the old claims
+                let f = dir.create_new(&part).map_err(|e| Fail::Reparse(e.to_string()))?;
+                failpoint::hit("after_part_created");
+                f
+            }
+            (Err(fsx::FsError::Reparse(m)), _) => return Err(Fail::Reparse(m)),
+            (Err(e), _) => return Err(Fail::Io(e.to_string())),
         };
+        if resume.is_none() && job.done > 0 {
+            self.forget(id, &dir, &side, job.epoch + 1)?; // old offsets are gone BEFORE anything is truncated
+        }
         let fid = fsx::file_id(&file).map_err(s)?;
         self.st().set_file_id(id, &fid_str(fid)).map_err(Fail::Io)?;
         self.st().set_state(id, "downloading", None).map_err(Fail::Io)?;
         let creds = self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).cloned().unwrap_or_default();
         let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
         let free = fsx::free_space(&dir.path);
+        let limit = limit.or_else(|| {
+            (self.global.rate() > 0).then(|| Arc::new(limiter::JobLimit { job: limiter::Bucket::new(0), queue: None, global: self.global.clone() }))
+        });
         let mut cp = |snap: &seg::Snapshot| -> Result<(), Fail> {
             let segs = sidecar::compact(&snap.segs);
             if let Some(total) = snap.total {
@@ -390,6 +429,7 @@ impl Engine {
                     validator: snap.validator.clone(),
                     total,
                     epoch: snap.epoch,
+                    fid: fid_str(fid),
                     segs: segs.clone(),
                 };
                 if let Some(raw) = sidecar::encode(&sc) {
@@ -403,23 +443,26 @@ impl Engine {
         let rq = seg::Request { url, creds, policy, file: file.clone(), free, resume, limit, checkpoint: &mut cp };
         let done = seg::download(rq, self.cfg.clone()).await?;
         drop(file); // the writer thread has exited: this was the last handle
+        failpoint::hit("before_finalizing");
         self.st().set_state(id, "finalizing", None).map_err(Fail::Io)?;
         let fin = {
             let (dir, part, name, exp, url, refr) =
                 (&dir, part.clone(), job.name.clone(), job.sha256_expected.clone(), job.url.clone(), job.referrer.clone());
             let total = done.total;
-            tokio::task::block_in_place(|| finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid)))?
+            let mut intent = |target: &str, sha: &str| self.st().set_intent(id, target, sha).map_err(Fail::Io);
+            tokio::task::block_in_place(|| {
+                finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid), &mut intent)
+            })?
         };
         let (state, prot) = match &fin.protection {
             finalize::Protection::Protected => ("complete", "protected"),
             finalize::Protection::Unprotected(_) => ("unprotected", "unprotected"),
         };
-        {
-            let st = self.st();
-            st.finish(id, state, &fin.name, &fin.sha256, prot).map_err(Fail::Io)?;
-            st.claim_name(job.dir_id, &fin.name, id).map_err(Fail::Io)?;
-        }
+        // the sidecar goes first: after a crash here the job is still "finalizing" and reconcile() finishes it
         let _ = dir.delete(&side);
+        failpoint::hit("before_finish");
+        self.st().finish(id, state, &fin.name, &fin.sha256, prot).map_err(Fail::Io)?;
+        failpoint::hit("after_finish");
         self.creds.lock().unwrap_or_else(|p| p.into_inner()).remove(id);
         Ok(Outcome {
             path: dir.path.join(&fin.name),
@@ -429,5 +472,13 @@ impl Engine {
             unverified: done.validator.is_none(),
             transfer: done,
         })
+    }
+
+    /// drop every committed offset of a job (database first, then its sidecar) before its bytes are replaced
+    fn forget(&self, id: &str, dir: &fsx::Dir, side: &str, epoch: u64) -> Result<(), Fail> {
+        self.st().reset(id, epoch).map_err(Fail::Io)?;
+        let _ = dir.delete(side);
+        failpoint::hit("after_reset");
+        Ok(())
     }
 }

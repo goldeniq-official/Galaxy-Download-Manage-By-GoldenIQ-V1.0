@@ -57,6 +57,11 @@ pub fn sha_handle(f: &File) -> std::io::Result<String> {
     Ok(hex(&h.finalize()))
 }
 
+/// Zone.Identifier says Internet (3) or Restricted (4): only then SmartScreen / Protected View act
+pub fn zone_internet(z: Option<&str>) -> bool {
+    z.is_some_and(|z| z.lines().any(|l| matches!(l.trim(), "ZoneId=3" | "ZoneId=4")))
+}
+
 pub fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
@@ -65,14 +70,15 @@ pub fn hex(b: &[u8]) -> String {
 /// benign file written the same way in the same folder survives => "Blocked" (suspected security software).
 fn vanished(dir: &Dir, part: &str) -> Fail {
     let probe = format!("{part}.probe");
-    let survived = dir.create_new(&probe).is_ok_and(|f| {
+    let Ok(f) = dir.create_new(&probe) else { return Fail::Io("file removed; no evidence of the remover".into()) };
+    let survived = {
         use std::io::Write;
         let ok = (&f).write_all(&vec![b'G'; 1 << 20]).is_ok();
         drop(f);
         std::thread::sleep(std::time::Duration::from_millis(1500));
         ok && dir.exists(&probe)
-    });
-    let _ = dir.delete(&probe);
+    };
+    let _ = dir.delete(&probe); // only the probe this call created
     if survived {
         Fail::Blocked("suspected security software: file removed while a benign probe survived".into())
     } else {
@@ -91,6 +97,7 @@ pub fn finalize(
     source: &str,
     referrer: Option<&str>,
     id: Option<(u32, u64)>,
+    intent: &mut dyn FnMut(&str, &str) -> Result<(), Fail>,
 ) -> Result<Finished, Fail> {
     if !dir.exists(part) {
         return Err(vanished(dir, part));
@@ -129,6 +136,8 @@ pub fn finalize(
     let mut fin = name.to_string();
     let mut n = 0;
     loop {
+        // persisted BEFORE the rename: a crash right after it is reconciled against this target + hash
+        intent(&fin, &sha)?;
         match fsx::rename(&f, dir, &fin, false) {
             Ok(()) => {
                 failpoint::hit("after_rename");
@@ -141,7 +150,10 @@ pub fn finalize(
             Err(e) => return Err(Fail::Io(format!("rename: {e}"))),
         }
     }
-    let protection =
-        if ntfs && zone.is_some() { Protection::Protected } else { Protection::Unprotected(format!("filesystem {fs} without Mark-of-the-Web")) };
+    let protection = if ntfs && zone_internet(zone.as_deref()) {
+        Protection::Protected
+    } else {
+        Protection::Unprotected(format!("filesystem {fs} without Mark-of-the-Web"))
+    };
     Ok(Finished { name: fin, sha256: sha, protection, zone })
 }

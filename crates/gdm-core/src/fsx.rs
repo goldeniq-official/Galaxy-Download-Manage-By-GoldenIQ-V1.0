@@ -166,13 +166,13 @@ impl Dir {
     pub fn create_new(&self, leaf: &str) -> Result<File, FsError> {
         self.nt_open(leaf, (FILE_GENERIC_READ | FILE_GENERIC_WRITE).0 | DELETE, FILE_SHARE_READ, true)
     }
-    /// existing file for resume (rejects reparse points)
+    /// existing file for resume (rejects reparse points and hard links)
     pub fn open_rw(&self, leaf: &str) -> Result<File, FsError> {
-        self.nt_open(leaf, (FILE_GENERIC_READ | FILE_GENERIC_WRITE).0 | DELETE, FILE_SHARE_READ, false)
+        single_link(self.nt_open(leaf, (FILE_GENERIC_READ | FILE_GENERIC_WRITE).0 | DELETE, FILE_SHARE_READ, false)?)
     }
     /// read + delete access, share READ only: nobody can write, delete or rename it while held
     pub fn open_locked(&self, leaf: &str) -> Result<File, FsError> {
-        self.nt_open(leaf, FILE_GENERIC_READ.0 | DELETE, FILE_SHARE_READ, false)
+        single_link(self.nt_open(leaf, FILE_GENERIC_READ.0 | DELETE, FILE_SHARE_READ, false)?)
     }
     pub fn read_small(&self, leaf: &str, max: usize) -> Result<Vec<u8>, FsError> {
         let f = self.nt_open(leaf, FILE_GENERIC_READ.0, FILE_SHARE_READ, false)?;
@@ -236,6 +236,17 @@ pub fn rename(f: &File, dir: &Dir, leaf: &str, replace: bool) -> Result<(), FsEr
         0xC000_0035 => Err(FsError::Exists), // STATUS_OBJECT_NAME_COLLISION
         s => Err(FsError::Io(format!("rename to {leaf:?}: NTSTATUS {s:#010x}"))),
     }
+}
+
+/// a file the engine writes into or publishes has exactly one name: a hard link planted at the .part name would
+/// otherwise let a write land in a user's file elsewhere on the volume (N-03)
+fn single_link(f: File) -> Result<File, FsError> {
+    let mut i = BY_HANDLE_FILE_INFORMATION::default();
+    unsafe { GetFileInformationByHandle(HANDLE(f.as_raw_handle()), &mut i) }.map_err(io)?;
+    if i.nNumberOfLinks != 1 {
+        return Err(FsError::Reparse(format!("file has {} hard links", i.nNumberOfLinks)));
+    }
+    Ok(f)
 }
 
 /// (volume serial, file index): the identity of the file object

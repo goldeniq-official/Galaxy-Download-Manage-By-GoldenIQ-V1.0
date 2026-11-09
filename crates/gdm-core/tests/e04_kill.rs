@@ -97,6 +97,13 @@ async fn e04_failpoints_then_resume_correct() {
         "after_save:1",
         "before_rename:1",
         "after_rename:1",
+        "after_part_created:1",
+        "after_reset:1",
+        "after_reset_checkpoint:1",
+        "after_truncate:1",
+        "after_final_checkpoint:1",
+        "before_finalizing:1",
+        "after_finish:1",
     ]
     .iter()
     .enumerate()
@@ -185,5 +192,25 @@ async fn e04_kill_rounds() {
     assert!(bad.is_empty(), "{bad:?}");
     assert_eq!(regress, 0);
     assert_eq!(files_ok, files);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// crash after the final rename, then the published file is changed before the next start: recovery must
+/// not bless it (the hash recorded before the rename differs)
+#[tokio::test(flavor = "multi_thread")]
+async fn e04_published_file_changed_after_crash_is_not_completed() {
+    let a = Fixture::start("127.0.0.1:0").await;
+    let root = tmpdir("tamper-final");
+    let (db, dir) = (root.join("gdm.db"), root.join("dl"));
+    std::fs::create_dir_all(&dir).unwrap();
+    let url = a.url(&format!("/file?size={}&seed=77", 4 * MIB));
+    assert!(!child(&db, &url, &dir, Some("after_rename:1")).status().unwrap().success());
+    let fin = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).find(|p| !p.to_string_lossy().contains(".part")).unwrap();
+    let f = std::fs::OpenOptions::new().write(true).open(&fin).unwrap();
+    f.seek_write(b"XXXX", 1000).unwrap(); // same size, same file object, different bytes
+    drop(f);
+    let out = child(&db, &url, &dir, None).output().unwrap();
+    let line = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(line.starts_with("FAIL NeedsDecision"), "{line}");
     let _ = std::fs::remove_dir_all(&root);
 }

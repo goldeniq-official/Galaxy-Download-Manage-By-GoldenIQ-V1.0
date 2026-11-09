@@ -35,12 +35,17 @@ async fn main() {
         None
     } else {
         let st = e.store.lock().unwrap();
-        st.job_ids().unwrap().into_iter().find(|id| {
-            st.job(id).ok().flatten().is_some_and(|j| {
-                j.url == url::Url::parse(&a[2]).map(|u| u.to_string()).unwrap_or_default() && j.state != "complete" && j.state != "unprotected"
-            })
-        })
+        st.job_ids()
+            .unwrap()
+            .into_iter()
+            .find(|id| st.job(id).ok().flatten().is_some_and(|j| j.url == url::Url::parse(&a[2]).map(|u| u.to_string()).unwrap_or_default()))
     };
+    // the same command after the job already finished (e.g. a crash right after completion): report it
+    if let Some(j) = existing.as_ref().and_then(|id| e.job(id).ok()).filter(|j| j.state == "complete" || j.state == "unprotected") {
+        let path = j.dir.join(&j.name);
+        println!("OK {} {} 0 0 0 0 0 {}", j.sha256.unwrap_or_default(), j.size.unwrap_or(0), path.display());
+        return;
+    }
     let id = match existing {
         Some(id) => id,
         None => match e.add(NewJob { url: a[2].clone(), dir: a[3].clone().into(), typed: true, name: arg("--name"), ..Default::default() }) {

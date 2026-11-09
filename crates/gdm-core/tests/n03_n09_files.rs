@@ -201,3 +201,65 @@ async fn n10_replaced_part_is_not_reused() {
     assert!(matches!(r, Err(Fail::NeedsDecision(_))), "{r:?}");
     assert_eq!(std::fs::read(&part).unwrap(), b"someone else's data", "untouched");
 }
+
+/// a hard link to a user file, planted at the .part name before the first run: never written through
+#[tokio::test(flavor = "multi_thread")]
+async fn n03_hard_link_at_part_name_never_written() {
+    let a = fx().await;
+    let t = engine("hl", quick());
+    let victim = t.root.join("thesis.docx");
+    std::fs::write(&victim, b"precious").unwrap();
+    let id = t.engine.add(t.job(&a.url("/file?size=100000&seed=12"))).unwrap();
+    let name = t.engine.job(&id).unwrap().name;
+    std::fs::hard_link(&victim, t.dl.join(format!("{name}.part"))).unwrap();
+    let r = t.engine.run(&id, Unverified::Ask, None).await;
+    assert!(matches!(r, Err(Fail::Reparse(_)) | Err(Fail::NeedsDecision(_))), "{r:?}");
+    assert_eq!(std::fs::read(&victim).unwrap(), b"precious");
+}
+
+/// a non-empty .part this job never created: not adopted, not truncated
+#[tokio::test(flavor = "multi_thread")]
+async fn n03_foreign_part_not_adopted() {
+    let a = fx().await;
+    let t = engine("foreign", quick());
+    let id = t.engine.add(t.job(&a.url("/file?size=100000&seed=13"))).unwrap();
+    let part = t.dl.join(format!("{}.part", t.engine.job(&id).unwrap().name));
+    std::fs::write(&part, b"not ours").unwrap();
+    assert!(matches!(t.engine.run(&id, Unverified::Ask, None).await, Err(Fail::NeedsDecision(_))));
+    assert_eq!(std::fs::read(&part).unwrap(), b"not ours");
+}
+
+/// the folder's ancestors cannot be renamed away while a job holds the folder (the full path given to
+/// IAttachmentExecute stays the same object)
+#[tokio::test(flavor = "multi_thread")]
+async fn n03_ancestor_cannot_be_renamed_while_held() {
+    let root = tmpdir("anc");
+    let deep = root.join("a").join("b");
+    std::fs::create_dir_all(&deep).unwrap();
+    let held = gdm_core::fsx::Dir::open(&deep).unwrap();
+    assert!(std::fs::rename(root.join("a"), root.join("a2")).is_err(), "ancestor rename refused while held");
+    drop(held);
+    assert!(std::fs::rename(root.join("a"), root.join("a2")).is_ok(), "control: allowed once released");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn one_run_per_job() {
+    let a = fx().await;
+    let t = engine("dup", quick());
+    let id = t.engine.add(t.job(&a.url(&format!("/file?size={}&seed=14&rate=4000000", 8 * MIB)))).unwrap();
+    let (r1, r2) = tokio::join!(t.engine.run(&id, Unverified::Ask, None), async {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        t.engine.run(&id, Unverified::Ask, None).await
+    });
+    assert_eq!(r1.unwrap().sha256, expected_sha256(14, 8 * MIB));
+    assert!(matches!(r2, Err(Fail::Io(m)) if m.contains("already running")));
+}
+
+#[test]
+fn n05_only_internet_zone_counts_as_protected() {
+    use gdm_core::finalize::zone_internet;
+    assert!(zone_internet(Some("[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=https://x/\r\n")));
+    assert!(zone_internet(Some("[ZoneTransfer]\nZoneId=4\n")));
+    assert!(!zone_internet(Some("[ZoneTransfer]\r\nZoneId=0\r\n")) && !zone_internet(Some("")) && !zone_internet(None));
+    assert!(!zone_internet(Some("ZoneId=30")));
+}

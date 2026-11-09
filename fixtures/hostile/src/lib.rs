@@ -15,6 +15,7 @@
 //!   /slowbody      headers fine, then 1 body byte every 2 s
 //!   /redirect      302 Location: <to>                                  (W-01)
 //!   /echo          200 "ok" (the log shows which headers arrived)
+//!   /cr-lie        206 whose Content-Range declares 1 KiB, no Content-Length, then sends the whole range
 //!   /novalidator   206 ranges with no ETag and no Last-Modified          (E-02 unverified)
 //!   /429           first request per seed: 429 Retry-After: 2, then /file
 //!   /html          200 text/html page                                   (R-03)
@@ -181,6 +182,13 @@ impl Fixture {
                 let n = self.bump(format!("rt2-{seed}"));
                 let r = if n == 1 { range } else { None };
                 self.ranged(s, size, seed, rate, trate, r, None, head_only, &format!("\"s{seed}-{size}\"")).await
+            }
+            "/cr-lie" => {
+                let (a, b) = clamp(range, size);
+                let lie = (a + 1024).min(b);
+                s.write_all(format!("HTTP/1.1 206 Partial Content\r\nContent-Type: application/octet-stream\r\nETag: \"s{seed}-{size}\"\r\nContent-Range: bytes {a}-{}/{size}\r\nConnection: close\r\n\r\n", lie - 1).as_bytes()).await?;
+                send_bytes(s, seed, a, b, 0, None).await?;
+                Ok(false)
             }
             "/novalidator" => {
                 let (a, b) = clamp(range, size);

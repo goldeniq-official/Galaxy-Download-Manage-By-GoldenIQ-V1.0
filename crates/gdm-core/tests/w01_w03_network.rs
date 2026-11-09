@@ -134,6 +134,9 @@ fn w04_crlf_in_credentials_refused() {
     let t = engine("w04", quick());
     let r = t.engine.add(NewJob { creds: vec![("Cookie".into(), "x\r\nX-Evil: 1".into())], ..t.job("http://127.0.0.1:1/x") });
     assert!(matches!(r, Err(Fail::Forbidden(_))));
+    // userinfo in the URL is never stored
+    let r = t.engine.add(t.job("http://user:pw@127.0.0.1:1/x"));
+    assert!(matches!(r, Err(Fail::Forbidden(_))));
     // W-01: any header other than Cookie/Authorization could follow a cross-origin redirect: refused
     let r = t.engine.add(NewJob { creds: vec![("X-Api-Key".into(), "k".into())], ..t.job("http://127.0.0.1:1/x") });
     assert!(matches!(r, Err(Fail::Forbidden(_))));
