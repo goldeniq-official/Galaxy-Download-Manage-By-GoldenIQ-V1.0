@@ -101,7 +101,9 @@ impl Dir {
 
     /// NtCreateFile relative to the held directory: `leaf` is one sanitized component.
     fn nt_open(&self, leaf: &str, access: u32, share: FILE_SHARE_MODE, create: bool) -> Result<File, FsError> {
-        if leaf.is_empty() || leaf.contains(['\\', '/', ':']) || leaf == "." || leaf == ".." {
+        // one component; the only stream allowed is Zone.Identifier (MOTW read-back)
+        let base = leaf.strip_suffix(":Zone.Identifier").unwrap_or(leaf);
+        if base.is_empty() || base.contains(['\\', '/', ':']) || base == "." || base == ".." {
             return Err(FsError::Io(format!("not a single component: {leaf:?}")));
         }
         let w: Vec<u16> = leaf.encode_utf16().collect();
@@ -243,7 +245,12 @@ pub fn free_space(dir: &Path) -> u64 {
 
 /// Zone.Identifier ADS of `leaf` (read through the held directory, never a re-resolved path)
 pub fn zone_identifier(dir: &Dir, leaf: &str) -> Option<String> {
-    dir.read_small(&format!("{leaf}:Zone.Identifier"), 4096).ok().map(|b| String::from_utf8_lossy(&b).into_owned())
+    // read-only access with full sharing: the finaliser holds the file with DELETE access at this point
+    let f = dir.nt_open(&format!("{leaf}:Zone.Identifier"), FILE_GENERIC_READ.0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false).ok()?;
+    let mut v = Vec::new();
+    use std::io::Read;
+    f.take(4096).read_to_end(&mut v).ok()?;
+    Some(String::from_utf8_lossy(&v).into_owned())
 }
 
 pub const GDM_CLIENT: GUID = GUID::from_u128(0x6a1c_2f0e_9b7d_4c3a_8e51_0d47_c2f9_a3b6);

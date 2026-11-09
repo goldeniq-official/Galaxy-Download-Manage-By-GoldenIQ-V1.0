@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: RPL-1.5
 //! `name.part.gdm` (ADR-3, D-01): the minimum needed to recover a job when the database is lost. It holds no
-//! secrets (no cookies, no Authorization) and is UNTRUSTED on load: size cap before parsing, strict shape and
+//! secrets (no cookies, no Authorization, URLs without userinfo/query/fragment: a signed URL's token stays in
+//! SQLite only; a recovered job whose URL needed it fails with Auth and goes through Refresh, F06) and is UNTRUSTED on load: size cap before parsing, strict shape and
 //! arithmetic checks; anything odd => None. Its offsets are claims that the seam check re-verifies.
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +48,7 @@ pub fn decode(raw: &[u8]) -> Option<Sidecar> {
     if sc.job.is_empty() || sc.job.len() > 64 || !sc.job.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') { return None; }
     for u in [&sc.url, &sc.final_url] {
         let p = url::Url::parse(u).ok()?;
-        if !matches!(p.scheme(), "http" | "https") { return None; }
+        if !matches!(p.scheme(), "http" | "https") || p.query().is_some() || !p.username().is_empty() || p.fragment().is_some() { return None; }
     }
     if sc.name != crate::name::sanitize(&sc.name) { return None; }
     let mut prev = 0;

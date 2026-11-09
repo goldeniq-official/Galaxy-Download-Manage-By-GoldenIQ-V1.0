@@ -28,7 +28,12 @@ pub fn sanitize(raw: &str) -> String {
     while s.contains("..") { s = s.replace("..", "."); }
     if s.is_empty() { s = "download".into(); }
     if reserved(&s) { s.insert(0, '_'); }
-    truncate(s)
+    let mut s = truncate(s);
+    // the engine's own working names (`x.part`, `x.part.gdm`, `.tmp`, `.probe`) are never a final name,
+    // so no final file can ever collide with another job's working file
+    let l = s.to_ascii_lowercase();
+    if [".part", ".gdm", ".tmp", ".probe"].iter().any(|x| l.ends_with(x)) { s.push('_'); }
+    s
 }
 
 fn reserved(s: &str) -> bool {

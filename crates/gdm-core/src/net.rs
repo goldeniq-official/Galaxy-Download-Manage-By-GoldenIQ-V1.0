@@ -145,25 +145,27 @@ impl Creds {
     }
 }
 
-/// walk the source chain for a policy refusal
-pub fn forbidden(e: &(dyn std::error::Error + 'static)) -> Option<String> {
+/// every error in the chain, including errors wrapped inside io::Error (whose source() skips them)
+fn chain<'a>(e: &'a (dyn std::error::Error + 'static)) -> Vec<&'a (dyn std::error::Error + 'static)> {
+    let mut v = vec![];
     let mut s: Option<&(dyn std::error::Error + 'static)> = Some(e);
     while let Some(x) = s {
-        if let Some(f) = x.downcast_ref::<Forbidden>() { return Some(f.0.clone()); }
-        s = x.source();
+        v.push(x);
+        s = match x.downcast_ref::<std::io::Error>().and_then(|io| io.get_ref()) {
+            Some(inner) => Some(inner as &(dyn std::error::Error + 'static)),
+            None => x.source(),
+        };
+        if v.len() > 32 { break; }
     }
-    None
+    v
+}
+
+/// a policy refusal anywhere in the chain
+pub fn forbidden(e: &(dyn std::error::Error + 'static)) -> Option<String> {
+    chain(e).into_iter().find_map(|x| x.downcast_ref::<Forbidden>().map(|f| f.0.clone()))
 }
 
 /// TLS certificate errors (W-03) are reported as such, never retried into success
 pub fn tls_error(e: &(dyn std::error::Error + 'static)) -> Option<String> {
-    let mut s: Option<&(dyn std::error::Error + 'static)> = Some(e);
-    while let Some(x) = s {
-        if let Some(r) = x.downcast_ref::<rustls::Error>() { return Some(r.to_string()); }
-        if let Some(io) = x.downcast_ref::<std::io::Error>() {
-            if let Some(r) = io.get_ref().and_then(|i| i.downcast_ref::<rustls::Error>()) { return Some(r.to_string()); }
-        }
-        s = x.source();
-    }
-    None
+    chain(e).into_iter().find_map(|x| x.downcast_ref::<rustls::Error>().map(|r| r.to_string()))
 }

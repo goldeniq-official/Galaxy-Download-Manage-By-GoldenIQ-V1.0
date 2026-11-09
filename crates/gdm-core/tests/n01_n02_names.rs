@@ -107,6 +107,10 @@ fn last_segment_only() {
     assert_eq!(sanitize("name. . ."), "name");
     assert_eq!(sanitize(""), "download");
     assert_eq!(sanitize("a:b"), "b"); // a drive-relative / ADS colon is a separator, never kept
+    // working-file suffixes are never final names (no collision with another job's .part / sidecar)
+    for (i, o) in [("a.bin.part", "a.bin.part_"), ("x.PART", "x.PART_"), ("y.part.gdm", "y.part.gdm_"), ("s.gdm.tmp", "s.gdm.tmp_"), ("z.probe", "z.probe_"), ("ok.part1.rar", "ok.part1.rar")] {
+        assert_eq!(sanitize(i), o);
+    }
 }
 
 #[test]

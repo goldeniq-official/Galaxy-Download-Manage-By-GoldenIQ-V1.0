@@ -86,7 +86,7 @@ pub struct NewJob {
     /// None => from the URL (Content-Disposition naming happens in the Download Info flow, `name::file_name`)
     pub name: Option<String>,
     pub referrer: Option<String>,
-    /// Cookie / Authorization for the URL's own origin only (W-01); kept in memory, never persisted
+    /// Cookie and/or Authorization (nothing else) for the URL's own origin only (W-01); memory only, never persisted
     pub creds: Vec<(String, String)>,
     pub sha256: Option<String>,
     /// the user typed this URL (a LAN NAS is fine without asking, W-02)
@@ -172,8 +172,9 @@ impl Engine {
         let url = url::Url::parse(&nj.url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
         if !matches!(url.scheme(), "http" | "https") { return Err(Fail::Forbidden(format!("scheme {}", url.scheme()))); }
         for (k, v) in &nj.creds {
-            // W-04: header injection is refused here, before anything is stored
-            reqwest::header::HeaderName::from_bytes(k.as_bytes()).map_err(|_| Fail::Forbidden("bad header name".into()))?;
+            // W-01: only the two credential headers reqwest also strips on a cross-host redirect; any other
+            // header would follow a redirect to another origin. W-04: CR/LF/NUL refused before anything is kept.
+            if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") { return Err(Fail::Forbidden(format!("credential header {k} not allowed"))); }
             reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
         }
         let name = nj.name.as_deref().map(name::sanitize).unwrap_or_else(|| name::file_name(None, &url));
@@ -257,7 +258,7 @@ impl Engine {
         let mut cp = |snap: &seg::Snapshot| -> Result<(), Fail> {
             let segs = sidecar::compact(&snap.segs);
             if let Some(total) = snap.total {
-                let sc = sidecar::Sidecar { v: 1, job: id.to_string(), url: job.url.clone(), final_url: snap.final_url.clone(), name: job.name.clone(), validator: snap.validator.clone(), total, epoch: snap.epoch, segs: segs.clone() };
+                let sc = sidecar::Sidecar { v: 1, job: id.to_string(), url: finalize::clean_url(&job.url), final_url: finalize::clean_url(&snap.final_url), name: job.name.clone(), validator: snap.validator.clone(), total, epoch: snap.epoch, segs: segs.clone() };
                 if let Some(raw) = sidecar::encode(&sc) { dir.write_atomic(&side, &raw).map_err(s)?; }
             }
             failpoint::hit("after_sidecar");
