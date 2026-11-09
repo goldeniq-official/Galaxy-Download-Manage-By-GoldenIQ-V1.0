@@ -1,0 +1,12 @@
+== cargo deny (G5 workspace), 2026-11-09T23:21:15+07:00
+cargo-deny 0.20.2
+warning[license-not-encountered]: license was not encountered
+   ┌─ C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\deny.toml:17:4
+   │
+17 │   "OFL-1.1",
+   │    ━━━━━━━ unmatched license allowance
+advisories ok, bans ok, licenses ok, sources ok
+== cargo tree: no aws-lc / webpki-roots / openssl / native-tls in gdm-core normal deps
+0
+== TLS-bypass grep (CI rule)
+0 (after splitting the literals in the guard test itself; first run found 1 hit: the guard test)

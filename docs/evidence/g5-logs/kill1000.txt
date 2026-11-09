@@ -1,0 +1,8 @@
+commit 2810ae6, 2026-11-09T23:14:50+07:00, rustc rustc 1.97.1 (8bab26f4f 2026-07-14)
+   Compiling gdm-fixture v0.1.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\fixtures\hostile)
+   Compiling gdm-core v0.1.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\crates\gdm-core)
+    Finished `release` profile [optimized + debuginfo] target(s) in 2.61s
+     Running tests\e04_kill.rs (C:\Users\yrgol\AppData\Local/gdm-t2\release\deps\e04_kill-e7933b4a48f8d81c.exe)
+
+running 1 test
+test e04_kill_rounds has been running for over 60 seconds

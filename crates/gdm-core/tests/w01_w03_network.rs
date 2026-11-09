@@ -200,11 +200,23 @@ async fn w03_self_signed_expired_wrong_host_all_fail_closed() {
 #[test]
 fn w03_no_tls_bypass_in_source() {
     // the CI grep rule, also as a test: nothing in the core may disable certificate checks
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    for e in std::fs::read_dir(src).unwrap().flatten() {
-        let s = std::fs::read_to_string(e.path()).unwrap();
-        for bad in ["danger_accept_invalid", "dangerous()", "NoCertificateVerification", "webpki_roots"] {
-            assert!(!s.contains(bad), "{} contains {bad}", e.path().display());
+    let mut dirs = vec![std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
+    while let Some(d) = dirs.pop() {
+        for e in std::fs::read_dir(d).unwrap().flatten() {
+            if e.path().is_dir() {
+                dirs.push(e.path());
+                continue;
+            }
+            let s = std::fs::read_to_string(e.path()).unwrap();
+            // split literals: this file itself must pass the CI grep for the same words
+            for bad in [
+                concat!("danger_", "accept_invalid"),
+                concat!("dangerous", "()"),
+                concat!("NoCertificate", "Verification"),
+                concat!("webpki", "_roots"),
+            ] {
+                assert!(!s.contains(bad), "{} contains {bad}", e.path().display());
+            }
         }
     }
 }
