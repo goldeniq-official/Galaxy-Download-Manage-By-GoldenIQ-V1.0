@@ -32,10 +32,13 @@ impl Bucket {
         g.1 = now;
         g.0 -= n as f64;
         if g.0 < 0.0 {
-            let wait = Duration::from_secs_f64(-g.0 / r as f64);
-            tokio::time::sleep(wait).await; // holding the lock: the next waiter starts after this debt is paid
+            // holding the lock: the next waiter starts after this debt is paid. Accounting continues from the
+            // planned instant, not from the wake-up: Windows timers overshoot by up to ~15.6 ms per sleep and
+            // that time is credited to the next taker (bounded by `burst`).
+            let due = now + Duration::from_secs_f64(-g.0 / r as f64);
+            tokio::time::sleep_until(due).await;
             g.0 = 0.0;
-            g.1 = Instant::now();
+            g.1 = due;
         }
     }
 }

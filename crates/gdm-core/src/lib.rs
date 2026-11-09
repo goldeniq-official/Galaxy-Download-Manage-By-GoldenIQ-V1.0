@@ -197,6 +197,12 @@ impl Engine {
         Ok(id)
     }
 
+    /// the user confirmed "download from the local network?" for this job's host (W-02). A job recovered from
+    /// a sidecar never carries this intent: it is asked again.
+    pub fn allow_private(&self, id: &str, host: &str) -> Result<(), Fail> {
+        self.st().conn.execute("UPDATE jobs SET allow_private = ?2 WHERE id = ?1", [id, host]).map(|_| ()).map_err(s)
+    }
+
     pub fn job(&self, id: &str) -> Result<store::Job, Fail> {
         self.st().job(id).map_err(Fail::Io)?.ok_or_else(|| Fail::Io(format!("no job {id}")))
     }
@@ -229,6 +235,23 @@ impl Engine {
                 Unverified::Ask => return Err(Fail::NeedsDecision("no strong validator: restart (default) or continue unverified".into())),
                 Unverified::Restart => resume = None,
                 Unverified::SameSession | Unverified::Continue => {}
+            }
+        }
+        // crash after the final rename, before the database said so: the final file is ours when it is the same
+        // file object we created (file id); finish the bookkeeping instead of downloading a duplicate
+        if job.state == "finalizing" && !dir.exists(&part) {
+            if let (Some(want), Ok(f)) = (job.file_id.clone(), dir.open_locked(&job.name)) {
+                if fsx::file_id(&f).map(fid_str).ok() == Some(want) {
+                    let sha = finalize::sha_handle(&f).map_err(s)?;
+                    if job.sha256_expected.as_deref().is_some_and(|e| !e.eq_ignore_ascii_case(&sha)) { return Err(Fail::HashMismatch); }
+                    let prot = if fsx::zone_identifier(&dir, &job.name).is_some() && matches!(fsx::fs_name(&f).as_str(), "NTFS" | "ReFS") { finalize::Protection::Protected } else { finalize::Protection::Unprotected("filesystem without Mark-of-the-Web".into()) };
+                    let (state, p) = if prot == finalize::Protection::Protected { ("complete", "protected") } else { ("unprotected", "unprotected") };
+                    self.st().finish(id, state, &job.name, &sha, p).map_err(Fail::Io)?;
+                    let _ = dir.delete(&side);
+                    let total = f.metadata().map_err(s)?.len();
+                    let transfer = seg::Done { total, final_url: job.final_url.clone().unwrap_or_default(), validator: job.validator.clone(), ranged: true, peak_conns: 0, transfer: Default::default(), flushes: 0, flush_time: Default::default() };
+                    return Ok(Outcome { path: dir.path.join(&job.name), name: job.name.clone(), sha256: sha, protection: prot, unverified: job.unverified, transfer });
+                }
             }
         }
         // the .part: open ours (resume) or create it new relative to the held directory (N-03)

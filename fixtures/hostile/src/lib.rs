@@ -19,6 +19,7 @@
 //!   /429           first request per seed: 429 Retry-After: 2, then /file
 //!   /html          200 text/html page                                   (R-03)
 //!   /multipart     206 multipart/byteranges                             (not requested => reject)
+//!   /p/<size>/<seed>/<rate>/<name>  same as /file, parameters in the path (URLs without a query)
 //!   /static/<name> bytes of a registered blob, ranged (media for S7)
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -121,6 +122,12 @@ impl Fixture {
     /// returns false when the connection must close
     async fn respond(&self, s: &mut TcpStream, method: &str, target: &str, h: &[(String, String)]) -> std::io::Result<bool> {
         let (path, q) = target.split_once('?').unwrap_or((target, ""));
+        // /p/<size>/<seed>/<rate>/<name> == /file?size=&seed=&rate=
+        let pq;
+        let (path, q) = match path.strip_prefix("/p/").map(|r| r.split('/').collect::<Vec<_>>()) {
+            Some(v) if v.len() >= 3 => { pq = format!("size={}&seed={}&rate={}", v[0], v[1], v[2]); ("/file", pq.as_str()) }
+            _ => (path, q),
+        };
         let qp: HashMap<&str, &str> = q.split('&').filter_map(|kv| kv.split_once('=')).collect();
         let num = |k: &str, d: u64| qp.get(k).and_then(|v| v.parse().ok()).unwrap_or(d);
         let size = num("size", 1 << 20);

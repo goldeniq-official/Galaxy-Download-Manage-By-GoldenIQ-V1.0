@@ -148,8 +148,10 @@ impl Store {
     pub fn backup(&self) -> Result<PathBuf, String> {
         let d = backup_dir(&self.path);
         std::fs::create_dir_all(&d).map_err(err)?;
-        let mut name = format!("gdm-{:012}.db", now());
-        while d.join(&name).exists() { name = format!("gdm-{:012}-{}.db", now(), std::process::id()); }
+        // fixed-width nanoseconds: the name sorts by time (two backups in one second must not swap order)
+        let mut t = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        while d.join(format!("gdm-{t:024}.db")).exists() { t += 1; }
+        let name = format!("gdm-{t:024}.db");
         let fin = d.join(&name);
         let tmp = d.join(format!("{name}.tmp"));
         let _ = std::fs::remove_file(&tmp);

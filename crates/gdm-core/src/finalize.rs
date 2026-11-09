@@ -93,7 +93,7 @@ pub fn finalize(dir: &Dir, part: &str, name: &str, total: u64, expected: Option<
     let mut n = 0;
     loop {
         match fsx::rename(&f, dir, &fin, false) {
-            Ok(()) => break,
+            Ok(()) => { failpoint::hit("after_rename"); break; }
             Err(FsError::Exists) if n < 100 => { n += 1; fin = crate::name::with_counter(name, n); } // N-04: someone took the name meanwhile
             Err(e) => return Err(Fail::Io(format!("rename: {e}"))),
         }
