@@ -14,13 +14,13 @@
 | ទំព័រមើលរូបទាំងអស់ | `design/mockups/gallery.html` |
 | Font ភ្ជាប់ក្នុង app (OFL-1.1) | `design/fonts/` (Kantumruy Pro khmer 400–700, Outfit 400–800, JetBrains Mono 400–500 ពី Fontsource 5.3.0) |
 | Icon (Phosphor 2.1.1, MIT) | `design/mockups/icons.js` |
-| Check ស្វ័យប្រវត្តិ | `design/check.cjs` ⇒ `docs/p0/design-check.json` |
+| Check ស្វ័យប្រវត្តិ | `design/check.cjs` ⇒ `docs/p0/design-check.json` (server តេស្ត bind 127.0.0.1 ហើយបម្រើតែ `design/` + `logo/`) |
 
 ផ្ទាំងទាំង ៥ តាម §06: `main` (បញ្ជីមេ, ទម្រង់ medium 1100×700, rail 64 px), `details` (ទម្រង់ wide 1280×760, rail 220 px + details pane 340 px), `info` (ផ្ទាំង Download Info ជា modal), `settings`, `onboarding` (ជំហាន ២: ភ្ជាប់ browser)។
 
 ### លទ្ធផល check (រត់ចុងក្រោយ 2026-11-09)
 
-ពាក្យបញ្ជា: `NODE_PATH=<playwright-core 1.65.0>/node_modules node design/check.cjs <ms-playwright/chromium-1228/chrome-win64/chrome.exe>` ⇒ **69/69 ok, exit 0**: self-test ៩ + run ៦០ (៥ ផ្ទាំង × ២ ភាសា × ២ theme × deviceScaleFactor 1/1.25/1.5)។
+ពាក្យបញ្ជា: `NODE_PATH=<playwright-core 1.65.0>/node_modules node design/check.cjs <ms-playwright/chromium-1228/chrome-win64/chrome.exe>` ⇒ **69/69 ok, exit 0** (រត់ម្ដងទៀតក្រោយការសម្រេច Q1/Q2): self-test ៩ + run ៦០ (៥ ផ្ទាំង × ២ ភាសា × ២ theme × deviceScaleFactor 1/1.25/1.5)។
 
 | Check | របៀប | លទ្ធផល |
 |---|---|---|
@@ -34,7 +34,7 @@
 
 **ដែនកំណត់ដែលត្រូវដឹង (council):** `deviceScaleFactor` ធ្វើត្រាប់ DPI ប៉ុណ្ណោះ មិនមែនការ scale របស់ Windows ក្នុង WebView2 ទេ ហើយ forced-colors ក៏ជាការធ្វើត្រាប់របស់ Chromium មិនមែន theme contrast ពិតរបស់ Windows ដែរ។ ទាំងពីរត្រូវសាកលើ app ពិតក្នុង P1 (R4, R5)។ "69/69" គឺជាភស្តុតាងលើ mockup មិនមែនជាការបញ្ជាក់ WCAG conformance ទេ។
 
-**Field** (search, ឈ្មោះឯកសារ, ថត) ត្រូវបានវាស់ ប៉ុន្តែមិនរាប់ជា pass/fail ទេ (heuristic)។ ការប្ដូរ contrast ខ្លាំងបំផុតពេល focus: ងងឹត 1.2–2.6:1, ភ្លឺ 1.2–18.9:1 (ភ្លឺខ្ពស់ព្រោះ label ប្ដូរពណ៌), HC 21:1។ នេះមកពីច្បាប់ §06 (fill .04→.10 + label/caret accent) ដែល **ខ្សោយក្នុង theme ងងឹត**។ មើលសំណួរ Q2។
+**Field** (search, ឈ្មោះឯកសារ, ថត): តាមការសម្រេចរបស់ម្ចាស់ Q2 ឥឡូវ field ប្រើ plate .40 ពេល focus (ទាំង mouse និង keyboard) ហើយត្រូវឆ្លងច្បាប់ផ្ទៃដដែលនឹងប៊ូតុង។ មុនការសម្រេចនេះ ច្បាប់ §06 (fill .04→.10) ផ្ដល់ contrast ត្រឹម 1.2–2.6:1 ក្នុង theme ងងឹត។
 
 ### អ្វីដែល check រកឃើញ ហើយកែរួច
 
@@ -51,13 +51,16 @@
 - **Focus = fill ផ្ទុយ** សម្រាប់ធាតុ gradient និងធាតុ selected។
 - **របារ 3 px នៅគែមឆ្វេងនៃជួរ selected** នៅតែរក្សាទុក ព្រោះ §06 ដែលម្ចាស់អនុម័តសរសេរវាច្បាស់ ("fill មិនមែនបន្ទាត់ព័ទ្ធជុំវិញ")។ Council ជុំ ១ ចាត់វាជា keyline ប៉ុន្តែក្នុងជុំ ២ បានយល់ព្រមថាវាមិនមែនជា outline ព័ទ្ធជុំវិញទេ។ ការពន្យល់របស់ខ្ញុំ: វាជា fill នៅគែមម្ខាង មិនមែនជា stroke ព័ទ្ធជុំវិញទេ។ មើលសំណួរ Q3។
 
-### សំណួរទៅម្ចាស់
+### ការសម្រេចរបស់ម្ចាស់ (2026-11-09)
 
-- **Q1. ព្រំដែនក្នុង high contrast:** ក្នុង Windows HC ប៊ូតុង និង field គ្មានព្រំដែនទេ (មើល `main-en-highcontrast.png`: ប៊ូតុង "Add" និង search បង្ហាញតែអក្សរ)។ អ្នកប្រើ HC ជាធម្មតាពឹងលើ border ប្រព័ន្ធ (`ButtonText`)។ តាមច្បាប់ ៨ ខ្ញុំមិនបានបន្ថែមទេ។ **អនុញ្ញាត border ប្រព័ន្ធតែក្នុង forced-colors ឬទេ?**
-- **Q2. Field focus ក្នុង theme ងងឹត:** ការប្ដូរពេល focus ត្រឹម 1.2–2.6:1។ ជម្រើស (ក) រក្សាតាម §06: fill .10 + label/caret accent (ស្រាល តែខ្សោយ)។ ជម្រើស (ខ) field ពេល focus ប្រើ plate .40 ដូចប៊ូតុង (ឃើញច្បាស់ អក្សរពណ៌សលើវា 5.31:1 តែធ្ងន់ជាង)។ ខ្ញុំណែនាំ (ខ)។
-- **Q3.** របារ 3 px នៃជួរ selected: រក្សាទុក ឬដកចេញ (ទុកតែ wash)?
-- **Q4.** Windows 10 22H2: "ដំណើរការបាន, មិនសន្យា" (អនុសាសន៍) ឬមិនគាំទ្រ (ផ្នែក ៣)?
-- **Q5.** ការប្ដូរ scope P1 ៣ ចំណុច (ផ្នែក ៣ ចុងក្រោយ): យល់ព្រម?
+| # | សំណួរ | ចម្លើយ | អនុវត្ត |
+|---|---|---|---|
+| Q1 | ព្រំដែនក្នុង Windows high contrast | **អនុញ្ញាតតែក្នុង HC**: border `ButtonText` 1 px លើប៊ូតុង, field, toggle, tab; theme ភ្លឺ/ងងឹតនៅតែគ្មាន border | `design/tokens.css` (`@media (forced-colors: active)`); check អនុញ្ញាត border តែក្នុង run HC |
+| Q2 | Field focus ក្នុង theme ងងឹតខ្សោយ (1.2–2.6:1) | **Plate .40** (ដូចប៊ូតុង) | `.in:focus-within`, `.search:focus-within`; field ឆ្លងច្បាប់ផ្ទៃ 2.4.13 ដូចធាតុផ្សេង |
+| Q3 | របារ 3 px នៃជួរ selected | **រក្សា** (§06) | គ្មានការប្ដូរ |
+| Q4 | Windows 10 22H2 x64 | **"ដំណើរការបាន, មិនសន្យា"**: VM តេស្តមួយដងក្នុង P1, កែ bug ធំ; ការគាំទ្រផ្លូវការ = Windows 11 x64 + arm64 | ផ្នែក ៣ |
+
+នៅរង់ចាំម្ចាស់: **Q5** ការប្ដូរ scope P1 ៣ ចំណុច (ផ្នែក ៣ ចុងក្រោយ) និង **ការអនុម័ត mockups + ឯកសារនេះ**។
 
 ## ២. ច្បាប់ design ម្ចាស់ (D6)
 
@@ -71,7 +74,7 @@
 |---|---|---|
 | Windows 11 x64 | **គាំទ្រ, តេស្ត** | G2 ឆ្លងលើ 26H2 build 26300.9711 |
 | Windows 11 arm64 | **គាំទ្រ (§15 build x64 + arm64)** | គ្មានម៉ាស៊ីន arm64 សាក ⇒ R3 |
-| Windows 10 22H2 x64 | **ម្ចាស់សម្រេច (Q4)** | G2 #19 NOT RUN (គ្មាន VM)។ Microsoft បញ្ចប់ការគាំទ្រ Windows 10 ថ្ងៃ 2025-10-14 ហើយ ESU សម្រាប់អ្នកប្រើធម្មតាផុតនៅ 2026-10-13។ Persona ១ (laptop ចាស់) ប្រហែលនៅប្រើ Windows 10។ អនុសាសន៍: "ដំណើរការបាន, មិនសន្យា" + តេស្ត VM មួយដងក្នុង P1 |
+| Windows 10 22H2 x64 | **ដំណើរការបាន, មិនសន្យា** (ម្ចាស់ Q4) | G2 #19 NOT RUN (គ្មាន VM)។ Microsoft បញ្ចប់ការគាំទ្រ Windows 10 ថ្ងៃ 2025-10-14 ហើយ ESU សម្រាប់អ្នកប្រើធម្មតាផុតនៅ 2026-10-13។ Persona ១ (laptop ចាស់) ប្រហែលនៅប្រើ Windows 10។ អនុសាសន៍: "ដំណើរការបាន, មិនសន្យា" + តេស្ត VM មួយដងក្នុង P1 |
 | WebView2 | Evergreen runtime (មានស្រាប់ក្នុង Windows 11; NSIS ដំឡើងបើខ្វះ) | Tauri 2 default |
 | Installer | **NSIS per-user** (ផ្លូវចម្បង G2) | G2 #4–#12 PASS |
 | MSIX / Store | **ផ្លាស់ទៅ P2** (§17 P2 មាន Store រួចហើយ) | G2 #17 BLOCKED, D8/D9 Store ពេលក្រោយ ⇒ ដក exit criteria P1 "MSIX ឆ្លង Store certification" |
@@ -180,12 +183,11 @@ Allow: MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib, Unicode-3.0, OFL-1.1, MPL-2.0
 | # | ហានិភ័យ | ផលប៉ះពាល់ | ការធ្វើ / បិទពេល |
 |---|---|---|---|
 | R1 | G3 មិនទាន់មានលទ្ធផល/council | ការប៉ាន់ស្មាន និងការបិទ P0 រង់ចាំ | បញ្ចប់ G3 ⇒ council ⇒ កែផ្នែក ៥ |
-| R2 | Windows 10 មិនបានសាក; ស្ថានភាពគាំទ្រ | Persona ១ (laptop ចាស់) | ម្ចាស់សម្រេច Q4 + VM តេស្ត |
+| R2 | Windows 10 មិនបានសាក; ស្ថានភាពគាំទ្រ | Persona ១ (laptop ចាស់) | VM តេស្តមួយដងក្នុង P1 (Q4) |
 | R3 | arm64 គ្មានឧបករណ៍សាក | build ចេញ តែមិនបានរត់ពិត | arm64 VM/ឧបករណ៍ ឬចេញ arm64 ជា "preview" |
 | R4 | Check HC ជាការធ្វើត្រាប់ Chromium | Windows HC ពិត (WebView2) អាចខុស | សាក theme contrast ពិត ៤ (Aquatic, Desert, Dusk, Night sky) លើ UI ពិតក្នុង P1 |
 | R5 | Mockup ជា HTML; scale ធ្វើត្រាប់ដោយ deviceScaleFactor | Windows scaling/WebView2 zoom និងទំហំ window អប្បបរមាមិនទាន់សាក | រត់ `check.cjs` លើ app ពិតក្នុង P1 CI + សាក 100/125/150% ពិត |
 | R6 | អត្ថបទខ្មែរក្នុង mockup សរសេរដោយ Claude | §05 គោលការណ៍ ៦ (គ្មានការបកប្រែម៉ាស៊ីន) | អ្នកអានខ្មែរពិនិត្យ glossary មុន v0.9 |
-| R7 | HC គ្មានព្រំដែនប៊ូតុង/field; field focus ងងឹតខ្សោយ | អ្នកប្រើ HC / keyboard | Q1, Q2 |
 | R8 | MSIX native messaging មិនទាន់បញ្ជាក់ | ផ្លូវ Store (P2) អាចត្រូវការផែនការ B | Spike ពេញមុន Store (G2 plan S1b) |
 | R9 | `webpki-roots` / CDLA | P1 build បរាជ័យ cargo-deny បើប្រើ reqwest default | Platform verifier (ផ្នែក ៤) |
 | R10 | Key ចុះហត្ថលេខា updater / extension store account / migration DB | បាត់ key ឬ account ⇒ update មិនបាន (U-03, S-03) | Drill ស្ដារ key + checklist release មុន v0.9 |

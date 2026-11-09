@@ -98,6 +98,10 @@ button, input, select { font: inherit; color: inherit; border: 0; outline: none;
 .fx:focus-visible { background: var(--focus-plate); color: var(--on-focus); }
 .fx:focus-visible * { color: var(--on-focus); }
 /* gradient-filled controls already sit near the plate's luminance, so they invert instead */
+/* fields (owner Q2, 2026-11-09): the plate under the typed text, for mouse and keyboard alike */
+.in:focus-within, .search:focus-within { background: var(--focus-plate); color: var(--on-focus); }
+.in:focus-within input, .in:focus-within .mono, .search:focus-within input { color: var(--on-focus); }
+.in:focus-within input::placeholder, .search:focus-within input::placeholder { color: var(--on-focus); opacity: .7; }
 .fx.fx-strong:focus-visible, .fx.is-selected:focus-visible, .fx[aria-selected="true"]:focus-visible { background: var(--focus-strong); color: var(--on-focus-strong); }
 .fx.fx-strong:focus-visible *, .fx.is-selected:focus-visible *, .fx[aria-selected="true"]:focus-visible * { color: var(--on-focus-strong); }
 
@@ -110,6 +114,8 @@ button, input, select { font: inherit; color: inherit; border: 0; outline: none;
   /* already Highlight at rest: focus swaps the system pair (Windows guarantees its contrast) */
   .fx.is-selected:focus-visible, .fx[aria-selected="true"]:focus-visible, .fx.toggle[aria-checked="true"]:focus-visible { background: HighlightText !important; color: Highlight !important; }
   .fx.is-selected:focus-visible *, .fx[aria-selected="true"]:focus-visible * { color: Highlight !important; }
+  /* owner Q1 (2026-11-09): in high contrast only, controls get the system border so users can find their edges */
+  .btn, .chip, .mini, .sel, .pill, .act, .in, .search, .toggle, .tabs, .check i { border: 1px solid ButtonText; }
   /* fields: the wrapper fills with Highlight while typing */
   .in:focus-within, .search:focus-within { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
   .in:focus-within *, .search:focus-within * { forced-color-adjust: none; color: HighlightText !important; caret-color: HighlightText; }

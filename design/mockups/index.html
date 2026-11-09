@@ -41,7 +41,6 @@ html, body { height: 100%; overflow: hidden; }
 .top { display: flex; align-items: center; gap: 10px; padding: 16px 18px 10px; }
 .top h1 { font-size: 20px; font-weight: 700; color: var(--tx-1); margin: 0; flex: 1; white-space: nowrap; }
 .search { display: flex; align-items: center; gap: 8px; width: 280px; min-height: 40px; padding: 0 12px; background: var(--field); border-radius: var(--r-md); color: var(--tx-muted); transition: background var(--motion-hover); }
-.search:focus-within { background: var(--field-focus); color: var(--accent); }
 .search input { background: transparent; flex: 1; min-width: 0; caret-color: var(--accent); color: var(--tx-1); line-height: 1.6; padding: 6px 0; }
 .search input::placeholder { color: var(--tx-ph); }
 
@@ -131,7 +130,6 @@ html:lang(km) .btn-p { font-size: 13px; font-weight: 600; }
 .fld > span { display: block; font-size: 12px; font-weight: 600; color: var(--tx-3); margin-bottom: 4px; transition: color var(--motion-hover); }
 .fld:focus-within > span { color: var(--accent); }
 .in { display: flex; align-items: center; gap: 8px; min-height: 40px; background: var(--field); border-radius: var(--r-md); padding: 0 6px 0 12px; transition: background var(--motion-hover); }
-.fld:focus-within .in { background: var(--field-focus); }
 .in input { flex: 1; min-width: 0; background: transparent; color: var(--tx-1); caret-color: var(--accent); padding: 7px 0; line-height: 1.6; }
 .in .mono { color: var(--tx-3); }
 .two { display: grid; grid-template-columns: 180px 1fr; gap: 12px; }

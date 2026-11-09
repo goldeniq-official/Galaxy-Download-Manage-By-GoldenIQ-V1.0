@@ -14,14 +14,18 @@ const LANGS = ["km", "en"], THEMES = ["dark", "light"], SCALES = [1, 1.25, 1.5];
 const FONTS_OK = ["Kantumruy Pro", "Outfit", "JetBrains Mono"];   // platform names carry the weight, e.g. "Kantumruy Pro SemiBold"
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".woff2": "font/woff2", ".png": "image/png" };
 
+// Local test server: loopback only, and only design/ + logo/ (no path escape, no symlink escape).
+const SERVED = ["design", "logo"].map(d => fs.realpathSync(path.join(ROOT, d)));
 const server = http.createServer((q, r) => {
-  const f = path.join(ROOT, decodeURIComponent(q.url.split("?")[0]));
-  if (!f.startsWith(ROOT) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
+  let f;
+  try { f = fs.realpathSync(path.join(ROOT, decodeURIComponent(q.url.split("?")[0]))); } catch { f = null; }
+  const inside = f && SERVED.some(d => { const rel = path.relative(d, f); return rel && !rel.startsWith("..") && !path.isAbsolute(rel); });
+  if (!inside || !fs.statSync(f).isFile()) { r.writeHead(404); return r.end(); }
   r.writeHead(200, { "content-type": MIME[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(r);
 });
 
 // --- rule 8: CSS-level probe (every element + pseudo) -----------------------
-function rulesProbe() {
+function rulesProbe(allowHcBorders) {
   const bad = [];
   const black = s => /^rgba?\(0, 0, 0(, [\d.]+)?\)$/.test(s.trim());
   const shadowOk = v => v === "none" || v.split(/,(?![^(]*\))/).every(p => { const c = p.match(/rgba?\([^)]*\)/); return c && black(c[0]); });
@@ -29,7 +33,7 @@ function rulesProbe() {
     const cs = getComputedStyle(el, pseudo);
     if (pseudo && cs.content === "none") continue;
     const id = (el.id ? "#" + el.id : el.tagName.toLowerCase() + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).join(".") : "")) + (pseudo || "");
-    for (const s of ["Top", "Right", "Bottom", "Left"]) if (parseFloat(cs["border" + s + "Width"]) > 0 && cs["border" + s + "Style"] !== "none") bad.push(id + " border-" + s);
+    if (!allowHcBorders) for (const s of ["Top", "Right", "Bottom", "Left"]) if (parseFloat(cs["border" + s + "Width"]) > 0 && cs["border" + s + "Style"] !== "none") bad.push(id + " border-" + s);
     if (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0) bad.push(id + " outline");
     if (/(^|, )(inset )?(rgba?\([^)]*\) )?0px 0px 0px [\d.]+px( inset)?/.test(cs.boxShadow) && /inset/.test(cs.boxShadow)) bad.push(id + " inset ring");
     else if (!shadowOk(cs.boxShadow)) bad.push(id + " coloured box-shadow");
@@ -169,7 +173,7 @@ async function focusRun(page, diffPage) {
     await page.evaluate(() => window.__f.focus({ preventScroll: true }));   // keyboard modality stays, so :focus-visible returns
     const c = await focusContrast(diffPage, rest.toString("base64"), foc.toString("base64"));
     const need = 4 * (info.w + info.h);            // area of a 2 CSS px thick perimeter (WCAG 2.4.13), at DPR 1
-    res.push({ key, ...info, ...c, need, ok: info.field ? "field-heuristic" : c.px3 >= need ? "pass" : "FAIL" });
+    res.push({ key, ...info, ...c, need, ok: c.px3 >= need ? "pass" : "FAIL" });   // owner Q2: fields use the .40 plate, same rule
   }
   if (!res.length) res.push({ label: "(no tab stops)", ok: "FAIL" });
   if (i === CAP) res.push({ label: "(tab cap reached)", ok: "FAIL" });
@@ -215,7 +219,7 @@ async function selfTest(browser, base) {
 }
 
 (async () => {
-  await new Promise(r => server.listen(0, r));
+  await new Promise(r => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${server.address().port}/design/mockups/index.html`;
   const browser = await chromium.launch({ executablePath: process.argv[2] || undefined });
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -242,7 +246,7 @@ async function selfTest(browser, base) {
       await page.reload(); await page.evaluate(() => document.fonts.ready);
       if (lang === "en" && theme === "dark") { await page.mouse.move(2, 2); await page.screenshot({ path: path.join(SHOTS, `${screen}-${lang}-highcontrast.png`) }); }
       run.focusHC = await focusRun(page, diffPage);
-      run.rulesHC = await page.evaluate(rulesProbe);
+      run.rulesHC = await page.evaluate(rulesProbe, true);   // owner Q1 (2026-11-09): system borders allowed in high contrast only
       if (run.rulesHC.length || [...run.focus, ...run.focusHC].some(f => f.ok.startsWith("FAIL"))) run.FAIL = true;
     }
     if (run.FAIL) fail++;
@@ -250,7 +254,6 @@ async function selfTest(browser, base) {
     const fl = run.focus ? [...run.focus.map(f => ["", f]), ...run.focusHC.map(f => ["hc:", f])] : [];
     console.log(`${run.FAIL ? "FAIL" : "ok  "} ${screen}/${lang}/${theme}@${dpr * 100}%  fonts:${font.fonts.join("+")} rules:${rules.length} vclip:${vClip.length} hclip:${lay.hClip.length} off:${lay.offscreen.length} ellipsis:${lay.ellipsis}` +
       (run.focus ? `  focus ${run.focus.filter(f => f.ok === "pass").length}/${run.focus.length} hc ${run.focusHC.filter(f => f.ok === "pass").length}/${run.focusHC.length}` +
-        ` fields:${fl.filter(([, f]) => f.ok === "field-heuristic").map(([p, f]) => p + f.max).join(",")}` +
         `${fl.some(([, f]) => f.ok.startsWith("FAIL")) ? " FAILS:" + fl.filter(([, f]) => f.ok.startsWith("FAIL")).map(([p, f]) => p + f.label + "(" + f.px3 + "/" + f.need + ")").join("; ") : ""}` : "") +
       (vClip.length ? " VCLIP:" + vClip.map(v => v.text + " " + v.clipped).join("; ") : "") + (rules.length ? " RULES:" + rules.join("; ") : "") + (lay.hClip.length ? " HCLIP:" + lay.hClip.join("; ") : "") + (font.fallback.length ? " FALLBACK:" + font.fallback.join("; ") : ""));
     await ctx.close();
