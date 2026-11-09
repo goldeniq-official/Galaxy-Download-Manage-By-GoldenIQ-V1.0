@@ -1,8 +1,9 @@
 [package]
 name = "galaxy-download-manage"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Galaxy Download Manager"
+authors = ["Golden IQ", "CHHIT Sungchhay"]
+license-file = "../LICENSE"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -1,6 +1,8 @@
 {
   "name": "galaxy-download-manage",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Golden IQ",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
