@@ -2,6 +2,8 @@
 import html as _h
 import json as _json
 
+from autonomy import AUTONOMY_EN
+
 MONEY_HTML = r"""
 <p><strong>គោលការណ៍ (ម្ចាស់សម្រេច 2026-11-09):</strong> GDM ឥតគិតថ្លៃពិតសម្រាប់គ្រប់គ្នា រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័នរដ្ឋ (LICENSE: RPL-1.5, ប្រើដោយសេរីសម្រាប់គ្រប់គ្នា)។ ក្នុង app គ្មានពាណិជ្ជកម្ម គ្មានការតាមដាន គ្មាន activation (R3)។ ចំណូលមកពីអ្វីៗនៅជុំវិញ app មិនមែនពី app ខ្លួនឯងទេ។</p>
 <div class="tw"><table><thead><tr><th>#</th><th>ប្រភពចំណូល</th><th>ច្បាប់អនុវត្ត</th><th>ពេលចាប់ផ្ដើម</th></tr></thead><tbody>
@@ -32,7 +34,7 @@ MONEY_HTML = r"""
 # The Algorithm, council) load by themselves, so they are referenced, not repeated.
 HEAD = ("Project: Galaxy Download Manager (GDM), repo root = this folder. Source of truth: docs/GDM-Blueprint.html "
         "(generated from docs/blueprint/*.py) + LICENSE. Follow CLAUDE.md rules. Evidence goes in docs/p0/ (P0) or "
-        "docs/evidence/<goal>.md (later goals): commands run, versions, results, failures. Never mark done without it.")
+        "docs/evidence/<goal>.md (later goals): commands run, versions, results, failures. Never mark done without it.\n\n" + AUTONOMY_EN)
 
 # (id, phase, Khmer title, Khmer summary, prerequisites, can run in parallel with, command body)
 GOALS = [
@@ -42,7 +44,7 @@ GOALS = [
      """GOAL G1 (P0-A): decision register and P0 spike plan.
 Read first: §01 requirements R1-R11, §07 update, §08 architecture + ADR-1..6, §09 engine targets, §15 release, §17 plan, §19 decisions D1-D18.
 Do:
-1. Prerequisite check: G0 owner answers must exist (ask the owner in Khmer for any of D2-D15, D17, D18 not yet answered; D1 and D16 are already decided, see §19). Silence is never a yes.
+1. Prerequisite check: owner decisions D1-D20 are recorded in §19 (all answered 2026-11-09); do not re-ask.
 2. Write docs/p0/plan.md (Khmer, technical terms in English):
    a. Decision register D1-D18: question, owner's answer, date, which work it unblocks.
    b. Spike inventory, in the §17 risk order: S1 MSIX + native messaging host visible to Chrome/Edge/Firefox; S2 MV3 prepared handoff; S3 named pipe with DACL + server verification; S4 hostile HTTP fixture server; S5 segmenter + write lease + speed benchmark; S6 MOTW via IAttachmentExecute + exFAT/FAT targets; S7 yt-dlp policy proxy (ADR-6); S8 update install + recover (U-04, U-06); S9 Khmer.nsh in NSIS. For each: deliverable, pass criterion (measurable), fallback/plan B, estimate, risk, related cards (§12).
@@ -51,15 +53,14 @@ Do:
    e. Benchmark protocol vs IDM 6.43: fixed machine, wired link, bandwidth recorded, cache cleared, same 5 public URLs on different CDNs + 1 GB LAN fixture, 5 runs each, report median and worst case, connection counts logged. Targets from §09: >=90% line rate on LAN, CPU <10% (4 cores), engine RAM <60 MB, mean >= IDM -5% and equal/faster on >=3/5 URLs.
    f. Repo layout proposal: Cargo workspace (crates/gdm-core, crates/gdm-bridge, src-tauri app), extension/, fixtures/, spikes/ (throwaway, never shipped), docs/.
 3. Only if the owner confirmed D11/D12: align identifiers (package.json name, Cargo package name, tauri.conf.json productName "Galaxy Download Manager", identifier per D12) in one small commit. Otherwise list them as pending.
-Done when: docs/p0/plan.md is committed on main, council has reviewed it (record what Codex added/got wrong), and the owner has confirmed the decision register.
-Stop and ask the owner if: an answer changes scope, cost, licence or publisher identity."""),
+Done when: docs/p0/plan.md is committed on main and council has reviewed it (record what Codex added/got wrong)."""),
 
     ("G2", "P0", "Spike ការចែកចាយ Windows និង browser",
      "MSIX + native messaging ឱ្យ browser ទាំង ៣ ឃើញ, install/upgrade/uninstall លើ Win10/11, component ទាញក្រោយ install, NSIS + Khmer.nsh ជា plan B។",
      ["G1"], ["G3"],
      """GOAL G2 (P0-B): prove Windows distribution and browser integration (spikes S1, S9 + plan B).
 Read first: docs/p0/plan.md (spike S1, S9 rows), §08 (gdm-bridge.exe, installer row), §15 (Store, certificates, release.yml), cards F01 (B-01 B-02 B-03 B-04 B-09), F13 (U-06), F15 (T-01), F17 (S-01 S-02 S-03).
-Prerequisite check: docs/p0/plan.md exists and is owner-confirmed; if not, stop and say G1 is not done.
+Prerequisite check: docs/p0/plan.md exists; if not, stop and say G1 is not done.
 Do (throwaway code under spikes/distribution/, never shipped):
 1. Minimal gdm-bridge native messaging host (stdin/stdout framing, origin allow-list, size limit, stateless) + minimal MV3 extension that calls it.
 2. Package as MSIX. Make the native messaging host registration visible to Chrome, Edge and Firefox: try desktop:Extension / unvirtualized registry first; if that fails, try a separate per-user installer helper. Record exactly which manifest/registry keys each browser reads.
@@ -75,7 +76,7 @@ Done when: every distribution check has a recorded result (success or tested pla
      ["G1"], ["G2"],
      """GOAL G3 (P0-C): prove engine correctness and security boundaries (spikes S2-S8).
 Read first: docs/p0/plan.md, §09 engine (probe, dynamic segmentation, write lease, seam check, flush/commit, limiter, finalisation, server-response table), §10 threat model + the 12 invariants, ADR-2/3/6, cards F03 (E-01..E-04), F04 (N-01..N-05, N-09), F05 (W-01..W-03), F01 (B-02), F07 (M-01..M-04, M-08), F13 (U-01..U-03, U-06).
-Prerequisite check: docs/p0/plan.md exists and is owner-confirmed; if not, stop.
+Prerequisite check: docs/p0/plan.md exists; if not, stop.
 Do (throwaway code under spikes/engine/, each spike leaves ONE runnable check):
 1. S4 hostile HTTP fixture server (Rust, reusable later in fixtures/): 200 ignoring Range, ETag change mid-download, infinite body, slowloris, cross-origin redirect (credentials must be stripped), 429 + Retry-After, text/html instead of binary, multipart/byteranges.
 2. S5 segmenter: probe GET Range bytes=0- with Accept-Encoding identity; start 2 connections; add one every 2 s only if total speed rises >=10% (default cap 8, max 32); split largest remaining half (>=1 MiB); single actor owns the segment map; write leases with generation + boundary ack; .part preallocated with set_len, 1 MiB buffers, commit offset only after flush (8 MiB or 2 s).
@@ -101,14 +102,14 @@ Do:
 4. Dependency and licence inventory: add deny.toml (cargo-deny) allowing MIT/Apache-2.0/BSD/ISC/Zlib/Unicode/OFL + unmodified MPL-2.0 (D18), denying linked GPL/AGPL/LGPL/SSPL; npm licence check; plan THIRD-PARTY-NOTICES generation (cargo about + license-checker); record yt-dlp/ffmpeg (BtbN win64-lgpl) as downloaded-at-runtime, not bundled.
 5. Revise the P1 estimate from spike evidence.
 Write docs/p0/exit.md: mockup paths, frozen P1 acceptance list, dependency inventory result, revised estimate, open risks.
-Done when: the owner approves the mockups and docs/p0/exit.md, and the P0 exit council review is recorded."""),
+Done when: the mockups and docs/p0/exit.md are committed and the P0 exit council review is recorded (no owner approval gate; decide by the DECISION POLICY)."""),
 
     ("G5", "P1", "Core ទាញយក HTTP",
      "crates/gdm-core: engine HTTP/HTTPS (segment, resume, integrity, limiter), .part/rename/MOTW, SQLite + crash recovery។ Test មុនកូដ។",
      ["G4"], [],
      """GOAL G5 (P1-A): deliver the persistent HTTP download core.
 Read first: docs/p0/exit.md (frozen scope), §08 stack and ADR-1/3, §09 engine, §10 invariants, cards F03, F04, F05, F11, F12 (all critical/high: E-01..E-04, N-01..N-05, N-09, W-01..W-03, D-01) and their test columns in §12.
-Prerequisite check: docs/p0/exit.md is owner-approved; if not, stop.
+Prerequisite check: docs/p0/exit.md exists and the P0 exit council review is recorded; if not, stop.
 Do:
 1. crates/gdm-core as a library independent of Tauri (so it can become gdm-engine.exe later, ADR-1): tokio, reqwest (hyper 1, HTTP/1.1 + HTTP/2), rustls + rustls-platform-verifier, url, rusqlite (bundled, WAL), keyring, windows-rs. No TLS bypass, no https->http, no credentials across origins.
 2. Port the proven spike designs (not the throwaway code as-is): probe, dynamic segmentation, write leases, server-response table from §09, 3-level token-bucket limiter (global -> queue -> job), finalisation with IAttachmentExecute, .part + sidecar name.part.gdm (<=64 KB, untrusted) per ADR-3.
@@ -137,29 +138,29 @@ Evidence in docs/evidence/G6.md.
 Done when: every P1 exit criterion in §17 has evidence (cards above pass; MSIX native messaging works or tested plan B; speed gate per protocol; Khmer screenshots without clipping; axe 0 serious), and draft release notes with known limitations are ready for the owner. The owner pushes and publishes."""),
 
     ("G7", "P2", "v1.0 parity ជាមួយ IDM",
-     "តែជួរ P2 ដែលម្ចាស់យល់ព្រម: queue, scheduler, refresh address, batch, clipboard, CLI, import/export, proxy, វីដេអូ, failure-injection។",
+     "គ្រប់ជួរ P2 ក្នុង §04: queue, scheduler, refresh address, batch, clipboard, CLI, import/export, proxy, វីដេអូ, failure-injection។",
      ["G6"], [],
      """GOAL G7 (P2): deliver the agreed v1.0 IDM-parity scope.
 Read first: §04 parity ledger (P2 rows + owner waivers), §02 IDM study, ADR-1, ADR-4, ADR-6, cards F06 (R-01), F07 (M-01..M-04, M-08), F08 (Q-01, Q-02), F10 (I-01, I-02), F11, F16.
 Prerequisite check: v0.9 beta evidence in docs/evidence/G6.md; if not, stop.
-Do, only for owner-approved P2 rows: queues + sync queue + scheduler + post actions (D15: .bat/.cmd hook only set in UI, with argument restriction, never from extension/CLI/import), refresh address protocol, batch, clipboard, IDM CLI flags (gdm.exe /d ... over the same pipe), import .ef2/txt, export JSON, proxy PAC/NTLM, site logins in Credential Manager, per-server limits, quota, sounds, drop basket, video via opt-in yt-dlp/ffmpeg components with quality popup (D10 notice, no DRM), failure-injection tests (crash WebView, crash core) to settle ADR-1.
+Do, for every P2 row in §04 (owner waivers already recorded in §19, do not ask again): queues + sync queue + scheduler + post actions (D15: .bat/.cmd hook only set in UI, with argument restriction, never from extension/CLI/import), refresh address protocol, batch, clipboard, IDM CLI flags (gdm.exe /d ... over the same pipe), import .ef2/txt, export JSON, proxy PAC/NTLM, site logins in Credential Manager, per-server limits, quota, sounds, drop basket, video via opt-in yt-dlp/ffmpeg components with quality popup (D10 notice, no DRM), failure-injection tests (crash WebView, crash core) to settle ADR-1.
 Then: beta with 10 testers (>=5 Khmer) for 2 weeks; record answers.
 Evidence in docs/evidence/G7.md.
-Done when: every P2 row is done or has an explicit owner waiver, cards F06-F11 pass, THIRD-PARTY-NOTICES and PRIVACY.md are complete and accurate, and >=8/10 testers say GDM replaces IDM (or the gap list is reported to the owner)."""),
+Done when: every P2 row is done or has a waiver already recorded in §19/docs/decisions.md, cards F06-F11 pass, THIRD-PARTY-NOTICES and PRIVACY.md are complete and accurate, and >=8/10 testers say GDM replaces IDM (or the gap list is reported to the owner)."""),
 
     ("G8", "ចំណូល", "KHQR, សេវា, អ្នកឧបត្ថម្ភ (§21)",
      "ដាក់ KHQR ក្នុង README និង About (រូបភ្ជាប់, គ្មាន network), សរសេរ docs/services.md និង docs/sponsors.md។ ធ្វើបានពេលណាក៏បាន ក្រោយម្ចាស់ផ្ដល់រូប KHQR។",
      [], ["G1", "G2", "G3", "G4", "G5", "G6", "G7"],
      """GOAL G8 (income): set up the income plan in §21 without touching the free-for-everyone promise.
 Read first: §21 income plan, LICENSE (RPL-1.5) and NOTICE.md, SignPath terms (no commercial dual-licensing), memory/rule: no ads, tracking, activation or payment SDK in the app.
-Prerequisite check: the owner has given the KHQR image (ask in Khmer if not).
+Prerequisite check: the owner has given the KHQR image (the only owner question here; ask once in Khmer if missing, do everything else first).
 Do:
 1. README: short voluntary "គាំទ្រ GDM / Support GDM" block with the KHQR image, Khmer first, saying support is optional and unlocks nothing.
 2. App About page (if the app exists yet): same KHQR as a bundled image, no network call, no tracking; otherwise leave a task note for G6.
 3. docs/services.md (Khmer + English): paid deployment, configuration, training, support, commissioned features; written terms on ownership (Golden IQ & CHHIT Sungchhay), inclusion in the official product (not guaranteed), acceptance, maintenance; no private forks.
 4. docs/sponsors.md: website/README placements only, labelled "sponsored", sponsors never influence defaults, downloads, search results or user data.
 5. PC shop/OEM note: redistribution of unmodified GDM is already allowed by RPL-1.5; offer paid installation/support services only, never paid licences (SignPath bans commercial dual-licensing).
-Done when: the files are committed, wording matches "free for everyone" and LICENSE, and the owner approves."""),
+Done when: the files are committed, wording matches "free for everyone" and LICENSE, and council has reviewed them."""),
 
     ("G9", "P3", "មុខងារ P3 ម្ដងមួយ (គំរូ)",
      "ចម្លង ប្ដូរ <NAME> ទៅមុខងារមួយ: site grabber, zip preview, SFTP, HTTP/3, HLS native, portable, gdm://, Weblate, VPN/rasdial។",
@@ -205,6 +206,7 @@ def goal_panel():
                _h.escape(summary), _h.escape(pre_txt), _h.escape(par_txt), gid, _h.escape(cmd), gid))
     return ('<div class="gbar"><div><strong id="gprog">0/%d</strong> goal រួច · '
             '<span id="gnext"></span></div><button class="pill" type="button" id="ghide" aria-pressed="false">លាក់ goal ដែលរួច</button></div>'
+            '<p class="note warn"><strong>ពាក្យបញ្ជានីមួយៗមានច្បាប់សម្រេចដោយខ្លួនឯង (§22):</strong> session មិនសួរម្ចាស់ពីការរចនា វិសាលភាព ឬការអនុម័តទេ។ វាចម្លង IDM/NDM ហើយកត់ក្នុង docs/decisions.md។ វាសួរតែរឿងលុយ គណនី/អត្តសញ្ញាណ push និង LICENSE ជាសារតែមួយនៅចុង goal។</p>'
             '<p class="byline">ចុច "ចម្លង /goal" ហើយបិទភ្ជាប់ក្នុង session Claude Code ថ្មី។ ពេលធ្វើរួច ចុចប្រអប់ ✓ ។ '
             'Goal ដែលមិនទាន់ដល់វេន (goal មុនមិនទាន់ ✓) នឹងសួរបញ្ជាក់មុនចម្លង ដើម្បីកុំឱ្យជាន់គ្នា។ ស្ថានភាពរក្សាទុកក្នុង browser នេះ។</p>'
             '<div class="card g0"><h3>G0 · ម្ចាស់ត្រូវធ្វើមុន (មិនមែន /goal)</h3><ul class="g0l">%s</ul></div>'

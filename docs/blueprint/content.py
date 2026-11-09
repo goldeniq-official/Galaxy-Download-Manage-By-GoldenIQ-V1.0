@@ -6,6 +6,7 @@ from design import DESIGN_HTML
 from codereview import CODE_HTML
 from council import COUNCIL_HTML
 from goal import MONEY_HTML
+from autonomy import AUTONOMY_HTML
 
 
 def code(s):
@@ -482,4 +483,5 @@ SECTIONS = [
     ("s19", "19", "ម្ចាស់ត្រូវសម្រេច (19)", S19),
     ("s20", "20", "Coverage, ទំនុកចិត្ត, ដែនកំណត់", S20),
     ("s21", "21", "ចំណូល: app ឥតគិតថ្លៃ, លុយពីជុំវិញ", MONEY_HTML),
+    ("s22", "22", "ច្បាប់សម្រេចដោយខ្លួនឯង (មិនសួរម្ចាស់)", AUTONOMY_HTML),
 ]
