@@ -1,0 +1,6 @@
+# id|url|bytes|sha256 (sha256 pinned by the warm-up pair: GDM and IDM must agree)
+cloudflare|https://download.blender.org/release/Blender4.2/blender-4.2.0-windows-x64.zip|383542405|
+fastly|https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.gz|239929282|
+cloudfront|https://download.jetbrains.com/python/pycharm-community-2024.2.4.exe|489747472|
+github|https://github.com/ollama/ollama/releases/download/v0.3.14/OllamaSetup.exe|696149360|
+google|https://dl.google.com/android/repository/emulator-windows_x64-12414864.zip|419372875|

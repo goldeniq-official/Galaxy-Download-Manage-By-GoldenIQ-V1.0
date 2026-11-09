@@ -1,0 +1,2 @@
+# id|url|bytes|sha256  (loopback fixture, s4 serve 8790; sha256 = fixture oracle)
+lan1g|http://127.0.0.1:8790/file?size=1073741824&seed=7|1073741824|
