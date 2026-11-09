@@ -40,7 +40,8 @@ impl T {
     }
     pub async fn get(&self, url: &str) -> (String, Result<Outcome, Fail>) {
         let id = self.engine.add(self.job(url)).unwrap();
-        let r = tokio::time::timeout(Duration::from_secs(90), self.engine.run(&id, Unverified::Ask, None)).await
+        let r = tokio::time::timeout(Duration::from_secs(90), self.engine.run(&id, Unverified::Ask, None))
+            .await
             .unwrap_or_else(|_| Err(Fail::Io("test deadline 90 s".into())));
         (id, r)
     }

@@ -6,8 +6,8 @@ use unicode_normalization::UnicodeNormalization;
 
 const MAX_UTF16: usize = 200;
 const DANGEROUS: &[&str] = &[
-    "exe", "msi", "msix", "appx", "bat", "cmd", "com", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "hta",
-    "scr", "pif", "cpl", "lnk", "url", "reg", "iso", "img", "vhd", "vhdx", "jar", "dll", "sys", "msc", "chm", "inf",
+    "exe", "msi", "msix", "appx", "bat", "cmd", "com", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "hta", "scr", "pif", "cpl", "lnk",
+    "url", "reg", "iso", "img", "vhd", "vhdx", "jar", "dll", "sys", "msc", "chm", "inf",
 ];
 
 /// one safe Windows path component, never empty
@@ -25,20 +25,30 @@ pub fn sanitize(raw: &str) -> String {
         .collect();
     // Windows drops trailing dots and spaces ("." and ".." vanish here too)
     s = s.trim_start_matches(' ').trim_end_matches(['.', ' ']).to_string();
-    while s.contains("..") { s = s.replace("..", "."); }
-    if s.is_empty() { s = "download".into(); }
-    if reserved(&s) { s.insert(0, '_'); }
+    while s.contains("..") {
+        s = s.replace("..", ".");
+    }
+    if s.is_empty() {
+        s = "download".into();
+    }
+    if reserved(&s) {
+        s.insert(0, '_');
+    }
     let mut s = truncate(s);
     // the engine's own working names (`x.part`, `x.part.gdm`, `.tmp`, `.probe`) are never a final name,
     // so no final file can ever collide with another job's working file
     let l = s.to_ascii_lowercase();
-    if [".part", ".gdm", ".tmp", ".probe"].iter().any(|x| l.ends_with(x)) { s.push('_'); }
+    if [".part", ".gdm", ".tmp", ".probe"].iter().any(|x| l.ends_with(x)) {
+        s.push('_');
+    }
     s
 }
 
 fn reserved(s: &str) -> bool {
     let stem = s.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
-    if ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"].contains(&stem.as_str()) { return true; }
+    if ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"].contains(&stem.as_str()) {
+        return true;
+    }
     let mut c = stem.chars();
     let p: String = c.by_ref().take(3).collect();
     let d: Vec<char> = c.collect();
@@ -49,13 +59,20 @@ fn reserved(s: &str) -> bool {
 // ponytail: char boundary, not grapheme (N-06 medium wants grapheme for Khmer clusters); add
 // unicode-segmentation when N-06 is built.
 fn truncate(s: String) -> String {
-    if s.encode_utf16().count() <= MAX_UTF16 { return s; }
-    let ext = match s.rfind('.') { Some(i) if s.len() - i <= 16 => s[i..].to_string(), _ => String::new() };
+    if s.encode_utf16().count() <= MAX_UTF16 {
+        return s;
+    }
+    let ext = match s.rfind('.') {
+        Some(i) if s.len() - i <= 16 => s[i..].to_string(),
+        _ => String::new(),
+    };
     let room = MAX_UTF16 - ext.encode_utf16().count();
     let mut out = String::new();
     let mut n = 0;
     for c in s[..s.len() - ext.len()].chars() {
-        if n + c.len_utf16() > room { break; }
+        if n + c.len_utf16() > room {
+            break;
+        }
         n += c.len_utf16();
         out.push(c);
     }
@@ -65,11 +82,16 @@ fn truncate(s: String) -> String {
 
 /// the real (last) extension, lower case, "" when none
 pub fn real_extension(name: &str) -> String {
-    match name.rfind('.') { Some(i) if i + 1 < name.len() => name[i + 1..].to_ascii_lowercase(), _ => String::new() }
+    match name.rfind('.') {
+        Some(i) if i + 1 < name.len() => name[i + 1..].to_ascii_lowercase(),
+        _ => String::new(),
+    }
 }
 
 /// never auto-opened, labelled in the UI (N-02)
-pub fn dangerous(name: &str) -> bool { DANGEROUS.contains(&real_extension(name).as_str()) }
+pub fn dangerous(name: &str) -> bool {
+    DANGEROUS.contains(&real_extension(name).as_str())
+}
 
 /// "setup.exe", 1 -> "setup (1).exe" (N-04)
 pub fn with_counter(name: &str, n: u32) -> String {
@@ -86,7 +108,9 @@ pub fn file_name(content_disposition: Option<&str>, url: &url::Url) -> String {
         let params: Vec<(String, String)> = split_params(cd);
         let star = params.iter().find(|(k, _)| k == "filename*").and_then(|(_, v)| ext_value(v));
         let plain = params.iter().find(|(k, _)| k == "filename").map(|(_, v)| v.clone());
-        if let Some(n) = star.or(plain).filter(|n| !n.trim().is_empty()) { return sanitize(&n); }
+        if let Some(n) = star.or(plain).filter(|n| !n.trim().is_empty()) {
+            return sanitize(&n);
+        }
     }
     let seg = url.path_segments().and_then(|mut s| s.next_back()).unwrap_or("");
     sanitize(&pct_decode(seg))
@@ -98,23 +122,34 @@ fn split_params(s: &str) -> Vec<(String, String)> {
     let b: Vec<char> = s.chars().collect();
     let mut i = 0;
     while i < b.len() {
-        while i < b.len() && (b[i] == ';' || b[i] == ' ') { i += 1; }
+        while i < b.len() && (b[i] == ';' || b[i] == ' ') {
+            i += 1;
+        }
         let k0 = i;
-        while i < b.len() && b[i] != '=' && b[i] != ';' { i += 1; }
+        while i < b.len() && b[i] != '=' && b[i] != ';' {
+            i += 1;
+        }
         let key = b[k0..i].iter().collect::<String>().trim().to_ascii_lowercase();
-        if i >= b.len() || b[i] == ';' { continue; }
+        if i >= b.len() || b[i] == ';' {
+            continue;
+        }
         i += 1; // '='
         let mut v = String::new();
         if i < b.len() && b[i] == '"' {
             i += 1;
             while i < b.len() && b[i] != '"' {
-                if b[i] == '\\' && i + 1 < b.len() { i += 1; }
+                if b[i] == '\\' && i + 1 < b.len() {
+                    i += 1;
+                }
                 v.push(b[i]);
                 i += 1;
             }
             i += 1;
         } else {
-            while i < b.len() && b[i] != ';' { v.push(b[i]); i += 1; }
+            while i < b.len() && b[i] != ';' {
+                v.push(b[i]);
+                i += 1;
+            }
             v = v.trim().to_string();
         }
         out.push((key, v));
@@ -137,7 +172,11 @@ fn pct_decode(s: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'%' && i + 2 < b.len() {
-            if let Some(v) = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()) { o.push(v); i += 3; continue; }
+            if let Some(v) = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                o.push(v);
+                i += 3;
+                continue;
+            }
         }
         o.push(b[i]);
         i += 1;

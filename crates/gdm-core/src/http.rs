@@ -28,20 +28,28 @@ pub fn status(code: u16, h: &HeaderMap) -> Step {
 
 fn retry_after(h: &HeaderMap) -> Option<u64> {
     let v = hv(h, "retry-after")?;
-    if let Ok(s) = v.trim().parse() { return Some(s); }
+    if let Ok(s) = v.trim().parse() {
+        return Some(s);
+    }
     let at = httpdate::parse_http_date(&v).ok()?;
     Some(at.duration_since(std::time::SystemTime::now()).map_or(0, |d| d.as_secs()))
 }
 
-pub fn hv(h: &HeaderMap, k: &str) -> Option<String> { h.get(k).and_then(|v| v.to_str().ok()).map(String::from) }
+pub fn hv(h: &HeaderMap, k: &str) -> Option<String> {
+    h.get(k).and_then(|v| v.to_str().ok()).map(String::from)
+}
 
 /// strong ETag only ("W/" is weak and never a validator for If-Range, RFC 9110 §13.1.5)
-pub fn strong_etag(h: &HeaderMap) -> Option<String> { hv(h, "etag").map(|e| e.trim().to_string()).filter(|e| e.starts_with('"') && e.len() >= 2) }
+pub fn strong_etag(h: &HeaderMap) -> Option<String> {
+    hv(h, "etag").map(|e| e.trim().to_string()).filter(|e| e.starts_with('"') && e.len() >= 2)
+}
 
 /// validator for If-Range: strong ETag, else Last-Modified only when it is strong per RFC 9110 §8.8.2.2
 /// (a Date header at least one second later). None => resume integrity is a heuristic (E-02 "unverified").
 pub fn validator(h: &HeaderMap) -> Option<String> {
-    if let Some(e) = strong_etag(h) { return Some(e); }
+    if let Some(e) = strong_etag(h) {
+        return Some(e);
+    }
     let lm = hv(h, "last-modified")?;
     let date = hv(h, "date")?;
     let (l, d) = (httpdate::parse_http_date(&lm).ok()?, httpdate::parse_http_date(&date).ok()?);
@@ -55,9 +63,13 @@ pub fn content_range(h: &HeaderMap) -> Option<(u64, u64, Option<u64>)> {
     let (ab, t) = r.split_once('/')?;
     let (a, b) = ab.split_once('-')?;
     let (a, b): (u64, u64) = (a.trim().parse().ok()?, b.trim().parse().ok()?);
-    if b < a { return None; }
+    if b < a {
+        return None;
+    }
     let total = if t.trim() == "*" { None } else { Some(t.trim().parse().ok()?) };
-    if total.is_some_and(|t: u64| b >= t) { return None; }
+    if total.is_some_and(|t: u64| b >= t) {
+        return None;
+    }
     Some((a, b, total))
 }
 
@@ -75,4 +87,6 @@ pub fn identity(h: &HeaderMap) -> bool {
     hv(h, "content-encoding").is_none_or(|e| e.trim().eq_ignore_ascii_case("identity"))
 }
 
-pub fn content_type(h: &HeaderMap) -> String { hv(h, "content-type").unwrap_or_default().to_ascii_lowercase() }
+pub fn content_type(h: &HeaderMap) -> String {
+    hv(h, "content-type").unwrap_or_default().to_ascii_lowercase()
+}

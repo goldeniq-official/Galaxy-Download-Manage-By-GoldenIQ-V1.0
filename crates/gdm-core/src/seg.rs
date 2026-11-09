@@ -47,9 +47,17 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            cap: 8, fixed: None, min_split: MIB, buf: MIB as usize, queue: 16, flush_bytes: 8 * MIB,
-            flush_every: Duration::from_secs(2), read_timeout: Duration::from_secs(60),
-            min_speed: (1024, Duration::from_secs(120)), retries: 10, unknown_cap: None,
+            cap: 8,
+            fixed: None,
+            min_split: MIB,
+            buf: MIB as usize,
+            queue: 16,
+            flush_bytes: 8 * MIB,
+            flush_every: Duration::from_secs(2),
+            read_timeout: Duration::from_secs(60),
+            min_speed: (1024, Duration::from_secs(120)),
+            retries: 10,
+            unknown_cap: None,
         }
     }
 }
@@ -94,12 +102,26 @@ pub struct Done {
     pub flush_time: Duration,
 }
 
-struct Seg { start: u64, end: u64, next: u64, written: u64, committed: u64, worker: Option<usize>, gen: u64, tries: u32, fail_pos: u64 }
+struct Seg {
+    start: u64,
+    end: u64,
+    next: u64,
+    written: u64,
+    committed: u64,
+    worker: Option<usize>,
+    gen: u64,
+    tries: u32,
+    fail_pos: u64,
+}
 impl Seg {
-    fn new(start: u64, end: u64, done: u64) -> Seg { Seg { start, end, next: done, written: done, committed: done, worker: None, gen: 0, tries: 0, fail_pos: done } }
+    fn new(start: u64, end: u64, done: u64) -> Seg {
+        Seg { start, end, next: done, written: done, committed: done, worker: None, gen: 0, tries: 0, fail_pos: done }
+    }
 }
 
-enum Ctl { Shrink { gen: u64, end: u64 } }
+enum Ctl {
+    Shrink { gen: u64, end: u64 },
+}
 enum Ev {
     Admitted { wid: usize, next: u64 },
     Ack { wid: usize, gen: u64, end: u64 },
@@ -109,9 +131,20 @@ enum Ev {
     WriteFail(String),
 }
 #[derive(Debug, Clone)]
-enum WErr { Fatal(Fail), NoRange, Retry(String), RetryAfter(u64), Backoff }
+enum WErr {
+    Fatal(Fail),
+    NoRange,
+    Retry(String),
+    RetryAfter(u64),
+    Backoff,
+}
 
-struct Chunk { epoch: u64, seg: u64, off: u64, data: Vec<u8> }
+struct Chunk {
+    epoch: u64,
+    seg: u64,
+    off: u64,
+    data: Vec<u8>,
+}
 
 struct Shared {
     client: Client,
@@ -126,29 +159,49 @@ struct Shared {
 }
 
 fn net_fail(e: &reqwest::Error) -> Fail {
-    if let Some(f) = net::forbidden(e) { return Fail::Forbidden(f); }
-    if let Some(t) = net::tls_error(e) { return Fail::Tls(t); }
-    if e.is_timeout() { return Fail::Timeout; }
+    if let Some(f) = net::forbidden(e) {
+        return Fail::Forbidden(f);
+    }
+    if let Some(t) = net::tls_error(e) {
+        return Fail::Tls(t);
+    }
+    if e.is_timeout() {
+        return Fail::Timeout;
+    }
     Fail::Io(format!("{e} ({:?})", std::error::Error::source(e).map(|s| s.to_string())))
 }
 
 fn get(sh: &Shared, url: &Url, range: String, if_range: bool) -> reqwest::RequestBuilder {
     let mut rq = sh.client.get(url.clone()).header("Range", range).header("Accept-Encoding", "identity");
-    if if_range { if let Some(v) = &sh.validator { rq = rq.header("If-Range", v); } }
-    for (k, v) in sh.creds.for_url(url) { rq = rq.header(k, v); }
+    if if_range {
+        if let Some(v) = &sh.validator {
+            rq = rq.header("If-Range", v);
+        }
+    }
+    for (k, v) in sh.creds.for_url(url) {
+        rq = rq.header(k, v);
+    }
     rq
 }
 
 /// the writer thread: the only code that writes the .part
 fn writer(file: Arc<File>, epoch: Arc<AtomicU64>, mut rx: mpsc::Receiver<Chunk>, ev: mpsc::UnboundedSender<Ev>) {
     while let Some(c) = rx.blocking_recv() {
-        if c.epoch != epoch.load(Ordering::SeqCst) { continue; } // fenced: a chunk of a restarted download
+        if c.epoch != epoch.load(Ordering::SeqCst) {
+            continue;
+        } // fenced: a chunk of a restarted download
         let mut done = 0;
         while done < c.data.len() {
             match file.seek_write(&c.data[done..], c.off + done as u64) {
-                Ok(0) => { let _ = ev.send(Ev::WriteFail("write returned 0".into())); return; }
+                Ok(0) => {
+                    let _ = ev.send(Ev::WriteFail("write returned 0".into()));
+                    return;
+                }
                 Ok(k) => done += k,
-                Err(e) => { let _ = ev.send(Ev::WriteFail(e.to_string())); return; }
+                Err(e) => {
+                    let _ = ev.send(Ev::WriteFail(e.to_string()));
+                    return;
+                }
             }
         }
         failpoint::hit("mid_write"); // bytes on disk (in cache), not yet reported
@@ -163,20 +216,28 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let resume = rq.resume.clone();
     let mut epoch = resume.as_ref().map_or(0, |r| r.epoch);
     // probe: Range from the first missing byte, identity encoding, If-Range when resuming with a validator
-    let first = resume.as_ref().and_then(|s| s.segs.iter().find(|x| x[2] < x[1]).map(|x| x[2]))
+    let first = resume
+        .as_ref()
+        .and_then(|s| s.segs.iter().find(|x| x[2] < x[1]).map(|x| x[2]))
         .unwrap_or_else(|| resume.as_ref().map_or(0, |s| s.total.unwrap_or(1).saturating_sub(1)));
     let probe_url = resume.as_ref().and_then(|r| Url::parse(&r.final_url).ok()).unwrap_or_else(|| rq.url.clone());
     let mut tries = 0;
     let probe = loop {
         let mut b = client.get(probe_url.clone()).header("Range", format!("bytes={first}-")).header("Accept-Encoding", "identity");
-        if let Some(v) = resume.as_ref().and_then(|r| r.validator.as_ref()) { b = b.header("If-Range", v); }
-        for (k, v) in rq.creds.for_url(&probe_url) { b = b.header(k, v); }
+        if let Some(v) = resume.as_ref().and_then(|r| r.validator.as_ref()) {
+            b = b.header("If-Range", v);
+        }
+        for (k, v) in rq.creds.for_url(&probe_url) {
+            b = b.header(k, v);
+        }
         // the whole response head must arrive within read_timeout (slowloris headers, E-07)
         let sent = tokio::time::timeout(cfg.read_timeout, async { b.send().await.map_err(|e| net_fail(&e)) }).await.unwrap_or(Err(Fail::Timeout));
         let r = match sent {
             Ok(r) => r,
             Err(f) => {
-                if matches!(f, Fail::Forbidden(_) | Fail::Tls(_)) || tries >= cfg.retries { return Err(f); }
+                if matches!(f, Fail::Forbidden(_) | Fail::Tls(_)) || tries >= cfg.retries {
+                    return Err(f);
+                }
                 tries += 1;
                 tokio::time::sleep(Duration::from_secs(1 << tries.min(6))).await;
                 continue;
@@ -187,7 +248,10 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             Step::Fatal(f) => return Err(f),
             e if tries < cfg.retries => {
                 tries += 1;
-                let w = match e { Step::RetryAfter(s) => s, _ => 1u64 << tries.min(6) };
+                let w = match e {
+                    Step::RetryAfter(s) => s,
+                    _ => 1u64 << tries.min(6),
+                };
                 tokio::time::sleep(Duration::from_secs(w)).await;
             }
             e => return Err(Fail::TooManyRetries(format!("{e:?}"))),
@@ -195,14 +259,20 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     };
     let final_url = probe.url().clone();
     let ct = http::content_type(probe.headers());
-    if ct.starts_with("multipart/byteranges") { return Err(Fail::Multipart); }
-    if ct.starts_with("text/html") { return Err(Fail::Html); }
+    if ct.starts_with("multipart/byteranges") {
+        return Err(Fail::Multipart);
+    }
+    if ct.starts_with("text/html") {
+        return Err(Fail::Html);
+    }
     let validator = http::validator(probe.headers());
     let resumed_validator = resume.as_ref().and_then(|r| r.validator.clone());
     let identity = http::identity(probe.headers());
     let (mut ranged, total) = if probe.status() == StatusCode::PARTIAL_CONTENT && identity {
         let (a, _, t) = http::content_range(probe.headers()).ok_or(Fail::BadContentRange)?;
-        if a != first { return Err(Fail::BadContentRange); }
+        if a != first {
+            return Err(Fail::BadContentRange);
+        }
         (true, Some(t.ok_or(Fail::BadContentRange)?))
     } else if probe.status() == StatusCode::PARTIAL_CONTENT {
         return Err(Fail::BadContentRange); // compressed range: offsets would not be file offsets (E-09)
@@ -213,12 +283,16 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         (false, probe.content_length().filter(|_| identity))
     };
     if let (Some(r), true) = (&resume, ranged) {
-        if r.total != total || (r.validator.is_some() && validator != r.validator) { return Err(Fail::FileChanged); }
+        if r.total != total || (r.validator.is_some() && validator != r.validator) {
+            return Err(Fail::FileChanged);
+        }
     }
     // E-03: space check before preallocation (sparse reserves nothing, so this is the only up-front check)
     let unknown_cap = cfg.unknown_cap.unwrap_or_else(|| (20u64 << 30).min(rq.free.saturating_sub(RESERVE) / 10 * 9));
     let need = total.map(|t| t - resume.as_ref().filter(|_| ranged).map_or(0, |r| r.segs.iter().map(|s| s[2] - s[0]).sum::<u64>()));
-    if need.is_some_and(|n| n.saturating_add(RESERVE) > rq.free) { return Err(Fail::DiskFull); }
+    if need.is_some_and(|n| n.saturating_add(RESERVE) > rq.free) {
+        return Err(Fail::DiskFull);
+    }
     let file = rq.file.clone();
     let fresh = !ranged || resume.is_none();
     if fresh {
@@ -239,24 +313,41 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let epoch_cell = Arc::new(AtomicU64::new(epoch));
     let (wtx, wrx) = mpsc::channel::<Chunk>(cfg.queue.max(1));
     let (ev_tx, mut ev_rx) = mpsc::unbounded_channel::<Ev>();
-    let wthread = { let (f, e, t) = (file.clone(), epoch_cell.clone(), ev_tx.clone()); std::thread::spawn(move || writer(f, e, wrx, t)) };
+    let wthread = {
+        let (f, e, t) = (file.clone(), epoch_cell.clone(), ev_tx.clone());
+        std::thread::spawn(move || writer(f, e, wrx, t))
+    };
     let sh = Arc::new(Shared {
-        client, url: final_url.clone(), creds: rq.creds.clone(), validator: validator.clone(), total, cfg: cfg.clone(),
-        rx_bytes: AtomicU64::new(0), wtx, limit: rq.limit.clone(),
+        client,
+        url: final_url.clone(),
+        creds: rq.creds.clone(),
+        validator: validator.clone(),
+        total,
+        cfg: cfg.clone(),
+        rx_bytes: AtomicU64::new(0),
+        wtx,
+        limit: rq.limit.clone(),
     });
     // seam check (E-04): a persisted offset is only a claim. For every resumed segment re-fetch the last
     // <= 64 KiB below its committed offset and compare with the disk; a mismatch drops that segment's progress.
     if ranged && resume.is_some() {
         for s in segs.iter_mut().filter(|s| s.committed > s.start) {
             let a = s.committed - (s.committed - s.start).min(64 * 1024);
-            if !seam_ok(&sh, &file, a, s.committed).await { *s = Seg::new(s.start, s.end, s.start); }
+            if !seam_ok(&sh, &file, a, s.committed).await {
+                *s = Seg::new(s.start, s.end, s.start);
+            }
         }
     }
     let snap = |segs: &[Seg], pos: &dyn Fn(&Seg) -> u64, epoch: u64| Snapshot {
-        epoch, final_url: final_url.to_string(), validator: validator.clone(), total,
+        epoch,
+        final_url: final_url.to_string(),
+        validator: validator.clone(),
+        total,
         segs: segs.iter().map(|s| [s.start, s.end, pos(s)]).collect(),
     };
-    if fresh { (rq.checkpoint)(&snap(&segs, &|s| s.committed, epoch))?; } // reset before any new byte can land
+    if fresh {
+        (rq.checkpoint)(&snap(&segs, &|s| s.committed, epoch))?;
+    } // reset before any new byte can land
 
     let mut ctl: HashMap<usize, mpsc::UnboundedSender<Ctl>> = HashMap::new();
     let mut tasks = Tasks::default();
@@ -277,7 +368,19 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             let s = &mut segs[$i];
             s.worker = Some(wid);
             s.gen += 1;
-            tasks.0.push(tokio::spawn(worker(wid, s.gen, s.start, s.next, s.end, epoch_cell.load(Ordering::SeqCst), sh.clone(), $resp, rx, ev_tx.clone(), ranged)));
+            tasks.0.push(tokio::spawn(worker(
+                wid,
+                s.gen,
+                s.start,
+                s.next,
+                s.end,
+                epoch_cell.load(Ordering::SeqCst),
+                sh.clone(),
+                $resp,
+                rx,
+                ev_tx.clone(),
+                ranged,
+            )));
         }};
     }
     macro_rules! fail {
@@ -291,7 +394,10 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     if ranged && segs.len() == 1 && target >= 2 {
         let (a, e) = (segs[0].next, segs[0].end);
         let mid = a + (e - a) / 2;
-        if e - mid >= cfg.min_split && segs[0].start == a { segs[0].end = mid; segs.push(Seg::new(mid, e, mid)); }
+        if e - mid >= cfg.min_split && segs[0].start == a {
+            segs[0].end = mid;
+            segs.push(Seg::new(mid, e, mid));
+        }
     }
     if let Some(i) = segs.iter().position(|s| s.next < s.end) {
         // the probe body starts at `first`: hand it over only if that is still where this lease starts
@@ -322,7 +428,9 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             }
         }
         peak = peak.max(segs.iter().filter(|s| s.worker.is_some()).count());
-        if segs.iter().all(|s| s.written >= s.end && s.worker.is_none()) { break; }
+        if segs.iter().all(|s| s.written >= s.end && s.worker.is_none()) {
+            break;
+        }
         tokio::select! {
             ev = ev_rx.recv() => match ev.expect("event channel") {
                 Ev::Admitted { wid, next } => {
@@ -435,26 +543,45 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     tokio::task::spawn_blocking(move || f.sync_data()).await.expect("flush task").map_err(io)?;
     flush_time += tf.elapsed();
     let got: u64 = segs.iter().map(|s| s.end - s.start).sum();
-    if total.is_none() { file.set_len(got).map_err(io)?; }
+    if total.is_none() {
+        file.set_len(got).map_err(io)?;
+    }
     let len = file.metadata().map_err(io)?.len();
-    if total.is_some_and(|t| t != got) || len != got { return Err(Fail::Io(format!("byte count {got}/{len} != total {total:?}"))); }
+    if total.is_some_and(|t| t != got) || len != got {
+        return Err(Fail::Io(format!("byte count {got}/{len} != total {total:?}")));
+    }
     crate::fsx::set_sparse(&file, false); // every byte is written: clearing the flag allocates nothing new
-    // final checkpoint: everything is synced, so a crash before the rename resumes with a 1-byte probe
+                                          // final checkpoint: everything is synced, so a crash before the rename resumes with a 1-byte probe
     let e = epoch_cell.load(Ordering::SeqCst);
-    (rq.checkpoint)(&Snapshot { epoch: e, final_url: final_url.to_string(), validator: validator.clone(), total: Some(got), segs: segs.iter().map(|s| [s.start, s.end, s.end]).collect() })?;
+    (rq.checkpoint)(&Snapshot {
+        epoch: e,
+        final_url: final_url.to_string(),
+        validator: validator.clone(),
+        total: Some(got),
+        segs: segs.iter().map(|s| [s.start, s.end, s.end]).collect(),
+    })?;
     Ok(Done { total: got, final_url: final_url.to_string(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time })
 }
 
 /// bytes [a, b) on the server (same validator) == bytes [a, b) on disk; any doubt => false (refetch)
 async fn seam_ok(sh: &Shared, f: &File, a: u64, b: u64) -> bool {
-    let Ok(Ok(r)) = tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, format!("bytes={a}-{}", b - 1), true).send()).await else { return false };
-    if r.status() != StatusCode::PARTIAL_CONTENT || !http::range_ok(r.headers(), a, b, sh.total) || !http::identity(r.headers()) { return false; }
+    let Ok(Ok(r)) = tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, format!("bytes={a}-{}", b - 1), true).send()).await else {
+        return false;
+    };
+    if r.status() != StatusCode::PARTIAL_CONTENT || !http::range_ok(r.headers(), a, b, sh.total) || !http::identity(r.headers()) {
+        return false;
+    }
     let want = (b - a) as usize;
     let mut r = r;
     let mut body = Vec::with_capacity(want);
     loop {
         match r.chunk().await {
-            Ok(Some(c)) => { if body.len() + c.len() > want { return false; } body.extend_from_slice(&c); }
+            Ok(Some(c)) => {
+                if body.len() + c.len() > want {
+                    return false;
+                }
+                body.extend_from_slice(&c);
+            }
             Ok(None) => break,
             Err(_) => return false,
         }
@@ -464,14 +591,38 @@ async fn seam_ok(sh: &Shared, f: &File, a: u64, b: u64) -> bool {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn worker(wid: usize, gen: u64, seg: u64, start: u64, end: u64, epoch: u64, sh: Arc<Shared>, pre: Option<Response>, mut ctl: mpsc::UnboundedReceiver<Ctl>, ev: mpsc::UnboundedSender<Ev>, ranged: bool) {
+async fn worker(
+    wid: usize,
+    gen: u64,
+    seg: u64,
+    start: u64,
+    end: u64,
+    epoch: u64,
+    sh: Arc<Shared>,
+    pre: Option<Response>,
+    mut ctl: mpsc::UnboundedReceiver<Ctl>,
+    ev: mpsc::UnboundedSender<Ev>,
+    ranged: bool,
+) {
     let mut next = start;
     let r = run_worker(wid, gen, seg, &mut next, end, epoch, &sh, pre, &mut ctl, &ev, ranged).await;
     let _ = ev.send(Ev::Exit { wid, next, err: r.err() });
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_worker(wid: usize, mut _gen: u64, seg: u64, next: &mut u64, mut end: u64, epoch: u64, sh: &Shared, pre: Option<Response>, ctl: &mut mpsc::UnboundedReceiver<Ctl>, ev: &mpsc::UnboundedSender<Ev>, ranged: bool) -> Result<(), WErr> {
+async fn run_worker(
+    wid: usize,
+    mut _gen: u64,
+    seg: u64,
+    next: &mut u64,
+    mut end: u64,
+    epoch: u64,
+    sh: &Shared,
+    pre: Option<Response>,
+    ctl: &mut mpsc::UnboundedReceiver<Ctl>,
+    ev: &mpsc::UnboundedSender<Ev>,
+    ranged: bool,
+) -> Result<(), WErr> {
     let start = *next;
     let resp = match pre {
         Some(r) => r,
@@ -480,7 +631,12 @@ async fn run_worker(wid: usize, mut _gen: u64, seg: u64, next: &mut u64, mut end
             let sent = tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, range, ranged).send()).await;
             let r = match sent {
                 Err(_) => return Err(WErr::Retry("timed out waiting for response headers".into())),
-                Ok(Err(e)) => return Err(match net_fail(&e) { f @ (Fail::Forbidden(_) | Fail::Tls(_)) => WErr::Fatal(f), _ => WErr::Retry(e.to_string()) }),
+                Ok(Err(e)) => {
+                    return Err(match net_fail(&e) {
+                        f @ (Fail::Forbidden(_) | Fail::Tls(_)) => WErr::Fatal(f),
+                        _ => WErr::Retry(e.to_string()),
+                    })
+                }
                 Ok(Ok(r)) => r,
             };
             match http::status(r.status().as_u16(), r.headers()) {
@@ -490,15 +646,21 @@ async fn run_worker(wid: usize, mut _gen: u64, seg: u64, next: &mut u64, mut end
                 Step::Backoff(_) => return Err(WErr::Backoff),
             }
             let ct = http::content_type(r.headers());
-            if ct.starts_with("multipart/") { return Err(WErr::Fatal(Fail::Multipart)); }
+            if ct.starts_with("multipart/") {
+                return Err(WErr::Fatal(Fail::Multipart));
+            }
             if ranged {
                 if r.status() == StatusCode::OK {
                     // 200 to a range request: another validator => file changed; same or none => Range ignored
                     let v = http::validator(r.headers());
                     return Err(if v.is_some() && v != sh.validator { WErr::Fatal(Fail::FileChanged) } else { WErr::NoRange });
                 }
-                if !http::range_ok(r.headers(), start, end, sh.total) || !http::identity(r.headers()) { return Err(WErr::Fatal(Fail::BadContentRange)); }
-                if http::strong_etag(r.headers()).is_some_and(|e| Some(e) != sh.validator) { return Err(WErr::Fatal(Fail::FileChanged)); }
+                if !http::range_ok(r.headers(), start, end, sh.total) || !http::identity(r.headers()) {
+                    return Err(WErr::Fatal(Fail::BadContentRange));
+                }
+                if http::strong_etag(r.headers()).is_some_and(|e| Some(e) != sh.validator) {
+                    return Err(WErr::Fatal(Fail::FileChanged));
+                }
             } else if start != 0 {
                 return Err(WErr::Retry("non-ranged restart must begin at 0".into()));
             }
@@ -517,7 +679,9 @@ async fn run_worker(wid: usize, mut _gen: u64, seg: u64, next: &mut u64, mut end
             if !buf.is_empty() {
                 let n = buf.len() as u64;
                 let data = std::mem::replace(&mut buf, Vec::with_capacity(sh.cfg.buf));
-                if sh.wtx.send(Chunk { epoch, seg, off: *next, data }).await.is_err() { return Err(WErr::Retry("writer closed".into())); }
+                if sh.wtx.send(Chunk { epoch, seg, off: *next, data }).await.is_err() {
+                    return Err(WErr::Retry("writer closed".into()));
+                }
                 *next += n;
                 let _ = ev.send(Ev::Admitted { wid, next: *next });
             }
@@ -572,11 +736,15 @@ async fn run_worker(wid: usize, mut _gen: u64, seg: u64, next: &mut u64, mut end
     }
 }
 
-fn io(e: std::io::Error) -> Fail { Fail::Io(e.to_string()) }
+fn io(e: std::io::Error) -> Fail {
+    Fail::Io(e.to_string())
+}
 
 /// every early return (error, `?`) aborts the workers
 #[derive(Default)]
 struct Tasks(Vec<tokio::task::JoinHandle<()>>);
 impl Drop for Tasks {
-    fn drop(&mut self) { self.0.iter().for_each(|t| t.abort()); }
+    fn drop(&mut self) {
+        self.0.iter().for_each(|t| t.abort());
+    }
 }

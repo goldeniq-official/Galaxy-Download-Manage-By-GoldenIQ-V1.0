@@ -8,7 +8,9 @@ use gdm_core::{Fail, Unverified};
 use gdm_fixture::{expected_sha256, Fixture};
 use std::time::{Duration, Instant};
 
-async fn fx() -> Fixture { Fixture::start("127.0.0.1:0").await }
+async fn fx() -> Fixture {
+    Fixture::start("127.0.0.1:0").await
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn control_ranged_ramp_probe_headers() {
@@ -26,7 +28,11 @@ async fn control_ranged_ramp_probe_headers() {
         assert!(h(i, "range").starts_with("bytes=") && !h(i, "range").ends_with('-'), "closed range lease");
         assert_eq!(h(i, "if-range"), format!("\"s{seed}-{size}\""), "If-Range with the strong ETag on every follow-up");
     }
-    let mut starts: Vec<u64> = log.iter().skip(1).filter_map(|r| r.headers.iter().find(|(k, _)| k == "range").and_then(|(_, v)| v[6..].split('-').next()?.parse().ok())).collect();
+    let mut starts: Vec<u64> = log
+        .iter()
+        .skip(1)
+        .filter_map(|r| r.headers.iter().find(|(k, _)| k == "range").and_then(|(_, v)| v[6..].split('-').next()?.parse().ok()))
+        .collect();
     starts.sort();
     assert!(starts.windows(2).all(|w| w[1] - w[0] >= MIB), "splits never below 1 MiB");
     assert_eq!(t.files(), vec![format!("file")], "only the final file remains (no .part, no sidecar)");

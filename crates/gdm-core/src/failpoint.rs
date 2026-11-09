@@ -15,7 +15,9 @@ fn target() -> &'static Option<(String, u64)> {
 
 pub fn hit(name: &str) {
     let Some((k, n)) = target() else { return };
-    if k != name { return; }
+    if k != name {
+        return;
+    }
     static C: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
     let mut g = C.lock().unwrap_or_else(|e| e.into_inner());
     let c = g.get_or_insert_with(HashMap::new).entry(name.to_string()).or_insert(0);

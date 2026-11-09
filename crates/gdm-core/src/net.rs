@@ -11,7 +11,9 @@ use url::Url;
 #[derive(Debug)]
 pub struct Forbidden(pub String);
 impl std::fmt::Display for Forbidden {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "forbidden by GDM network policy: {}", self.0) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "forbidden by GDM network policy: {}", self.0)
+    }
 }
 impl std::error::Error for Forbidden {}
 
@@ -39,13 +41,18 @@ pub fn public(ip: IpAddr) -> bool {
                 || (o[0] == 192 && o[1] == 0 && o[2] == 0)) // IETF protocol assignments
         }
         IpAddr::V6(v) => {
-            if let Some(m) = v.to_ipv4_mapped() { return public(IpAddr::V4(m)); }
+            if let Some(m) = v.to_ipv4_mapped() {
+                return public(IpAddr::V4(m));
+            }
             let s = v.segments();
-            if s[0] == 0x64 && s[1] == 0xff9b { return public(IpAddr::V4(std::net::Ipv4Addr::new((s[6] >> 8) as u8, s[6] as u8, (s[7] >> 8) as u8, s[7] as u8))); }
+            if s[0] == 0x64 && s[1] == 0xff9b {
+                return public(IpAddr::V4(std::net::Ipv4Addr::new((s[6] >> 8) as u8, s[6] as u8, (s[7] >> 8) as u8, s[7] as u8)));
+            }
             !(v.is_loopback() || v.is_unspecified() || v.is_multicast()
                 || (s[0] & 0xfe00) == 0xfc00   // ULA
                 || (s[0] & 0xffc0) == 0xfe80   // link-local
-                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0)) // v4-compatible
+                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0))
+            // v4-compatible
         }
     }
 }
@@ -57,8 +64,12 @@ impl Policy {
     }
     /// every answer must pass: a mixed public/private answer is refused as a whole
     pub fn check(&self, host: &str, addrs: &[SocketAddr]) -> Result<(), Forbidden> {
-        if addrs.is_empty() { return Err(Forbidden(format!("{host}: no address"))); }
-        if self.allowed_host(host) { return Ok(()); }
+        if addrs.is_empty() {
+            return Err(Forbidden(format!("{host}: no address")));
+        }
+        if self.allowed_host(host) {
+            return Ok(());
+        }
         match addrs.iter().find(|a| !public(a.ip())) {
             Some(a) => Err(Forbidden(format!("{host} -> {} (private or special address)", a.ip()))),
             None => Ok(()),
@@ -66,8 +77,12 @@ impl Policy {
     }
     /// scheme + IP-literal host check (literals never reach the resolver)
     pub fn check_url(&self, u: &Url) -> Result<(), Forbidden> {
-        if !matches!(u.scheme(), "http" | "https") { return Err(Forbidden(format!("scheme {}", u.scheme()))); }
-        if !u.username().is_empty() || u.password().is_some() { return Err(Forbidden("credentials in URL".into())); }
+        if !matches!(u.scheme(), "http" | "https") {
+            return Err(Forbidden(format!("scheme {}", u.scheme())));
+        }
+        if !u.username().is_empty() || u.password().is_some() {
+            return Err(Forbidden("credentials in URL".into()));
+        }
         let port = u.port_or_known_default().unwrap_or(0);
         match u.host() {
             Some(url::Host::Ipv4(ip)) => self.check(&ip.to_string(), &[SocketAddr::new(ip.into(), port)]),
@@ -121,14 +136,20 @@ pub fn client(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration) -> Res
             Ok(()) => att.follow(),
             Err(e) => att.error(e),
         }));
-    if h1_only { b = b.http1_only(); }
+    if h1_only {
+        b = b.http1_only();
+    }
     b.build().map_err(|e| e.to_string())
 }
 
 /// one redirect hop: <= 10 hops, never https -> http, scheme + IP-literal policy on the new URL
 pub fn redirect_ok(previous: &[Url], next: &Url, p: &Policy) -> Result<(), Forbidden> {
-    if previous.len() >= 10 { return Err(Forbidden("more than 10 redirects".into())); }
-    if previous.iter().any(|u| u.scheme() == "https") && next.scheme() != "https" { return Err(Forbidden("https -> http redirect".into())); }
+    if previous.len() >= 10 {
+        return Err(Forbidden("more than 10 redirects".into()));
+    }
+    if previous.iter().any(|u| u.scheme() == "https") && next.scheme() != "https" {
+        return Err(Forbidden("https -> http redirect".into()));
+    }
     p.check_url(next)
 }
 
@@ -141,7 +162,10 @@ pub struct Creds {
 }
 impl Creds {
     pub fn for_url(&self, u: &Url) -> &[(String, String)] {
-        match &self.origin { Some(o) if *o == origin(u) => &self.headers, _ => &[] }
+        match &self.origin {
+            Some(o) if *o == origin(u) => &self.headers,
+            _ => &[],
+        }
     }
 }
 
@@ -155,7 +179,9 @@ fn chain<'a>(e: &'a (dyn std::error::Error + 'static)) -> Vec<&'a (dyn std::erro
             Some(inner) => Some(inner as &(dyn std::error::Error + 'static)),
             None => x.source(),
         };
-        if v.len() > 32 { break; }
+        if v.len() > 32 {
+            break;
+        }
     }
     v
 }

@@ -9,9 +9,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use url::Url;
 
-async fn fx() -> Fixture { Fixture::start("127.0.0.1:0").await }
+async fn fx() -> Fixture {
+    Fixture::start("127.0.0.1:0").await
+}
 const SECRET: [(&str, &str); 2] = [("Cookie", "sid=SECRET"), ("Authorization", "Bearer SECRET")];
-fn creds() -> Vec<(String, String)> { SECRET.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() }
+fn creds() -> Vec<(String, String)> {
+    SECRET.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+}
 fn saw_secret(f: &Fixture) -> bool {
     f.log().iter().any(|q| q.headers.iter().any(|(k, v)| (k == "cookie" || k == "authorization") && v.contains("SECRET")))
 }
@@ -40,7 +44,10 @@ async fn w01_same_origin_segments_keep_credentials() {
     let id = t.engine.add(NewJob { creds: creds(), ..t.job(&a.url(&format!("/file?size={}&seed=6&rate=4000000", 16 * MIB))) }).unwrap();
     t.engine.run(&id, Unverified::Ask, None).await.unwrap();
     let reqs = a.log();
-    assert!(reqs.len() >= 2 && reqs.iter().all(|q| q.headers.iter().any(|(k, v)| k == "cookie" && v == "sid=SECRET")), "every segment request to the same origin carries the cookie");
+    assert!(
+        reqs.len() >= 2 && reqs.iter().all(|q| q.headers.iter().any(|(k, v)| k == "cookie" && v == "sid=SECRET")),
+        "every segment request to the same origin carries the cookie"
+    );
 }
 
 #[test]
@@ -76,10 +83,33 @@ async fn w02_untyped_private_url_needs_confirmation() {
 
 #[test]
 fn w02_address_classes_and_mixed_answers() {
-    let private = ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "224.0.0.1", "255.255.255.255",
-        "::1", "::", "fc00::1", "fd12::1", "fe80::1", "ff02::1", "::ffff:127.0.0.1", "::ffff:192.168.0.1", "64:ff9b::7f00:1", "::127.0.0.1"];
-    for p in private { assert!(!net::public(p.parse().unwrap()), "{p} must not be public"); }
-    for p in ["1.1.1.1", "93.184.216.34", "2606:4700::1111", "::ffff:8.8.8.8"] { assert!(net::public(p.parse().unwrap()), "{p}"); }
+    let private = [
+        "127.0.0.1",
+        "10.1.2.3",
+        "172.16.0.1",
+        "192.168.1.1",
+        "169.254.169.254",
+        "100.64.0.1",
+        "0.0.0.0",
+        "224.0.0.1",
+        "255.255.255.255",
+        "::1",
+        "::",
+        "fc00::1",
+        "fd12::1",
+        "fe80::1",
+        "ff02::1",
+        "::ffff:127.0.0.1",
+        "::ffff:192.168.0.1",
+        "64:ff9b::7f00:1",
+        "::127.0.0.1",
+    ];
+    for p in private {
+        assert!(!net::public(p.parse().unwrap()), "{p} must not be public");
+    }
+    for p in ["1.1.1.1", "93.184.216.34", "2606:4700::1111", "::ffff:8.8.8.8"] {
+        assert!(net::public(p.parse().unwrap()), "{p}");
+    }
     let pol = Policy::default();
     let mixed: Vec<SocketAddr> = vec!["93.184.216.34:443".parse().unwrap(), "127.0.0.1:443".parse().unwrap()];
     assert!(pol.check("rebind.example", &mixed).is_err(), "a mixed public/private DNS answer is refused as a whole");
@@ -115,8 +145,12 @@ async fn tls_server(cert: rcgen::CertifiedKey<rcgen::KeyPair>) -> SocketAddr {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let key = rustls::pki_types::PrivateKeyDer::Pkcs8(cert.signing_key.serialize_der().into());
-    let cfg = rustls::ServerConfig::builder_with_provider(provider).with_safe_default_protocol_versions().unwrap()
-        .with_no_client_auth().with_single_cert(vec![cert.cert.der().clone()], key).unwrap();
+    let cfg = rustls::ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert.cert.der().clone()], key)
+        .unwrap();
     let acc = tokio_rustls::TlsAcceptor::from(Arc::new(cfg));
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = l.local_addr().unwrap();
@@ -149,9 +183,14 @@ fn cert(names: &[&str], expired: bool) -> rcgen::CertifiedKey<rcgen::KeyPair> {
 #[tokio::test(flavor = "multi_thread")]
 async fn w03_self_signed_expired_wrong_host_all_fail_closed() {
     let t = engine("w03", quick());
-    for (label, c) in [("self-signed", cert(&["localhost"], false)), ("expired", cert(&["localhost"], true)), ("wrong host", cert(&["other.example"], false))] {
+    for (label, c) in
+        [("self-signed", cert(&["localhost"], false)), ("expired", cert(&["localhost"], true)), ("wrong host", cert(&["other.example"], false))]
+    {
         let addr = tls_server(c).await;
-        let id = t.engine.add(NewJob { url: format!("https://localhost:{}/f.bin", addr.port()), dir: t.dl.clone(), typed: true, ..Default::default() }).unwrap();
+        let id = t
+            .engine
+            .add(NewJob { url: format!("https://localhost:{}/f.bin", addr.port()), dir: t.dl.clone(), typed: true, ..Default::default() })
+            .unwrap();
         let r = t.engine.run(&id, Unverified::Ask, None).await;
         assert!(matches!(r, Err(Fail::Tls(_))), "{label}: {r:?}");
         assert_eq!(t.engine.job(&id).unwrap().state, "failed", "{label}: never retried into success");
@@ -174,7 +213,10 @@ fn w03_no_tls_bypass_in_source() {
 /// a valid site succeeds (positive control: the platform verifier trusts the Windows store)
 #[tokio::test(flavor = "multi_thread")]
 async fn w03_badssl_online() {
-    if std::env::var("GDM_NET_TESTS").is_err() { eprintln!("SKIP: set GDM_NET_TESTS=1 (network)"); return; }
+    if std::env::var("GDM_NET_TESTS").is_err() {
+        eprintln!("SKIP: set GDM_NET_TESTS=1 (network)");
+        return;
+    }
     let t = engine("w03net", quick());
     for host in ["expired.badssl.com", "wrong.host.badssl.com", "self-signed.badssl.com", "untrusted-root.badssl.com"] {
         let id = t.engine.add(NewJob { url: format!("https://{host}/"), dir: t.dl.clone(), ..Default::default() }).unwrap();

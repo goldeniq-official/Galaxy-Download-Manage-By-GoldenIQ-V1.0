@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: RPL-1.5
+# cargo-fuzz targets (N-01 weekly campaign). Own workspace: libfuzzer-sys (NCSA) is a test tool, never shipped.
+[package]
+name = "gdm-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+authors = ["GoldenIQ"]
+license = "RPL-1.5"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+gdm-core = { path = "../crates/gdm-core" }
+url = "2"
+
+[[bin]]
+name = "names"
+path = "fuzz_targets/names.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "sidecar"
+path = "fuzz_targets/sidecar.rs"
+test = false
+doc = false

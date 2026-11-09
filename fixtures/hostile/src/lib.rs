@@ -76,11 +76,22 @@ impl Fixture {
         });
         fx
     }
-    pub fn url(&self, p: &str) -> String { format!("http://{}{}", self.addr, p) }
-    pub fn log(&self) -> Vec<ReqLog> { self.st.log.lock().unwrap().clone() }
-    pub fn clear_log(&self) { self.st.log.lock().unwrap().clear(); self.st.peak.store(0, Ordering::SeqCst); }
-    pub fn peak_conns(&self) -> usize { self.st.peak.load(Ordering::SeqCst) }
-    pub fn add_blob(&self, name: &str, b: Vec<u8>) { self.st.blobs.lock().unwrap().insert(name.into(), Arc::new(b)); }
+    pub fn url(&self, p: &str) -> String {
+        format!("http://{}{}", self.addr, p)
+    }
+    pub fn log(&self) -> Vec<ReqLog> {
+        self.st.log.lock().unwrap().clone()
+    }
+    pub fn clear_log(&self) {
+        self.st.log.lock().unwrap().clear();
+        self.st.peak.store(0, Ordering::SeqCst);
+    }
+    pub fn peak_conns(&self) -> usize {
+        self.st.peak.load(Ordering::SeqCst)
+    }
+    pub fn add_blob(&self, name: &str, b: Vec<u8>) {
+        self.st.blobs.lock().unwrap().insert(name.into(), Arc::new(b));
+    }
 
     fn bump(&self, key: String) -> u64 {
         let mut c = self.st.counters.lock().unwrap();
@@ -99,10 +110,14 @@ impl Fixture {
                     buf.drain(..i + 4);
                     break h;
                 }
-                if buf.len() > 64 * 1024 { return Ok(()); }
+                if buf.len() > 64 * 1024 {
+                    return Ok(());
+                }
                 let mut tmp = [0u8; 8192];
                 let n = s.read(&mut tmp).await?;
-                if n == 0 { return Ok(()); }
+                if n == 0 {
+                    return Ok(());
+                }
                 buf.extend_from_slice(&tmp[..n]);
             };
             let mut lines = head.split("\r\n");
@@ -110,12 +125,19 @@ impl Fixture {
             let mut it = first.split(' ');
             let method = it.next().unwrap_or("").to_string();
             let target = it.next().unwrap_or("/").to_string();
-            let headers: Vec<(String, String)> = lines
-                .filter_map(|l| l.split_once(':').map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string())))
-                .collect();
-            self.st.log.lock().unwrap().push(ReqLog { conn, method: method.clone(), target: target.clone(), headers: headers.clone(), ms: self.t0.elapsed().as_millis() });
+            let headers: Vec<(String, String)> =
+                lines.filter_map(|l| l.split_once(':').map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))).collect();
+            self.st.log.lock().unwrap().push(ReqLog {
+                conn,
+                method: method.clone(),
+                target: target.clone(),
+                headers: headers.clone(),
+                ms: self.t0.elapsed().as_millis(),
+            });
             let keep = self.respond(&mut s, &method, &target, &headers).await?;
-            if !keep { return Ok(()); }
+            if !keep {
+                return Ok(());
+            }
         }
     }
 
@@ -125,7 +147,10 @@ impl Fixture {
         // /p/<size>/<seed>/<rate>/<name> == /file?size=&seed=&rate=
         let pq;
         let (path, q) = match path.strip_prefix("/p/").map(|r| r.split('/').collect::<Vec<_>>()) {
-            Some(v) if v.len() >= 3 => { pq = format!("size={}&seed={}&rate={}", v[0], v[1], v[2]); ("/file", pq.as_str()) }
+            Some(v) if v.len() >= 3 => {
+                pq = format!("size={}&seed={}&rate={}", v[0], v[1], v[2]);
+                ("/file", pq.as_str())
+            }
             _ => (path, q),
         };
         let qp: HashMap<&str, &str> = q.split('&').filter_map(|kv| kv.split_once('=')).collect();
@@ -159,26 +184,50 @@ impl Fixture {
             }
             "/novalidator" => {
                 let (a, b) = clamp(range, size);
-                let (code, cr) = if range.is_some() { (206, format!("Content-Range: bytes {a}-{}/{size}
-", b.max(1) - 1)) } else { (200, String::new()) };
-                s.write_all(format!("HTTP/1.1 {code} X
+                let (code, cr) = if range.is_some() {
+                    (
+                        206,
+                        format!(
+                            "Content-Range: bytes {a}-{}/{size}
+",
+                            b.max(1) - 1
+                        ),
+                    )
+                } else {
+                    (200, String::new())
+                };
+                s.write_all(
+                    format!(
+                        "HTTP/1.1 {code} X
 Content-Type: application/octet-stream
 Accept-Ranges: bytes
 {cr}Content-Length: {}
 
-", b - a).as_bytes()).await?;
-                if !head_only { send_bytes(s, seed, a, b, rate, None).await?; }
+",
+                        b - a
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+                if !head_only {
+                    send_bytes(s, seed, a, b, rate, None).await?;
+                }
                 Ok(true)
             }
             "/norange" => {
-                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {size}\r\n\r\n").as_bytes()).await?;
-                if !head_only { send_bytes(s, seed, 0, size, rate, None).await?; }
+                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {size}\r\n\r\n").as_bytes())
+                    .await?;
+                if !head_only {
+                    send_bytes(s, seed, 0, size, rate, None).await?;
+                }
                 Ok(true)
             }
             "/infinite" => {
                 s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n\r\n").await?;
                 let chunk = vec![0x5Au8; 64 * 1024];
-                loop { s.write_all(&chunk).await?; }
+                loop {
+                    s.write_all(&chunk).await?;
+                }
             }
             "/overlong" => {
                 let (a, b) = clamp(range, size);
@@ -208,8 +257,12 @@ Accept-Ranges: bytes
                 Ok(false)
             }
             "/slowbody" => {
-                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {size}\r\n\r\n").as_bytes()).await?;
-                for _ in 0..size { s.write_all(b"x").await?; tokio::time::sleep(Duration::from_secs(2)).await; }
+                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {size}\r\n\r\n").as_bytes())
+                    .await?;
+                for _ in 0..size {
+                    s.write_all(b"x").await?;
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
                 Ok(false)
             }
             "/redirect" => {
@@ -217,16 +270,29 @@ Accept-Ranges: bytes
                 s.write_all(format!("HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
                 Ok(true)
             }
-            "/echo" => { s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 2\r\n\r\nok").await?; Ok(true) }
+            "/echo" => {
+                s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 2\r\n\r\nok").await?;
+                Ok(true)
+            }
             "/html" => {
                 let body = b"<!doctype html><html><body>Please log in</body></html>";
-                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n", body.len()).as_bytes()).await?;
+                s.write_all(
+                    format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n", body.len()).as_bytes(),
+                )
+                .await?;
                 s.write_all(body).await?;
                 Ok(true)
             }
             "/multipart" => {
                 let body = b"--X\r\nContent-Type: application/octet-stream\r\nContent-Range: bytes 0-3/100\r\n\r\nabcd\r\n--X--\r\n";
-                s.write_all(format!("HTTP/1.1 206 Partial Content\r\nContent-Type: multipart/byteranges; boundary=X\r\nContent-Length: {}\r\n\r\n", body.len()).as_bytes()).await?;
+                s.write_all(
+                    format!(
+                        "HTTP/1.1 206 Partial Content\r\nContent-Type: multipart/byteranges; boundary=X\r\nContent-Length: {}\r\n\r\n",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await?;
                 s.write_all(body).await?;
                 Ok(true)
             }
@@ -239,49 +305,84 @@ Accept-Ranges: bytes
                 let ct = if p.ends_with(".html") { "text/html" } else { "application/octet-stream" };
                 let total = b.len() as u64;
                 let (code, a, e, cr) = match range {
-                    Some(_) => { let (a, e) = clamp(range, total); (206, a, e, format!("Content-Range: bytes {a}-{}/{total}\r\n", e - 1)) }
+                    Some(_) => {
+                        let (a, e) = clamp(range, total);
+                        (206, a, e, format!("Content-Range: bytes {a}-{}/{total}\r\n", e - 1))
+                    }
                     None => (200, 0, total, String::new()),
                 };
-                s.write_all(format!("HTTP/1.1 {code} X\r\nContent-Type: {ct}\r\nAccept-Ranges: bytes\r\nETag: \"b{total}\"\r\n{cr}Content-Length: {}\r\n\r\n", e - a).as_bytes()).await?;
-                if !head_only { s.write_all(&b[a as usize..e as usize]).await?; }
+                s.write_all(
+                    format!(
+                        "HTTP/1.1 {code} X\r\nContent-Type: {ct}\r\nAccept-Ranges: bytes\r\nETag: \"b{total}\"\r\n{cr}Content-Length: {}\r\n\r\n",
+                        e - a
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+                if !head_only {
+                    s.write_all(&b[a as usize..e as usize]).await?;
+                }
                 Ok(true)
             }
-            _ => { s.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await?; Ok(true) }
+            _ => {
+                s.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await?;
+                Ok(true)
+            }
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn ranged(&self, s: &mut TcpStream, size: u64, seed: u64, rate: u64, trate: u64, range: Option<(u64, Option<u64>)>, if_range: Option<&str>, head_only: bool, etag: &str) -> std::io::Result<bool> {
+    async fn ranged(
+        &self,
+        s: &mut TcpStream,
+        size: u64,
+        seed: u64,
+        rate: u64,
+        trate: u64,
+        range: Option<(u64, Option<u64>)>,
+        if_range: Option<&str>,
+        head_only: bool,
+        etag: &str,
+    ) -> std::io::Result<bool> {
         let lm = "Mon, 09 Nov 2026 00:00:00 GMT";
         let pace = (trate > 0).then_some((&self.st.pace, trate));
-        let honour = range.is_some() && if_range.map_or(true, |v| v == etag || v == lm);
+        let honour = range.is_some() && if_range.is_none_or(|v| v == etag || v == lm);
         let range = if honour { range } else { None };
         match range {
             Some((a, _)) if a >= size => {
-                s.write_all(format!("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{size}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
+                s.write_all(format!("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{size}\r\nContent-Length: 0\r\n\r\n").as_bytes())
+                    .await?;
                 Ok(true)
             }
             Some(_) => {
                 let (a, b) = clamp(range, size);
                 s.write_all(format!("HTTP/1.1 206 Partial Content\r\nContent-Type: application/octet-stream\r\nAccept-Ranges: bytes\r\nETag: {etag}\r\nLast-Modified: {lm}\r\nContent-Range: bytes {a}-{}/{size}\r\nContent-Length: {}\r\n\r\n", b - 1, b - a).as_bytes()).await?;
-                if !head_only { send_bytes(s, seed, a, b, rate, pace).await?; }
+                if !head_only {
+                    send_bytes(s, seed, a, b, rate, pace).await?;
+                }
                 Ok(true)
             }
             None => {
                 s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nAccept-Ranges: bytes\r\nETag: {etag}\r\nLast-Modified: {lm}\r\nContent-Length: {size}\r\n\r\n").as_bytes()).await?;
-                if !head_only { send_bytes(s, seed, 0, size, rate, pace).await?; } // a request without Range shares the link cap too
+                if !head_only {
+                    send_bytes(s, seed, 0, size, rate, pace).await?;
+                } // a request without Range shares the link cap too
                 Ok(true)
             }
         }
     }
 }
 
-fn find(h: &[u8], n: &[u8]) -> Option<usize> { h.windows(n.len()).position(|w| w == n) }
+fn find(h: &[u8], n: &[u8]) -> Option<usize> {
+    h.windows(n.len()).position(|w| w == n)
+}
 
 /// "bytes=a-" or "bytes=a-b" (single range only)
 fn parse_range(v: &str) -> Option<(u64, Option<u64>)> {
     let r = v.strip_prefix("bytes=")?;
-    if r.contains(',') { return None; }
+    if r.contains(',') {
+        return None;
+    }
     let (a, b) = r.split_once('-')?;
     Some((a.trim().parse().ok()?, b.trim().parse().ok()))
 }
@@ -301,7 +402,11 @@ fn pct_decode(s: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'%' && i + 2 < b.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) { o.push(v); i += 3; continue; }
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                o.push(v);
+                i += 3;
+                continue;
+            }
         }
         o.push(b[i]);
         i += 1;
@@ -340,7 +445,10 @@ async fn send_bytes(s: &mut TcpStream, seed: u64, a: u64, b: u64, rate: u64, pac
     let t0 = Instant::now();
     while pos < b {
         let n = ((b - pos) as usize).min(if rate > 0 { (rate as usize / 20).clamp(1024, buf.len()) } else { buf.len() });
-        let n = match pace { Some((_, t)) => n.min((t as usize / 50).clamp(1024, buf.len())), None => n };
+        let n = match pace {
+            Some((_, t)) => n.min((t as usize / 50).clamp(1024, buf.len())),
+            None => n,
+        };
         if let Some((clock, t)) = pace {
             // reserve n bytes on the shared clock: all connections together get at most t bytes/s
             let at = {
@@ -352,14 +460,18 @@ async fn send_bytes(s: &mut TcpStream, seed: u64, a: u64, b: u64, rate: u64, pac
             };
             // Windows timers tick ~15.6 ms: sleeping per 256 KiB chunk capped each connection at ~17 MB/s.
             // Sleep only when >= 20 ms ahead of the shared clock; the average stays <= t (burst <= 20 ms).
-            if at > Instant::now() + Duration::from_millis(20) { tokio::time::sleep_until(at.into()).await; }
+            if at > Instant::now() + Duration::from_millis(20) {
+                tokio::time::sleep_until(at.into()).await;
+            }
         }
         fill(seed, pos, &mut buf[..n]);
         s.write_all(&buf[..n]).await?;
         pos += n as u64;
         if rate > 0 {
             let due = Duration::from_secs_f64((pos - a) as f64 / rate as f64);
-            if let Some(w) = due.checked_sub(t0.elapsed()) { tokio::time::sleep(w).await; }
+            if let Some(w) = due.checked_sub(t0.elapsed()) {
+                tokio::time::sleep(w).await;
+            }
         }
     }
     Ok(())
@@ -380,4 +492,6 @@ pub fn expected_sha256(seed: u64, size: u64) -> String {
     hex(&h.finalize())
 }
 
-pub fn hex(b: &[u8]) -> String { b.iter().map(|x| format!("{x:02x}")).collect() }
+pub fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}

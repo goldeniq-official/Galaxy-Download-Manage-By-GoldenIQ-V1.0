@@ -14,10 +14,17 @@ async fn main() {
         tokio::time::sleep(Duration::from_secs(5)).await;
         let log = fx.log();
         if trace {
-            for r in &log { println!("conn {} {} range={:?}", r.conn, r.target, r.headers.iter().find(|(k, _)| k == "range").map(|(_, v)| v)); }
+            for r in &log {
+                println!("conn {} {} range={:?}", r.conn, r.target, r.headers.iter().find(|(k, _)| k == "range").map(|(_, v)| v));
+            }
             fx.clear_log();
         } else if !log.is_empty() {
-            println!("requests={} distinct_conns={} peak_active={}", log.len(), log.iter().map(|r| r.conn).collect::<std::collections::HashSet<_>>().len(), fx.peak_conns());
+            println!(
+                "requests={} distinct_conns={} peak_active={}",
+                log.len(),
+                log.iter().map(|r| r.conn).collect::<std::collections::HashSet<_>>().len(),
+                fx.peak_conns()
+            );
         }
     }
 }

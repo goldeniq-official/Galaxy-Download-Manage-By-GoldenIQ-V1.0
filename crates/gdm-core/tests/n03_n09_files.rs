@@ -8,7 +8,9 @@ use gdm_fixture::{expected_sha256, Fixture};
 use std::path::Path;
 use std::process::Command;
 
-async fn fx() -> Fixture { Fixture::start("127.0.0.1:0").await }
+async fn fx() -> Fixture {
+    Fixture::start("127.0.0.1:0").await
+}
 
 fn junction(link: &Path, target: &Path) {
     let st = Command::new("cmd").args(["/c", "mklink", "/J"]).arg(link).arg(target).output().unwrap();
@@ -93,7 +95,8 @@ async fn n05_mark_of_the_web_zone3_without_query_secrets() {
     let a = fx().await;
     let t = engine("n05", quick());
     let url = a.url("/file?size=20000&seed=5&token=SECRET");
-    let id = t.engine.add(NewJob { name: Some("tool.exe".into()), referrer: Some("http://ref.example/page?sid=SECRET".into()), ..t.job(&url) }).unwrap();
+    let id =
+        t.engine.add(NewJob { name: Some("tool.exe".into()), referrer: Some("http://ref.example/page?sid=SECRET".into()), ..t.job(&url) }).unwrap();
     let o = t.engine.run(&id, Unverified::Ask, None).await.unwrap();
     assert_eq!(o.protection, Protection::Protected);
     let z = std::fs::read_to_string(format!("{}:Zone.Identifier", o.path.display())).expect("Zone.Identifier ADS");
@@ -111,10 +114,14 @@ fn eicar() -> Vec<u8> {
 fn av_active() -> bool {
     let d = tmpdir("avprobe");
     let p = d.join("probe.com");
-    if std::fs::write(&p, eicar()).is_err() { return true; }
+    if std::fs::write(&p, eicar()).is_err() {
+        return true;
+    }
     for _ in 0..40 {
         std::thread::sleep(std::time::Duration::from_millis(100));
-        if std::fs::read(&p).is_err() { return true; }
+        if std::fs::read(&p).is_err() {
+            return true;
+        }
     }
     let _ = std::fs::remove_file(&p);
     false
@@ -122,7 +129,10 @@ fn av_active() -> bool {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn n05_eicar_blocked_never_complete() {
-    if !av_active() { eprintln!("SKIP: no real-time antivirus acted on EICAR here (N-05 AV leg needs one)"); return; }
+    if !av_active() {
+        eprintln!("SKIP: no real-time antivirus acted on EICAR here (N-05 AV leg needs one)");
+        return;
+    }
     let a = fx().await;
     a.add_blob("eicar.com", eicar());
     let t = engine("n05av", quick());
@@ -139,11 +149,23 @@ async fn n05_eicar_blocked_never_complete() {
 async fn n09_unprotected_targets() {
     let mut ran = false;
     for var in ["GDM_TEST_FAT_DIR", "GDM_TEST_SMB_DIR"] {
-        let Ok(dir) = std::env::var(var) else { eprintln!("SKIP {var}: not set (needs admin to create the volume/share)"); continue };
+        let Ok(dir) = std::env::var(var) else {
+            eprintln!("SKIP {var}: not set (needs admin to create the volume/share)");
+            continue;
+        };
         ran = true;
         let a = fx().await;
         let t = engine("n09", quick());
-        let id = t.engine.add(NewJob { url: a.url("/file?size=30000&seed=9"), dir: dir.clone().into(), typed: true, name: Some(format!("n09-{}.exe", std::process::id())), ..Default::default() }).unwrap();
+        let id = t
+            .engine
+            .add(NewJob {
+                url: a.url("/file?size=30000&seed=9"),
+                dir: dir.clone().into(),
+                typed: true,
+                name: Some(format!("n09-{}.exe", std::process::id())),
+                ..Default::default()
+            })
+            .unwrap();
         let r = t.engine.run(&id, Unverified::Ask, None).await;
         match var {
             "GDM_TEST_FAT_DIR" => {
@@ -159,5 +181,7 @@ async fn n09_unprotected_targets() {
             }
         }
     }
-    if !ran { eprintln!("N-09 real-volume matrix not run here"); }
+    if !ran {
+        eprintln!("N-09 real-volume matrix not run here");
+    }
 }

@@ -69,19 +69,29 @@ pub struct Store {
     pub read_only: bool,
 }
 
-pub fn now() -> i64 { SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64) }
+pub fn now() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
+}
 
-fn err(e: impl std::fmt::Display) -> String { e.to_string() }
+fn err(e: impl std::fmt::Display) -> String {
+    e.to_string()
+}
 
 fn quick_ok(c: &Connection) -> bool {
     c.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)).is_ok_and(|s| s == "ok")
 }
 
-fn backup_dir(db: &Path) -> PathBuf { db.with_file_name("backups") }
+fn backup_dir(db: &Path) -> PathBuf {
+    db.with_file_name("backups")
+}
 
 /// newest first
 pub fn backups(db: &Path) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = std::fs::read_dir(backup_dir(db)).into_iter().flatten().flatten().map(|e| e.path())
+    let mut v: Vec<PathBuf> = std::fs::read_dir(backup_dir(db))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
         .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("gdm-") && n.ends_with(".db")))
         .collect();
     v.sort();
@@ -97,19 +107,26 @@ fn sidecars(db: &Path) -> [PathBuf; 3] {
 impl Store {
     pub fn open(db: &Path) -> Result<(Store, OpenReport), String> {
         let mut rep = OpenReport::default();
-        if let Some(d) = db.parent() { std::fs::create_dir_all(d).map_err(err)?; }
+        if let Some(d) = db.parent() {
+            std::fs::create_dir_all(d).map_err(err)?;
+        }
         let conn = match Self::try_open(db) {
             Some(c) => c,
             None => {
                 // D-01: quarantine db + wal + shm together, then restore the newest backup that checks out
                 let tag = format!("corrupt-{}", now());
                 for p in sidecars(db) {
-                    if p.exists() { std::fs::rename(&p, format!("{}.{tag}", p.display())).map_err(err)?; }
+                    if p.exists() {
+                        std::fs::rename(&p, format!("{}.{tag}", p.display())).map_err(err)?;
+                    }
                 }
                 rep.quarantined = Some(PathBuf::from(format!("{}.{tag}", db.display())));
                 for b in backups(db) {
                     let ok = Connection::open_with_flags(&b, OpenFlags::SQLITE_OPEN_READ_ONLY).is_ok_and(|c| quick_ok(&c));
-                    if ok && std::fs::copy(&b, db).is_ok() { rep.restored_from = Some(b); break; }
+                    if ok && std::fs::copy(&b, db).is_ok() {
+                        rep.restored_from = Some(b);
+                        break;
+                    }
                 }
                 Self::try_open(db).ok_or("database unusable after restore")?
             }
@@ -123,15 +140,21 @@ impl Store {
             st.conn = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(err)?;
             return Ok((st, rep));
         }
-        if v > 0 && v < SCHEMA { rep.backup_made = Some(st.backup()?); }
+        if v > 0 && v < SCHEMA {
+            rep.backup_made = Some(st.backup()?);
+        }
         for (i, m) in MIGRATIONS.iter().enumerate().skip(v as usize) {
             let tx = st.conn.transaction().map_err(err)?;
             tx.execute_batch(m).map_err(err)?;
             tx.pragma_update(None, "user_version", (i + 1) as i64).map_err(err)?;
             tx.commit().map_err(err)?;
         }
-        if v != SCHEMA { rep.migrated_from = Some(v); }
-        if rep.backup_made.is_none() { rep.backup_made = st.backup_if_due()?; }
+        if v != SCHEMA {
+            rep.migrated_from = Some(v);
+        }
+        if rep.backup_made.is_none() {
+            rep.backup_made = st.backup_if_due()?;
+        }
         Ok((st, rep))
     }
 
@@ -150,25 +173,40 @@ impl Store {
         std::fs::create_dir_all(&d).map_err(err)?;
         // fixed-width nanoseconds: the name sorts by time (two backups in one second must not swap order)
         let mut t = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
-        while d.join(format!("gdm-{t:024}.db")).exists() { t += 1; }
+        while d.join(format!("gdm-{t:024}.db")).exists() {
+            t += 1;
+        }
         let name = format!("gdm-{t:024}.db");
         let fin = d.join(&name);
         let tmp = d.join(format!("{name}.tmp"));
         let _ = std::fs::remove_file(&tmp);
         self.conn.execute("VACUUM INTO ?1", params![tmp.to_string_lossy()]).map_err(err)?;
         let ok = Connection::open_with_flags(&tmp, OpenFlags::SQLITE_OPEN_READ_ONLY).is_ok_and(|c| quick_ok(&c));
-        if !ok { let _ = std::fs::remove_file(&tmp); return Err("backup failed quick_check".into()); }
+        if !ok {
+            let _ = std::fs::remove_file(&tmp);
+            return Err("backup failed quick_check".into());
+        }
         std::fs::rename(&tmp, &fin).map_err(err)?;
-        for old in backups(&self.path).into_iter().skip(KEEP_BACKUPS) { let _ = std::fs::remove_file(old); }
+        for old in backups(&self.path).into_iter().skip(KEEP_BACKUPS) {
+            let _ = std::fs::remove_file(old);
+        }
         Ok(fin)
     }
 
     /// daily: a backup when the newest one is older than 24 h (or there is none)
     pub fn backup_if_due(&self) -> Result<Option<PathBuf>, String> {
-        if self.read_only { return Ok(None); }
-        let due = backups(&self.path).first().and_then(|b| std::fs::metadata(b).ok()?.modified().ok())
+        if self.read_only {
+            return Ok(None);
+        }
+        let due = backups(&self.path)
+            .first()
+            .and_then(|b| std::fs::metadata(b).ok()?.modified().ok())
             .is_none_or(|t| t.elapsed().unwrap_or_default() >= BACKUP_EVERY);
-        if due { self.backup().map(Some) } else { Ok(None) }
+        if due {
+            self.backup().map(Some)
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn dir_id(&self, dir: &Path) -> Result<i64, String> {
@@ -190,8 +228,14 @@ impl Store {
         let mut chosen = None;
         for n in 0..10_000u32 {
             let cand = if n == 0 { j.name.clone() } else { crate::name::with_counter(&j.name, n) };
-            if taken(&cand) { continue; }
-            if tx.execute("INSERT OR IGNORE INTO names(dir_id, name_key, job_id) VALUES (?1, ?2, ?3)", params![j.dir_id, name_key(&cand), j.id]).map_err(err)? == 1 {
+            if taken(&cand) {
+                continue;
+            }
+            if tx
+                .execute("INSERT OR IGNORE INTO names(dir_id, name_key, job_id) VALUES (?1, ?2, ?3)", params![j.dir_id, name_key(&cand), j.id])
+                .map_err(err)?
+                == 1
+            {
                 chosen = Some(cand);
                 break;
             }
@@ -231,24 +275,38 @@ impl Store {
 
     pub fn segments(&self, id: &str) -> Result<Vec<[u64; 3]>, String> {
         let mut q = self.conn.prepare("SELECT start, end_excl, committed FROM segments WHERE job_id = ?1 ORDER BY start").map_err(err)?;
-        let v = q.query_map(params![id], |r| Ok([r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64, r.get::<_, i64>(2)? as u64]))
-            .map_err(err)?.flatten().collect();
+        let v = q
+            .query_map(params![id], |r| Ok([r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64, r.get::<_, i64>(2)? as u64]))
+            .map_err(err)?
+            .flatten()
+            .collect();
         Ok(v)
     }
 
     /// E-04: called only after FlushFileBuffers succeeded for every offset in `segs`
-    pub fn save_checkpoint(&mut self, id: &str, final_url: &str, validator: Option<&str>, total: Option<u64>, epoch: u64, segs: &[[u64; 3]]) -> Result<(), String> {
+    pub fn save_checkpoint(
+        &mut self,
+        id: &str,
+        final_url: &str,
+        validator: Option<&str>,
+        total: Option<u64>,
+        epoch: u64,
+        segs: &[[u64; 3]],
+    ) -> Result<(), String> {
         let tx = self.conn.transaction().map_err(err)?;
         tx.execute("DELETE FROM segments WHERE job_id = ?1", params![id]).map_err(err)?;
         {
             let mut ins = tx.prepare_cached("INSERT INTO segments(job_id, start, end_excl, committed) VALUES (?1, ?2, ?3, ?4)").map_err(err)?;
-            for s in segs { ins.execute(params![id, s[0] as i64, s[1] as i64, s[2] as i64]).map_err(err)?; }
+            for s in segs {
+                ins.execute(params![id, s[0] as i64, s[1] as i64, s[2] as i64]).map_err(err)?;
+            }
         }
         let done: u64 = segs.iter().map(|s| s[2] - s[0]).sum();
         tx.execute(
             "UPDATE jobs SET final_url = ?2, validator = ?3, size = ?4, epoch = ?5, done = ?6, unverified = ?7 WHERE id = ?1",
             params![id, final_url, validator, total.map(|t| t as i64), epoch as i64, done as i64, validator.is_none()],
-        ).map_err(err)?;
+        )
+        .map_err(err)?;
         tx.commit().map_err(err)
     }
 
@@ -263,17 +321,24 @@ impl Store {
     }
 
     pub fn finish(&self, id: &str, state: &str, name: &str, sha256: &str, protection: &str) -> Result<(), String> {
-        self.conn.execute(
-            "UPDATE jobs SET state = ?2, name = ?3, sha256 = ?4, protection = ?5, finished_at = ?6, error_code = NULL WHERE id = ?1",
-            params![id, state, name, sha256, protection, now()],
-        ).map_err(err)?;
-        self.conn.execute("INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, ?3, ?4)", params![id, now(), state, sha256]).map_err(err)?;
+        self.conn
+            .execute(
+                "UPDATE jobs SET state = ?2, name = ?3, sha256 = ?4, protection = ?5, finished_at = ?6, error_code = NULL WHERE id = ?1",
+                params![id, state, name, sha256, protection, now()],
+            )
+            .map_err(err)?;
+        self.conn
+            .execute("INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, ?3, ?4)", params![id, now(), state, sha256])
+            .map_err(err)?;
         Ok(())
     }
 
     /// a renamed final file also owns its name in the directory
     pub fn claim_name(&self, dir_id: i64, name: &str, job: &str) -> Result<(), String> {
-        self.conn.execute("INSERT OR REPLACE INTO names(dir_id, name_key, job_id) VALUES (?1, ?2, ?3)", params![dir_id, name_key(name), job]).map(|_| ()).map_err(err)
+        self.conn
+            .execute("INSERT OR REPLACE INTO names(dir_id, name_key, job_id) VALUES (?1, ?2, ?3)", params![dir_id, name_key(name), job])
+            .map(|_| ())
+            .map_err(err)
     }
 
     pub fn history(&self, id: &str) -> Result<Vec<(String, Option<String>)>, String> {

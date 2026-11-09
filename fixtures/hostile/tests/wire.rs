@@ -18,7 +18,10 @@ async fn raw(addr: std::net::SocketAddr, req: &str, limit: usize, wait: Duration
     let mut timed_out = false;
     while all.len() < limit {
         match tokio::time::timeout_at(dl.into(), s.read(&mut buf)).await {
-            Err(_) => { timed_out = true; break; }
+            Err(_) => {
+                timed_out = true;
+                break;
+            }
             Ok(Ok(0)) | Ok(Err(_)) => break,
             Ok(Ok(n)) => all.extend_from_slice(&buf[..n]),
         }
@@ -26,7 +29,9 @@ async fn raw(addr: std::net::SocketAddr, req: &str, limit: usize, wait: Duration
         if let Some(i) = all.windows(4).position(|w| w == b"\r\n\r\n") {
             let head = String::from_utf8_lossy(&all[..i]).to_ascii_lowercase();
             if let Some(cl) = head.lines().find_map(|l| l.strip_prefix("content-length:")).and_then(|v| v.trim().parse::<usize>().ok()) {
-                if all.len() >= i + 4 + cl { break; }
+                if all.len() >= i + 4 + cl {
+                    break;
+                }
             }
         }
     }
@@ -36,9 +41,13 @@ async fn raw(addr: std::net::SocketAddr, req: &str, limit: usize, wait: Duration
     }
 }
 
-fn get(path: &str, extra: &str) -> String { format!("GET {path} HTTP/1.1\r\nHost: x\r\n{extra}\r\n") }
+fn get(path: &str, extra: &str) -> String {
+    format!("GET {path} HTTP/1.1\r\nHost: x\r\n{extra}\r\n")
+}
 
-async fn fx() -> Fixture { Fixture::start("127.0.0.1:0").await }
+async fn fx() -> Fixture {
+    Fixture::start("127.0.0.1:0").await
+}
 
 #[tokio::test]
 async fn file_ranges_validators_416() {
@@ -52,7 +61,10 @@ async fn file_ranges_validators_416() {
     let (h, _, _) = raw(a.addr, &get("/file?size=100&seed=3", "Range: bytes=500-\r\n"), 1 << 20, T).await;
     assert!(h.starts_with("HTTP/1.1 416") && h.contains("bytes */100"));
     assert_eq!(expected_sha256(3, 0), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    assert!(a.log().iter().any(|r| r.target.starts_with("/file") && r.headers.iter().any(|(k, v)| k == "range" && v == "bytes=10-19")), "log records headers");
+    assert!(
+        a.log().iter().any(|r| r.target.starts_with("/file") && r.headers.iter().any(|(k, v)| k == "range" && v == "bytes=10-19")),
+        "log records headers"
+    );
 }
 
 #[tokio::test]

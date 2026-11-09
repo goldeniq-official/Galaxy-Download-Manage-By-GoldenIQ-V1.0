@@ -93,7 +93,9 @@ fn hostile_table_never_escapes_or_breaks_windows_rules() {
         assert!(!n.contains(".."), "input {i:?} -> {n:?} still has ..");
         let stem = n.split('.').next().unwrap().trim_end().to_ascii_uppercase();
         let reserved = ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"].contains(&stem.as_str())
-            || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.chars().count() == 4 && stem.chars().last().is_some_and(|c| c.is_ascii_digit() || "¹²³".contains(c)));
+            || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+                && stem.chars().count() == 4
+                && stem.chars().last().is_some_and(|c| c.is_ascii_digit() || "¹²³".contains(c)));
         assert!(!reserved, "input {i:?} -> reserved device name {n:?}");
     }
 }
@@ -107,8 +109,15 @@ fn last_segment_only() {
     assert_eq!(sanitize("name. . ."), "name");
     assert_eq!(sanitize(""), "download");
     assert_eq!(sanitize("a:b"), "b"); // a drive-relative / ADS colon is a separator, never kept
-    // working-file suffixes are never final names (no collision with another job's .part / sidecar)
-    for (i, o) in [("a.bin.part", "a.bin.part_"), ("x.PART", "x.PART_"), ("y.part.gdm", "y.part.gdm_"), ("s.gdm.tmp", "s.gdm.tmp_"), ("z.probe", "z.probe_"), ("ok.part1.rar", "ok.part1.rar")] {
+                                      // working-file suffixes are never final names (no collision with another job's .part / sidecar)
+    for (i, o) in [
+        ("a.bin.part", "a.bin.part_"),
+        ("x.PART", "x.PART_"),
+        ("y.part.gdm", "y.part.gdm_"),
+        ("s.gdm.tmp", "s.gdm.tmp_"),
+        ("z.probe", "z.probe_"),
+        ("ok.part1.rar", "ok.part1.rar"),
+    ] {
         assert_eq!(sanitize(i), o);
     }
 }
@@ -155,4 +164,28 @@ fn n04_counter_keeps_extension() {
 fn long_names_truncated_keep_extension() {
     let n = sanitize(&format!("{}.mp4", "ក".repeat(400)));
     assert!(n.encode_utf16().count() <= 200 && n.ends_with(".mp4"), "{n}");
+}
+
+/// stable stand-in for the weekly cargo-fuzz campaign: 200 000 seeded random names built from hostile pieces
+#[test]
+fn randomized_200k_invariants_and_idempotence() {
+    let pieces = [
+        "..", ".", "/", "\\", ":", "*", "?", "\"", "<", ">", "|", " ", "\t", "\0", "\u{7f}", "\u{202E}", "\u{2066}", "\u{200B}", "\u{FEFF}",
+        "\u{200D}", "CON", "nul", "COM1", "lpt¹", ".part", ".gdm", ".tmp", ".probe", ".exe", "a", "ក", "្", "😀", "e\u{301}", "%2e", "~1",
+    ];
+    let mut x = 0x9E3779B97F4A7C15u64;
+    let url = url::Url::parse("http://h/x").unwrap();
+    for _ in 0..200_000 {
+        let mut s = String::new();
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        for k in 0..(x % 24) {
+            s.push_str(pieces[((x >> (k % 40)) as usize + k as usize * 7) % pieces.len()]);
+        }
+        for n in [sanitize(&s), file_name(Some(&format!("attachment; filename*=UTF-8''{s}")), &url)] {
+            assert!(ok(&n) && !n.contains(".."), "{s:?} -> {n:?}");
+            assert_eq!(sanitize(&n), n, "idempotent: {s:?} -> {n:?}");
+        }
+    }
 }

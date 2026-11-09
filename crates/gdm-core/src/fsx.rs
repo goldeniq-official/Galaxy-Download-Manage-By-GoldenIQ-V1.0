@@ -30,11 +30,17 @@ pub enum FsError {
     Io(String),
 }
 impl std::fmt::Display for FsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{self:?}") }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
 }
-fn io(e: impl std::fmt::Display) -> FsError { FsError::Io(e.to_string()) }
+fn io(e: impl std::fmt::Display) -> FsError {
+    FsError::Io(e.to_string())
+}
 
-fn wide(s: &std::ffi::OsStr) -> Vec<u16> { s.encode_wide().chain(Some(0)).collect() }
+fn wide(s: &std::ffi::OsStr) -> Vec<u16> {
+    s.encode_wide().chain(Some(0)).collect()
+}
 
 /// FILE_ATTRIBUTE_TAG_INFO of a handle: (attributes, reparse tag)
 fn attr_tag(h: HANDLE) -> Result<(u32, u32), FsError> {
@@ -53,7 +59,9 @@ fn surrogate(h: HANDLE) -> Result<bool, FsError> {
 fn final_path(h: HANDLE) -> Result<PathBuf, FsError> {
     let mut buf = vec![0u16; 1024];
     let n = unsafe { GetFinalPathNameByHandleW(h, &mut buf, FILE_NAME_NORMALIZED) } as usize;
-    if n == 0 || n > buf.len() { return Err(FsError::Io("GetFinalPathNameByHandle".into())); }
+    if n == 0 || n > buf.len() {
+        return Err(FsError::Io("GetFinalPathNameByHandle".into()));
+    }
     Ok(PathBuf::from(String::from_utf16_lossy(&buf[..n])))
 }
 
@@ -89,7 +97,9 @@ impl Dir {
         .map_err(|e| if e.code().0 as u32 == 0x8007_0002 || e.code().0 as u32 == 0x8007_0003 { FsError::NotFound } else { io(e) })?;
         let h = unsafe { OwnedHandle::from_raw_handle(h.0 as _) };
         let raw = HANDLE(h.as_raw_handle());
-        if surrogate(raw)? { return Err(FsError::Reparse(format!("{} is a junction or symbolic link", abs.display()))); }
+        if surrogate(raw)? {
+            return Err(FsError::Reparse(format!("{} is a junction or symbolic link", abs.display())));
+        }
         let fp = final_path(raw)?;
         if norm(&fp) != norm(&abs) {
             return Err(FsError::Reparse(format!("{} resolves to {}", abs.display(), fp.display())));
@@ -97,7 +107,9 @@ impl Dir {
         Ok(Dir { h, path: abs })
     }
 
-    fn raw(&self) -> HANDLE { HANDLE(self.h.as_raw_handle()) }
+    fn raw(&self) -> HANDLE {
+        HANDLE(self.h.as_raw_handle())
+    }
 
     /// NtCreateFile relative to the held directory: `leaf` is one sanitized component.
     fn nt_open(&self, leaf: &str, access: u32, share: FILE_SHARE_MODE, create: bool) -> Result<File, FsError> {
@@ -107,7 +119,11 @@ impl Dir {
             return Err(FsError::Io(format!("not a single component: {leaf:?}")));
         }
         let w: Vec<u16> = leaf.encode_utf16().collect();
-        let us = UNICODE_STRING { Length: (w.len() * 2) as u16, MaximumLength: (w.len() * 2) as u16, Buffer: windows::core::PWSTR(w.as_ptr() as *mut u16) };
+        let us = UNICODE_STRING {
+            Length: (w.len() * 2) as u16,
+            MaximumLength: (w.len() * 2) as u16,
+            Buffer: windows::core::PWSTR(w.as_ptr() as *mut u16),
+        };
         let oa = OBJECT_ATTRIBUTES {
             Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
             RootDirectory: self.raw(),
@@ -134,13 +150,15 @@ impl Dir {
         };
         match st.0 as u32 {
             0 => {}
-            0xC000_0035 => return Err(FsError::Exists),                       // STATUS_OBJECT_NAME_COLLISION
-            0xC000_0043 => return Err(FsError::Busy),                         // STATUS_SHARING_VIOLATION
-            0xC000_0034 | 0xC000_003A => return Err(FsError::NotFound),       // NAME_NOT_FOUND / PATH_NOT_FOUND
+            0xC000_0035 => return Err(FsError::Exists),                 // STATUS_OBJECT_NAME_COLLISION
+            0xC000_0043 => return Err(FsError::Busy),                   // STATUS_SHARING_VIOLATION
+            0xC000_0034 | 0xC000_003A => return Err(FsError::NotFound), // NAME_NOT_FOUND / PATH_NOT_FOUND
             s => return Err(FsError::Io(format!("NtCreateFile {leaf:?}: NTSTATUS {s:#010x}"))),
         }
         let f = unsafe { File::from_raw_handle(h.0 as _) };
-        if surrogate(HANDLE(f.as_raw_handle()))? { return Err(FsError::Reparse(format!("{leaf} is a reparse point"))); }
+        if surrogate(HANDLE(f.as_raw_handle()))? {
+            return Err(FsError::Reparse(format!("{leaf} is a reparse point")));
+        }
         Ok(f)
     }
 
@@ -164,7 +182,10 @@ impl Dir {
         Ok(v)
     }
     pub fn exists(&self, leaf: &str) -> bool {
-        matches!(self.nt_open(leaf, FILE_READ_ATTRIBUTES.0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false), Ok(_) | Err(FsError::Reparse(_)))
+        matches!(
+            self.nt_open(leaf, FILE_READ_ATTRIBUTES.0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false),
+            Ok(_) | Err(FsError::Reparse(_))
+        )
     }
 
     /// write `data` to `leaf` atomically: `leaf.tmp` (created new, flushed) then rename over `leaf`
@@ -185,7 +206,11 @@ impl Dir {
         let mut iosb = IO_STATUS_BLOCK::default();
         let yes: u8 = 1; // FILE_DISPOSITION_INFORMATION { BOOLEAN DeleteFile }
         let st = unsafe { NtSetInformationFile(HANDLE(f.as_raw_handle()), &mut iosb, &yes as *const u8 as _, 1, FileDispositionInformation) };
-        if st.0 == 0 { Ok(()) } else { Err(FsError::Io(format!("delete {leaf:?}: NTSTATUS {:#010x}", st.0 as u32))) }
+        if st.0 == 0 {
+            Ok(())
+        } else {
+            Err(FsError::Io(format!("delete {leaf:?}: NTSTATUS {:#010x}", st.0 as u32)))
+        }
     }
 }
 
@@ -193,7 +218,7 @@ impl Dir {
 /// NtSetInformationFile(FileRenameInformation) with RootDirectory = the held directory: the target is
 /// resolved relative to that handle (the Win32 SetFileInformationByHandle wrapper refuses a RootDirectory).
 pub fn rename(f: &File, dir: &Dir, leaf: &str, replace: bool) -> Result<(), FsError> {
-    use windows::Wdk::Storage::FileSystem::{NtSetInformationFile, FileRenameInformation};
+    use windows::Wdk::Storage::FileSystem::{FileRenameInformation, NtSetInformationFile};
     let w: Vec<u16> = leaf.encode_utf16().collect();
     let size = std::mem::size_of::<FILE_RENAME_INFO>() + w.len() * 2;
     let mut buf = vec![0u64; size.div_ceil(8)];
@@ -232,7 +257,19 @@ pub fn set_sparse(f: &File, on: bool) -> bool {
     use windows::Win32::System::IO::DeviceIoControl;
     let b = FILE_SET_SPARSE_BUFFER { SetSparse: on };
     let mut n = 0u32;
-    unsafe { DeviceIoControl(HANDLE(f.as_raw_handle()), FSCTL_SET_SPARSE, Some(&b as *const _ as _), std::mem::size_of_val(&b) as u32, None, 0, Some(&mut n), None).is_ok() }
+    unsafe {
+        DeviceIoControl(
+            HANDLE(f.as_raw_handle()),
+            FSCTL_SET_SPARSE,
+            Some(&b as *const _ as _),
+            std::mem::size_of_val(&b) as u32,
+            None,
+            0,
+            Some(&mut n),
+            None,
+        )
+        .is_ok()
+    }
 }
 
 /// bytes free for this user on the volume holding `dir`
@@ -246,7 +283,8 @@ pub fn free_space(dir: &Path) -> u64 {
 /// Zone.Identifier ADS of `leaf` (read through the held directory, never a re-resolved path)
 pub fn zone_identifier(dir: &Dir, leaf: &str) -> Option<String> {
     // read-only access with full sharing: the finaliser holds the file with DELETE access at this point
-    let f = dir.nt_open(&format!("{leaf}:Zone.Identifier"), FILE_GENERIC_READ.0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false).ok()?;
+    let f =
+        dir.nt_open(&format!("{leaf}:Zone.Identifier"), FILE_GENERIC_READ.0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false).ok()?;
     let mut v = Vec::new();
     use std::io::Read;
     f.take(4096).read_to_end(&mut v).ok()?;
@@ -269,7 +307,9 @@ pub fn attachment_save(local: &Path, final_name: &str, source: &str, referrer: O
             ae.SetLocalPath(&HSTRING::from(local.as_os_str()))?;
             ae.SetFileName(&HSTRING::from(final_name.as_str()))?;
             ae.SetSource(&HSTRING::from(source.as_str()))?;
-            if let Some(r) = &referrer { ae.SetReferrer(&HSTRING::from(r.as_str()))?; }
+            if let Some(r) = &referrer {
+                ae.SetReferrer(&HSTRING::from(r.as_str()))?;
+            }
             ae.Save()
         })();
         CoUninitialize();
