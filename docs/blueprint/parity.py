@@ -90,6 +90,6 @@ for r in ROWS:
 
 PARITY_HTML = ('<p>សរុប %d: រក្សា %d · ល្អជាង %d · ថ្មី %d · សមមូល %d · ម្ចាស់សម្រេច %d។</p>'
                % (len(ROWS), counts.get("keep", 0), counts.get("better", 0), counts.get("new", 0), counts.get("swap", 0), counts.get("owner", 0))
-               + '<p>ផ្នែកខ្លះ (មានចន្លោះសមត្ថភាពដែលសរសេរច្បាស់ ត្រូវការការយល់ព្រមពីម្ចាស់ D14): %d។ ក្រុមដែលរួមក្នុងជួរតែមួយ នៅតែមាន acceptance test ដាច់ៗសម្រាប់មុខងាររងនីមួយៗ។</p>' % counts.get("partial", 0)
+               + '<p>ផ្នែកខ្លះ (មានចន្លោះសមត្ថភាពដែលសរសេរច្បាស់ ម្ចាស់ទទួលយក 2026-11-09, D14): %d។ ក្រុមដែលរួមក្នុងជួរតែមួយ នៅតែមាន acceptance test ដាច់ៗសម្រាប់មុខងាររងនីមួយៗ។</p>' % counts.get("partial", 0)
                + '<div class="tw"><table><thead><tr><th>ក្រុម</th><th>មុខងារ</th><th>IDM</th><th>NDM</th><th>GDM</th><th>ស្ថានភាព</th><th>ដំណាក់</th></tr></thead><tbody>'
                + "".join(_row(r) for r in ROWS) + "</tbody></table></div>")
