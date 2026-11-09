@@ -1,0 +1,21 @@
+## lan-d-a
+### config a
+| URL | GDM MB/s median (worst) | IDM MB/s median (worst) | r per pair | median r | verdict | conns GDM/IDM | CPU avg GDM/IDM % | GDM priv MB peak | sha ok |
+|---|---|---|---|---|---|---|---|---|---|
+| lan1g | 57.2 (56.2) | 83.3 (77.6) | 0.68 0.76 0.68 0.68 0.71 | 0.684 | slower | 3 / 8 | 8.1 / 15.4 | 42.8 | yes |
+| lan1g-percon | 51.9 (50.1) | 82.2 (80.7) | 0.61 0.64 0.63 0.63 0.63 | 0.634 | slower | 5 / 8 | 8.4 / 13.3 | 48.7 | yes |
+equal-or-faster on 0/2 URLs; geometric mean of median(r) = 0.659 (target >= 0.95)
+## lan-d-b
+### config b
+| URL | GDM MB/s median (worst) | IDM MB/s median (worst) | r per pair | median r | verdict | conns GDM/IDM | CPU avg GDM/IDM % | GDM priv MB peak | sha ok |
+|---|---|---|---|---|---|---|---|---|---|
+| lan1g | 53.2 (50.9) | 84.5 (82.7) | 0.67 0.60 0.63 0.62 0.64 | 0.625 | slower | 8 / 8 | 6.7 / 9.8 | 59.2 | yes |
+| lan1g-percon | 53.0 (51.3) | 82.4 (80.2) | 0.64 0.69 0.63 0.62 0.65 | 0.642 | slower | 8 / 8 | 7.8 / 13.4 | 59.3 | yes |
+equal-or-faster on 0/2 URLs; geometric mean of median(r) = 0.634 (target >= 0.95)
+## lan-c-a
+### config a
+| URL | GDM MB/s median (worst) | IDM MB/s median (worst) | r per pair | median r | verdict | conns GDM/IDM | CPU avg GDM/IDM % | GDM priv MB peak | sha ok |
+|---|---|---|---|---|---|---|---|---|---|
+| lan1g | 42.7 (26.9) | 79.3 (72.0) | 0.52 0.77 0.60 0.32 0.44 | 0.517 | slower | 3/4/5 / 8 | 7.1 / 8.2 | 48.4 | yes |
+| lan1g-percon | 42.5 (37.6) | 74.8 (74.2) | 0.57 0.55 0.50 0.65 0.55 | 0.547 | slower | 3/4/6 / 8 | 6.1 / 9.6 | 46.2 | yes |
+equal-or-faster on 0/2 URLs; geometric mean of median(r) = 0.532 (target >= 0.95)
