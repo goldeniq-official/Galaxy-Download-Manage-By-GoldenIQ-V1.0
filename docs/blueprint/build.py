@@ -177,6 +177,7 @@ def main():
     page = """<!DOCTYPE html>
 <html lang="km"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>GDM Blueprint 2026–27</title>
+<link rel="icon" href="%s">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>%s</style></head><body>
@@ -187,7 +188,7 @@ def main():
 </div>
 <button class="theme" type="button">ពន្លឺ / ងងឹត</button>
 <script>%s</script>
-</body></html>""" % (CSS, META["logo"], esc(META["eyebrow"]), esc(META["title"]), esc(META["byline"]), nav, main_html, JS)
+</body></html>""" % (META["logo"], CSS, META["logo"], esc(META["eyebrow"]), esc(META["title"]), esc(META["byline"]), nav, main_html, JS)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(page)
     print("wrote", os.path.normpath(OUT), len(page), "bytes;", len(SCENARIOS), "scenarios", sev_count)

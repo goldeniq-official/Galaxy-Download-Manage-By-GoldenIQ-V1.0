@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# blueprint tooling
+.playwright-mcp/
+__pycache__/
