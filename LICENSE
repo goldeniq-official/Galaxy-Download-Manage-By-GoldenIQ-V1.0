@@ -72,7 +72,13 @@ licence to:
  (c) view and read the source code in an Official Channel to understand how the
      Work operates and to check its security;
 
- (d) share a link to an Official Channel with others, without copying the Work.
+ (d) share a link to an Official Channel with others, without copying the Work;
+
+ (e) install an Official Build, downloaded from an Official Channel at the time
+     of installation, onto a device of another person or organisation at
+     their request, for their Personal Use or Internal Use, including as a
+     paid installation service, provided You do not keep, supply or charge
+     for copies of the Work itself.
 
 Nothing in this Licence limits rights granted under GitHub's Terms of Service
 for content made public through GitHub. Those rights do not themselves grant
@@ -169,7 +175,8 @@ Permission is valid only when the Licensor gives it in writing, for example in
 a signed document or an email sent from the contact address below. It covers
 only the uses, people and period named in it. The Licensor may refuse
 permission, and may charge a fee for it, including for commercial use
-or redistribution.
+or redistribution. Personal Use and Internal Use under Section 2 are always
+free of charge; fees apply only to uses outside Section 2.
 
 Contact: Golden IQ — yr.goldeniq@gmail.com
 

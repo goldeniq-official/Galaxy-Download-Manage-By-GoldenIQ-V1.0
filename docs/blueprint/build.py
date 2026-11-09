@@ -78,6 +78,9 @@ figure svg{display:block;width:100%;min-width:640px;height:auto}
 figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
 .card{background:var(--surface);border-radius:12px;padding:14px 16px;display:grid;gap:8px;align-content:start}
+.card pre{white-space:pre-wrap;overflow-wrap:anywhere}
+button.copy{justify-self:start;font:inherit;font-size:13px;padding:4px 14px;border-radius:99px;border:0;background:var(--accent-soft);color:var(--fg);cursor:pointer}
+button.copy:hover,button.copy:focus-visible{background:var(--accent);color:#fff;outline:none}
 .card h4{margin:0}
 .swatch{display:flex;gap:10px;align-items:center;font-family:var(--f-mono);font-size:13px}
 .swatch i{width:28px;height:28px;border-radius:8px;display:inline-block}
@@ -101,6 +104,10 @@ JS = """
     bs.forEach(function(y){y.setAttribute('aria-pressed','false')});x.setAttribute('aria-pressed','true');
     var v=x.dataset.f;document.querySelectorAll('details.f').forEach(function(d){
       d.hidden=!(v==='all'||d.dataset.sev===v||d.dataset.feat===v)})})});
+  document.querySelectorAll('button.copy').forEach(function(x){x.addEventListener('click',function(){
+    var t=document.getElementById(x.dataset.for).textContent;
+    var done=function(){x.textContent='ចម្លងរួច';setTimeout(function(){x.textContent='ចម្លង'},1500)};
+    if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,function(){});})});
   var open=document.getElementById('openall');
   if(open)open.addEventListener('click',function(){var any=[].some.call(document.querySelectorAll('details.f'),function(d){return !d.open});
     document.querySelectorAll('details.f').forEach(function(d){if(!d.hidden)d.open=any})});

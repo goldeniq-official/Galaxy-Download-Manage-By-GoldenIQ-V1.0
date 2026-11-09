@@ -5,6 +5,7 @@ from parity import PARITY_HTML
 from design import DESIGN_HTML
 from codereview import CODE_HTML
 from council import COUNCIL_HTML
+from goal import MONEY_HTML, GOAL_HTML
 
 
 def code(s):
@@ -417,7 +418,7 @@ S17 = r"""
 S19 = r"""
 <p>ការសម្រេចទាំងនេះជារបស់ម្ចាស់។ D14–D15 ត្រូវបានបន្ថែមក្រោយ council ជុំទី ៣ ហើយ D16–D18 បន្ថែមក្រោយម្ចាស់សម្រេចលើ licence។ ទីប្រឹក្សាផ្ដល់អនុសាសន៍ ហើយការងារ P0 អាចចាប់ផ្ដើមបានមុនមានចម្លើយ លើកលែងតែ D11/D12 (ឈ្មោះ repo)។</p>
 <div class="tw"><table><thead><tr><th>#</th><th>សំណួរ</th><th>អនុសាសន៍</th><th>ហេតុផល</th></tr></thead><tbody>
-<tr><td>D1</td><td>Licence: គោលការណ៍សម្រេចរួច (តឹងរឹង, ប្រើផ្ទាល់ខ្លួន)។ អត្ថបទណាត្រូវប្រើ: <code>LICENSE</code> ដែល commit រួច ឬ draft ក្នុង <code>docs/licence-draft/</code>?</td><td>Draft (ឬបញ្ចូលភាពខ្លាំងរបស់វាទៅក្នុង LICENSE ដែលមានស្រាប់)</td><td>LICENSE ដែលមានស្រាប់ហាម "using it inside a business" ហើយកំណត់ "Software" រួមទាំងរូបភាព/ឈ្មោះ ប៉ុន្តែគ្មាន §2A សម្រាប់ Microsoft Store (Developer Agreement §4(i)) និងគ្មានការលើកលែងសិទ្ធិ consumer។ ទាំងពីរត្រូវការមេធាវីកម្ពុជាពិនិត្យ។ ឈ្មោះក្នុង LICENSE ដែលមានស្រាប់: "GoldenIQ &amp; CHHIT SUNGCHHAY", "Galaxy Download Manage" (D11, D17)។</td></tr>
+<tr><td>D1</td><td>Licence: អត្ថបទណាត្រូវប្រើ?</td><td><strong>សម្រេចរួច</strong></td><td>ម្ចាស់សម្រេច 2026-11-09: យក draft ជា <code>LICENSE</code> + <code>LICENSE-km.md</code> (commit ad0aa7b)។ គួរឱ្យមេធាវីកម្ពុជាពិនិត្យមុន release ទីមួយ។</td></tr>
 <tr><td>D2</td><td>បោះបង់ "Advanced integration" របស់ IDM (WFP kernel driver ចាប់ពីគ្រប់កម្មវិធី)?</td><td>បោះបង់</td><td>CVE-2026-90493, BSOD។ សមមូល: extension + clipboard + CLI + Add URL (ប្រហែល 95% នៃករណីប្រើ)។</td></tr>
 <tr><td>D3</td><td>បោះបង់ browser/protocol ដែលស្លាប់ហើយ: IE, MSN, AOL, Avant, Maxthon, IE click monitor, MMS?</td><td>បោះបង់</td><td>IE ចូលនិវត្តន៍ មិថុនា 2022; MMS ត្រូវ Microsoft deprecate ឆ្នាំ 2003។</td></tr>
 <tr><td>D4</td><td>Dial-up redial: ជំនួសដោយ "រង់ចាំបណ្ដាញ + ភ្ជាប់ VPN/RAS (rasdial) មុន queue" (P3) ឬបោះបង់?</td><td>ជំនួស (P3)</td><td>Modem ស្លាប់ ប៉ុន្តែ VPN ដែលប្រើ RAS នៅមាន។</td></tr>
@@ -432,7 +433,7 @@ S19 = r"""
 <tr><td>D13</td><td>Logo: គូរ mark vector សម្រាប់ទំហំតូច ហើយព្រួញចង្អុលចុះ?</td><td>Mark: បាទ · ព្រួញ: ម្ចាស់ជ្រើស</td><td>§16</td></tr>
 <tr><td>D14</td><td>ទទួលយក parity "ផ្នែកខ្លះ" ៥ ជួរ (§04): POST ក្នុង Chrome ទុកឱ្យ browser, JS link តែ static, proxy តាម browser ⇒ proxy ប្រព័ន្ធ, YouTube ក្នុង app មិនមែនក្នុង extension Chrome, ភាសា 2 (មិនមែន 50+)?</td><td>យល់ព្រម ជាមួយផែនការ</td><td>ជួរនីមួយៗមានចន្លោះសមត្ថភាពដែលសរសេរច្បាស់ និងផែនការ (Firefox POST, សហគមន៍បកប្រែ P3)។ ការបិទចន្លោះទាំងអស់មានតម្លៃខ្ពស់ពេក ឬប៉ះសុវត្ថិភាព/គោលការណ៍ store។</td></tr>
 <tr><td>D15</td><td>Hook "បើកកម្មវិធីពេលបញ្ចប់" អនុញ្ញាត .bat/.cmd ជាករណីលើកលែងដែលអ្នកប្រើទុកចិត្ត?</td><td>បាទ (ដើម្បីរក្សា parity IDM)</td><td>IDM ណែនាំ .bat សម្រាប់សកម្មភាពច្រើន។ ការកំណត់អាចធ្វើបានតែក្នុង UI, មាន argument restriction (Q-01)។ បើម្ចាស់ចង់បានសុវត្ថិភាពជាង ⇒ .exe ប៉ុណ្ណោះ។</td></tr>
-<tr><td>D16</td><td>Licence ត្រូវការការអនុញ្ញាតសម្រាប់ការប្រើក្នុងក្រុមហ៊ុន/សាលា/ស្ថាប័ន។ ចង់អនុញ្ញាតការប្រើ <em>ក្នុងស្ថាប័ន ដោយមិនកែប្រែ និងមិនលក់</em> ដោយស្វ័យប្រវត្តិទេ?</td><td>ពិចារណាអនុញ្ញាត</td><td>បុគ្គលិកការិយាល័យជា persona ទី ២ (§05)។ ការប្រើកម្មវិធីដើម្បីទាញឯកសារការងារមិនមែនជាការលក់កូដទេ។ ការហាមអាចធ្វើឱ្យពួកគេនៅតែប្រើ IDM។ ការសម្រេចនេះជារបស់ម្ចាស់។</td></tr>
+<tr><td>D16</td><td>អនុញ្ញាតការប្រើក្នុងក្រុមហ៊ុន/សាលា/ស្ថាប័ន ដោយឥតគិតថ្លៃ?</td><td><strong>សម្រេចរួច: បាទ</strong></td><td>ម្ចាស់សម្រេច 2026-11-09: ឥតគិតថ្លៃសម្រាប់គ្រប់គ្នា (LICENSE §1 "Internal Use", §2(a), commit 47f935d)។ ចំណូលមកពី §21។</td></tr>
 <tr><td>D17</td><td>(ក) "CHHIT Sungchhay" (នាមត្រកូលអក្សរធំ) ត្រឹមត្រូវ? មានឈ្មោះជាអក្សរខ្មែរដែលចង់ដាក់ទេ? (ខ) "Golden IQ" ជានីតិបុគ្គលដែលបានចុះបញ្ជី ឬជាឈ្មោះពាណិជ្ជកម្មរបស់ CHHIT Sungchhay? (គ) នរណាមានសិទ្ធិផ្ដល់ការអនុញ្ញាតជំនួសម្ចាស់ទាំងពីរ?</td><td>ម្ចាស់បញ្ជាក់</td><td>អាជ្ញាប័ណ្ណត្រូវកំណត់ភាគីកិច្ចសន្យាឱ្យច្បាស់ (ChatGPT ជុំ 4)។ ខ្ញុំមិនស្មានឈ្មោះ ឬស្ថានភាពច្បាប់ទេ។</td></tr>
 <tr><td>D18</td><td>(ក) អនុញ្ញាត dependency MPL-2.0 ដែលមិនកែប្រែ ជាករណីលើកលែង? (ខ) ច្បាប់ចម្លងពី Microsoft Store ត្រូវគោរព Usage Rules របស់ Microsoft (Developer Agreement §4(i)) ដែលអាចទូលាយជាង licence (ឧ. ការប្រើក្នុងអង្គការ)។ យល់ព្រម (LICENSE §2A) ឬមិនបោះពុម្ពលើ Store?</td><td>(ក) បាទ (ខ) យល់ព្រម</td><td>(ក) បើគ្មាន MPL មិនអាចប្រើ Tauri បានទេ។ (ខ) Store ជាផ្លូវចុះហត្ថលេខាឥតគិតថ្លៃតែមួយ។ បើបដិសេធ ⇒ GitHub គ្មានហត្ថលេខា ឬត្រូវទិញ cert (D8)។</td></tr>
 </tbody></table></div>
@@ -479,4 +480,6 @@ SECTIONS = [
     ("s18", "18", "Council: Claude × ChatGPT", COUNCIL_HTML),
     ("s19", "19", "ម្ចាស់ត្រូវសម្រេច (18)", S19),
     ("s20", "20", "Coverage, ទំនុកចិត្ត, ដែនកំណត់", S20),
+    ("s21", "21", "ចំណូល: app ឥតគិតថ្លៃ, លុយពីជុំវិញ", MONEY_HTML),
+    ("goal", "22", "goal", GOAL_HTML),
 ]
