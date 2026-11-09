@@ -3,12 +3,12 @@ import html as _h
 import json as _json
 
 MONEY_HTML = r"""
-<p><strong>គោលការណ៍ (ម្ចាស់សម្រេច 2026-11-09):</strong> GDM ឥតគិតថ្លៃពិតសម្រាប់គ្រប់គ្នា រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័នរដ្ឋ (LICENSE §2: Personal Use + Internal Use)។ ក្នុង app គ្មានពាណិជ្ជកម្ម គ្មានការតាមដាន គ្មាន activation (R3)។ ចំណូលមកពីអ្វីៗនៅជុំវិញ app មិនមែនពី app ខ្លួនឯងទេ។</p>
+<p><strong>គោលការណ៍ (ម្ចាស់សម្រេច 2026-11-09):</strong> GDM ឥតគិតថ្លៃពិតសម្រាប់គ្រប់គ្នា រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័នរដ្ឋ (LICENSE: RPL-1.5, ប្រើដោយសេរីសម្រាប់គ្រប់គ្នា)។ ក្នុង app គ្មានពាណិជ្ជកម្ម គ្មានការតាមដាន គ្មាន activation (R3)។ ចំណូលមកពីអ្វីៗនៅជុំវិញ app មិនមែនពី app ខ្លួនឯងទេ។</p>
 <div class="tw"><table><thead><tr><th>#</th><th>ប្រភពចំណូល</th><th>ច្បាប់អនុវត្ត</th><th>ពេលចាប់ផ្ដើម</th></tr></thead><tbody>
 <tr><td>M1</td><td><strong>KHQR "គាំទ្រ GDM"</strong> (Bakong, ចូល ABA ផ្ទាល់)</td><td>នៅលើ README, គេហទំព័រ និងទំព័រ About (រូប QR ភ្ជាប់ក្នុង app, គ្មាន network)។ ការបរិច្ចាគជាការស្ម័គ្រចិត្ត មិនផ្ដល់មុខងារបន្ថែម ឬអាទិភាពទេ។ ផ្ទៀងផ្ទាត់លក្ខខណ្ឌគណនី ABA បង្កាន់ដៃ និងពន្ធ។</td><td>ឥឡូវ (ម្ចាស់ផ្ដល់រូប KHQR)</td></tr>
 <tr><td>M2</td><td><strong>សេវាបង់ថ្លៃសម្រាប់ស្ថាប័ន</strong>: ដំឡើងច្រើនគ្រឿង, កំណត់ setting, បង្ហាត់, support, មុខងារតាមសំណូមពរ</td><td>App នៅតែឥតគិតថ្លៃ។ គិតថ្លៃតែពេលវេលា និងជំនាញ។ មុខងារតាមសំណូមពរត្រូវមានកិច្ចសន្យាជាលាយលក្ខណ៍អក្សរ: កម្មសិទ្ធិ (Golden IQ & CHHIT Sungchhay), ការបោះពុម្ពចូល product ផ្លូវការ (មិនសន្យាគ្រប់ករណី), លក្ខខណ្ឌទទួល, ការថែទាំ។ គ្មាន fork ឯកជន។</td><td>ពេល v0.9 beta</td></tr>
 <tr><td>M3</td><td><strong>អ្នកឧបត្ថម្ភ</strong> (ISP, ក្រុមហ៊ុនទូរស័ព្ទ, hosting, ធនាគារ)</td><td>តែលើគេហទំព័រ និង README ប៉ុណ្ណោះ <strong>មិនមែនក្នុង app</strong> (logo បង់លុយក្នុង app = ពាណិជ្ជកម្ម)។ ដាក់ស្លាក "ឧបត្ថម្ភ"។ កិច្ចសន្យាហាមអ្នកឧបត្ថម្ភមិនឱ្យមានឥទ្ធិពលលើ default, ការទាញយក, លទ្ធផលស្វែងរក ឬទិន្នន័យអ្នកប្រើ។</td><td>ពេលមានអ្នកប្រើច្រើន</td></tr>
-<tr><td>M4</td><td><strong>អាជ្ញាប័ណ្ណចែកចាយ</strong>: ហាង PC / OEM ដែលដំឡើងជាមុន ឬភ្ជាប់ GDM ក្នុង image</td><td>LICENSE §3 ហាមការចែកចាយ ⇒ ត្រូវសុំការអនុញ្ញាត §6 (អាចគិតថ្លៃ)។ ជាងដែលដំឡើង Official Build ពី Official Channel លើម៉ាស៊ីនអតិថិជនតាមសំណើ ឥតគិតថ្លៃ (LICENSE §2(e))។</td><td>ពេលមានសំណើ</td></tr>
+<tr><td>M4</td><td><strong>សេវាដំឡើងសម្រាប់ហាង PC / OEM</strong> (ការដំឡើង, image, support)</td><td><strong>មិនលក់អាជ្ញាប័ណ្ណ</strong>: SignPath ហាម commercial dual-licensing ហើយ RPL-1.5 អនុញ្ញាតការចែកចាយកំណែដើមដោយសេរីរួចហើយ។ គំរូអាជីវកម្មដែលជ្រើស: គិតថ្លៃលើសេវាដំឡើង និង support (RPL §6.5 ក៏កំណត់កាតព្វកិច្ច indemnity ពេលផ្ដល់ warranty/support)។</td><td>ពេលមានសំណើ</td></tr>
 <tr><td>M5</td><td><strong>YouTube ខ្មែរ</strong> (មេរៀនប្រើ download manager)</td><td>ជាការផ្សព្វផ្សាយមុន ចំណូលក្រោយ។ ហាមវីដេអូពីការទាញវីដេអូ YouTube/streaming ឬរំលងការការពារ។ ការប្រៀបធៀបល្បឿនត្រូវមានការវាស់ (§09)។</td><td>ពេល v1.0</td></tr>
 </tbody></table></div>
 <h3>អ្វីដែលបោះបង់ ឬពន្យារ</h3>
@@ -151,14 +151,14 @@ Done when: every P2 row is done or has an explicit owner waiver, cards F06-F11 p
      "ដាក់ KHQR ក្នុង README និង About (រូបភ្ជាប់, គ្មាន network), សរសេរ docs/services.md និង docs/sponsors.md។ ធ្វើបានពេលណាក៏បាន ក្រោយម្ចាស់ផ្ដល់រូប KHQR។",
      [], ["G1", "G2", "G3", "G4", "G5", "G6", "G7"],
      """GOAL G8 (income): set up the income plan in §21 without touching the free-for-everyone promise.
-Read first: §21 income plan, LICENSE §2 (Personal Use, Internal Use, (e) installer service) and §6 (fees only outside Section 2), memory/rule: no ads, tracking, activation or payment SDK in the app.
+Read first: §21 income plan, LICENSE (RPL-1.5) and NOTICE.md, SignPath terms (no commercial dual-licensing), memory/rule: no ads, tracking, activation or payment SDK in the app.
 Prerequisite check: the owner has given the KHQR image (ask in Khmer if not).
 Do:
 1. README: short voluntary "គាំទ្រ GDM / Support GDM" block with the KHQR image, Khmer first, saying support is optional and unlocks nothing.
 2. App About page (if the app exists yet): same KHQR as a bundled image, no network call, no tracking; otherwise leave a task note for G6.
 3. docs/services.md (Khmer + English): paid deployment, configuration, training, support, commissioned features; written terms on ownership (Golden IQ & CHHIT Sungchhay), inclusion in the official product (not guaranteed), acceptance, maintenance; no private forks.
 4. docs/sponsors.md: website/README placements only, labelled "sponsored", sponsors never influence defaults, downloads, search results or user data.
-5. Redistribution/bundling licence note (PC shops/OEM) pointing to LICENSE §6.
+5. PC shop/OEM note: redistribution of unmodified GDM is already allowed by RPL-1.5; offer paid installation/support services only, never paid licences (SignPath bans commercial dual-licensing).
 Done when: the files are committed, wording matches "free for everyone" and LICENSE, and the owner approves."""),
 
     ("G9", "P3", "មុខងារ P3 ម្ដងមួយ (គំរូ)",

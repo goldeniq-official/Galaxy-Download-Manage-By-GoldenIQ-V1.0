@@ -440,7 +440,7 @@ SCENARIOS = [
     c("U-01", "F13", "critical", "Update channel ត្រូវប្លន់ (MITM ឬ GitHub account)",
       "Wi-Fi សាធារណៈ ឬ token release ត្រូវលួច",
       "IDM CVE-2025-56231 / EDB 51131: update តាម HTTP ⇒ RCE",
-      "ពីរស្រទាប់: (1) Tauri updater minisign (key ឯកជន offline + CI secret តែក្នុង environment ដែលត្រូវ approve) (2) Authenticode ពេលមាន certificate (D8)។ Build Store: Store ជាអ្នក update (updater បិទ)។ <code>latest.json</code> ចុះហត្ថលេខា មាន version, sha256, channel, <code>expires</code>; HTTPS តែ GitHub; ហាម downgrade (highest-seen តាម channel)។ Signer identity = thumbprint ដែល <strong>compile ចូលក្នុង binary</strong> (មិនមែនពី manifest)។ ការ rotate cert = release ថ្មីដែលផ្ទៀងផ្ទាត់ដោយ pin ចាស់ ហើយដឹក pin ថ្មី។ ការតម្រូវ Authenticode ជា policy របស់ build/channel មិនមែនជាជម្រើសក្នុង manifest។ Manifest signature ជាការត្រួតពិនិត្យបន្ថែមរបស់យើងមុនហៅ Tauri updater (Tauri មិនមានស្រាប់)។",
+      "ពីរស្រទាប់: (1) Tauri updater minisign (key ឯកជន offline + CI secret តែក្នុង environment ដែលត្រូវ approve) (2) Authenticode ពី SignPath (D8)។ បើថ្ងៃក្រោយមាន build Store: Store ជាអ្នក update (updater បិទ)។ <code>latest.json</code> ចុះហត្ថលេខា មាន version, sha256, channel, <code>expires</code>; HTTPS តែ GitHub; ហាម downgrade (highest-seen តាម channel)។ Signer identity = thumbprint ដែល <strong>compile ចូលក្នុង binary</strong> (មិនមែនពី manifest)។ ការ rotate cert = release ថ្មីដែលផ្ទៀងផ្ទាត់ដោយ pin ចាស់ ហើយដឹក pin ថ្មី។ ការតម្រូវ Authenticode ជា policy របស់ build/channel មិនមែនជាជម្រើសក្នុង manifest។ Manifest signature ជាការត្រួតពិនិត្យបន្ថែមរបស់យើងមុនហៅ Tauri updater (Tauri មិនមានស្រាប់)។",
       "Test: manifest ក្លែង, សញ្ញាខុស, version ចាស់ ⇒ បដិសេធទាំងបី។",
       "CWE-494, CWE-345; OWASP A08:2025; SLSA L2", ["S13", "S9"]),
     c("U-02", "F13", "high", "Update ដំឡើងពេលកំពុងទាញ ⇒ បាត់ progress",
@@ -511,7 +511,7 @@ SCENARIOS = [
     c("T-04", "F15", "low", "SmartScreen 'Windows protected your PC' ពេលចេញដំបូង",
       "Release ដំបូង, reputation សូន្យ",
       "អ្នកប្រើភ័យ ហើយមិនដំឡើង (NDM ត្រូវ AV ចាប់)",
-      "Microsoft Store MSIX (Microsoft ចុះហត្ថលេខា) ជាផ្លូវចម្បង; installer GitHub គ្មានហត្ថលេខារហូតដល់ D8; winget; ទំព័រ download ពន្យល់ ហើយបង្ហាញ sha256 និង attestation។",
+      "SignPath Authenticode (RPL-1.5 ជា OSI); GitHub Releases + winget; ទំព័រ download ពន្យល់ ហើយបង្ហាញ sha256 និង attestation។",
       "តាមដាន: ចំនួនរបាយការណ៍ SmartScreen។", "—", ["S13", "S15"]),
 
     # ---------------- F16 settings/privacy ----------------

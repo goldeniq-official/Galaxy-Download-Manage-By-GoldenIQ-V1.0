@@ -33,6 +33,12 @@ ROUNDS = [
     ("7", "ការសម្រេចចុងក្រោយ",
      "ACCEPT AS MIDDLE GROUND (99%)។",
      "ទទួលយក។ មើលខាងក្រោម។"),
+    ("L1", "Licence: ម្ចាស់ចង់បាន licence តឹងរឹងបំផុតដែលនៅតែទទួលបាន certificate open source ឥតគិតថ្លៃ (2026-11-09)",
+     "គាំទ្រ RPL-1.5 ដោយមិនកែ §13.8។ RPL មានកាតព្វកិច្ចពេល deploy ទូលាយជាង AGPL ប៉ុន្តែ licence ទាំងពីរ 'not totally ordered by strictness'។ ការលក់ការអនុញ្ញាតឱ្យប្រើកូដក្រោមលក្ខខណ្ឌផ្សេង = commercial dual-licensing ដែល SignPath ហាម។ ទំនុកចិត្ត: ខ្ពស់លើវិសាលភាព deploy, មធ្យមលើ compatibility/enforcement។",
+     "ទទួលយក។ ខ្ញុំផ្ទៀងផ្ទាត់ពីប្រភពដើមមុន: signpath.org/terms, OSI (AGPL 2008-03-03, RPL 2009-09-01), អត្ថបទ RPL ពី SPDX, GNU license list (RPL 'nonfree'), choosealicense (AGPL 'strongest copyleft')។ M4 ក្នុង §21 ត្រូវប្ដូរពីការលក់ licence ទៅជាសេវា។"),
+    ("L2", "ពិនិត្យការអនុវត្ត RPL (NOTICE.md, LICENSE, blueprint)",
+     "កែ 7: Exhibit B ត្រូវដាក់ក្នុង LICENSE (§7.1(c)); រយៈពេលរក្សាកូដគឺ 'ពេញរយៈពេល deploy + 12 ខែក្រោយឈប់'; ការកំណត់ថ្លៃគ្របតែច្បាប់ចម្លងកូដតាម §6.1; ពាណិជ្ជសញ្ញាត្រូវតែសរសេររឹតបន្តឹង; §2 ការប្រើ = ការទទួលយក; SignPath ត្រូវការ reputation និងអាចបដិសេធ; ដកពាក្យ 'តឹងរឹងបំផុត' ដែលគ្មានភស្តុតាង។",
+     "ទទួលយកទាំង 7 បន្ទាប់ពីផ្ទៀងផ្ទាត់ RPL §2 និង signpath.org/terms ('a certain verifiable reputation', 'ultimately it can only be our decision to accept or reject a project')។"),
 ]
 
 
