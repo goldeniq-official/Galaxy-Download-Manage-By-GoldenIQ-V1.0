@@ -469,7 +469,7 @@ SCENARIOS = [
       "ឈ្មោះ <code>&lt;img src=x onerror=...&gt;.zip</code> ឬ title វីដេអូ",
       "XSS ក្នុង WebView ហៅ command ណាដែល window មាន capability",
       "React render អត្ថបទជា text; ESLint ហាម <code>dangerouslySetInnerHTML</code>; CSP <code>default-src 'self'; script-src 'self'; object-src 'none'; frame-src 'none'</code>; <code>withGlobalTauri: false</code>; command យក ID មិនមែន path/URL/command; navigation ក្រៅ app ត្រូវបិទ; devtools បិទក្នុង release; capability តាម window។",
-      "Test: ឈ្មោះ payload XSS 30 ប្រភេទ ⇒ គ្មាន script រត់ (Playwright)។",
+      "Test: ឈ្មោះ payload XSS 30 ប្រភេទ ⇒ គ្មាន script រត់ (Playwright)។ <strong>ចំណាំពីឯកសារ Tauri:</strong> 'By default, all commands that you registered in your app can be used by all windows' ⇒ ត្រូវកំណត់ permission របស់ app commands ឱ្យតែ window <code>main</code>/<code>settings</code> តាម label (មិនមែនតាម title) ហើយ window grabber (G-05) មិនមាន command ណាមួយ; test: window grabber ហៅ command ⇒ បដិសេធ។",
       "CWE-79; ASVS V3; Tauri security docs", ["S2", "S3"]),
     c("X-02", "F14", "high", "'បើកឯកសារ/ថត' យក string ពី JS ⇒ បើក file:// ឬ smb://",
       "XSS ឬ bug ក្នុង UI",
