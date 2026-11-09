@@ -1,0 +1,203 @@
+# P0 exit (G4 / P0-D): design និង delivery baseline
+
+ថ្ងៃ: 2026-11-09។ ស្ថានភាព: **ព្រាង រង់ចាំម្ចាស់អនុម័ត**។
+
+**លក្ខខណ្ឌមុនមិនទាន់គ្រប់:** `docs/p0/results.md` មានផ្នែក G2 ហើយ តែ council មិនទាន់ពិនិត្យ ("បំពេញក្រោយ council ពិនិត្យ")។ ផ្នែក G3 មិនទាន់មាន។ ម្ចាស់បានឱ្យចាប់ផ្ដើម G4 មុន (2026-11-09, "ល្មមធ្វើហើយអី")។ ដូច្នេះផ្នែកដែលមិនពឹងលើ spike (ផ្នែក ១–៤) ត្រូវបានធ្វើរួច។ ផ្នែក ៥ (ការប៉ាន់ស្មាន) នៅជា **បឋម** រហូតដល់ G3 ត្រូវបានសរសេរ។ **P0 មិនទាន់បិទ** ទាល់តែ G2+G3 ឆ្លង council ហើយម្ចាស់អនុម័តឯកសារនេះ។
+
+## ១. Design tokens និង mockups
+
+| អ្វី | Path |
+|---|---|
+| Design tokens (CSS variables, ងងឹត + ភ្លឺ + forced-colors) | `design/tokens.css` |
+| Mockup ៥ ផ្ទាំង (ខ្មែរ/English, ភ្លឺ/ងងឹត តាម URL `?screen=&lang=&theme=`) | `design/mockups/index.html` |
+| រូប (១០០%) ២០ សន្លឹក + high contrast ៥ សន្លឹក | `design/mockups/shots/<screen>-<km\|en>-<dark\|light>.png`, `…-en-highcontrast.png` |
+| ទំព័រមើលរូបទាំងអស់ | `design/mockups/gallery.html` |
+| Font ភ្ជាប់ក្នុង app (OFL-1.1) | `design/fonts/` (Kantumruy Pro khmer 400–700, Outfit 400–800, JetBrains Mono 400–500 ពី Fontsource 5.3.0) |
+| Icon (Phosphor 2.1.1, MIT) | `design/mockups/icons.js` |
+| Check ស្វ័យប្រវត្តិ | `design/check.cjs` ⇒ `docs/p0/design-check.json` |
+
+ផ្ទាំងទាំង ៥ តាម §06: `main` (បញ្ជីមេ, ទម្រង់ medium 1100×700, rail 64 px), `details` (ទម្រង់ wide 1280×760, rail 220 px + details pane 340 px), `info` (ផ្ទាំង Download Info ជា modal), `settings`, `onboarding` (ជំហាន ២: ភ្ជាប់ browser)។
+
+### លទ្ធផល check (រត់ចុងក្រោយ 2026-11-09)
+
+ពាក្យបញ្ជា: `NODE_PATH=<playwright-core 1.65.0>/node_modules node design/check.cjs <ms-playwright/chromium-1228/chrome-win64/chrome.exe>` ⇒ **69/69 ok, exit 0**: self-test ៩ + run ៦០ (៥ ផ្ទាំង × ២ ភាសា × ២ theme × deviceScaleFactor 1/1.25/1.5)។
+
+| Check | របៀប | លទ្ធផល |
+|---|---|---|
+| Self-test (check ពិតជាចាប់កំហុសបាន) | Fixture ដែលដាក់កំហុសដោយចេតនា: outline, box-shadow មានពណ៌, inset ring 1 px, border-left 3 px, អក្សរខ្មែរកាត់ដោយប្រអប់ខ្លួនឯង និងដោយ ancestor, focus ដែលមិនប្ដូរអ្វី ⇒ ត្រូវតែ FAIL។ ការគ្រប់គ្រង (អក្សរមិនកាត់, focus fill) ⇒ ត្រូវតែ pass | ៩/៩ ដូចរំពឹង |
+| Font ភ្ជាប់ពិត (គ្មាន fallback) | CDP `CSS.getPlatformFontsForNode` លើគ្រប់ node អក្សរ: font ពិតដែល Chromium គូរ ត្រូវតែជា Kantumruy Pro / Outfit / JetBrains Mono | ០ fallback |
+| ខ្មែរមិនកាត់ (បញ្ឈរ) | Pixel: គូរអក្សរ បន្ទាប់មកគូរម្ដងទៀតដោយធ្វើឱ្យអក្សរថ្លា ⇒ ភាពខុសគ្នាគឺ ink ពិតរបស់អក្សរនោះ (មិនមែនរបស់ធាតុផ្សេង)។ ពេលនោះប្រអប់ `overflow:hidden/clip` ទាំងអស់ត្រូវដាក់ visible។ បើ ink ណាលើស ឬទាបជាងប្រអប់ ⇒ FAIL | ០ |
+| កាត់ផ្ដេក | `scrollWidth > clientWidth`: អនុញ្ញាតតែ ellipsis ដែលមាន `title` ពេញ (អាចមើលអត្ថបទពេញ) | ០ (ellipsis មាន title) |
+| គ្មាន glow/outline (ច្បាប់ ៨) | គ្រប់ធាតុ + `::before/::after`: border 0, outline none, box-shadow តែពណ៌ខ្មៅ និងគ្មាន inset ring, text-shadow none, គ្មាន drop-shadow; ទាំងធម្មតា និង forced-colors | ០ |
+| Focus មើលឃើញ (D6) | ចុច Tab ពិត ហើយនៅ stop នីមួយៗ ថតរូបពេល focus, blur, ថតរូបពេល rest (មិនខូចពេល scroll), focus វិញ។ Pixel ដែលប្ដូរ contrast ≥ 3:1 ត្រូវ ≥ `4×(w+h)` (ផ្ទៃ perimeter 2 CSS px, WCAG 2.4.13)។ FAIL ពេល: មិនដល់, ធាតុ focus ចេញក្រៅអេក្រង់, គ្មាន tab stop, ឬ Tab ដល់ ៨០ | ឆ្លងគ្រប់ប៊ូតុង/ជួរ/tab/toggle (ក្រៅពី field មើលខាងក្រោម) |
+| Windows high contrast | Chromium `forcedColors: active` | rules 0, focus ឆ្លងដូចគ្នា |
+
+**ដែនកំណត់ដែលត្រូវដឹង (council):** `deviceScaleFactor` ធ្វើត្រាប់ DPI ប៉ុណ្ណោះ មិនមែនការ scale របស់ Windows ក្នុង WebView2 ទេ ហើយ forced-colors ក៏ជាការធ្វើត្រាប់របស់ Chromium មិនមែន theme contrast ពិតរបស់ Windows ដែរ។ ទាំងពីរត្រូវសាកលើ app ពិតក្នុង P1 (R4, R5)។ "69/69" គឺជាភស្តុតាងលើ mockup មិនមែនជាការបញ្ជាក់ WCAG conformance ទេ។
+
+**Field** (search, ឈ្មោះឯកសារ, ថត) ត្រូវបានវាស់ ប៉ុន្តែមិនរាប់ជា pass/fail ទេ (heuristic)។ ការប្ដូរ contrast ខ្លាំងបំផុតពេល focus: ងងឹត 1.2–2.6:1, ភ្លឺ 1.2–18.9:1 (ភ្លឺខ្ពស់ព្រោះ label ប្ដូរពណ៌), HC 21:1។ នេះមកពីច្បាប់ §06 (fill .04→.10 + label/caret accent) ដែល **ខ្សោយក្នុង theme ងងឹត**។ មើលសំណួរ Q2។
+
+### អ្វីដែល check រកឃើញ ហើយកែរួច
+
+1. **ជើងខ្មែរជាន់គ្នាត្រូវកាត់ 1–1.5 px** (ឧ. "តន្ត្រី", "គ្មានបណ្ដាញ", "ក្នុងជួររង់ចាំ") នៅក្នុងអត្ថបទមួយបន្ទាត់ដែលមាន ellipsis។ Check ចាស់ (canvas measureText) មិនបានឃើញទេ ប៉ុន្តែ check pixel ឃើញ ⇒ ជួសជុលដោយ `padding-block: .2em` លើអត្ថបទមួយបន្ទាត់ដែលកាត់។
+2. **"⇒" គូរដោយ Cambria Math** (មិនមែន font ភ្ជាប់) ⇒ ប្ដូរជា "·"។ **អក្សរខ្មែរក្នុងប្រអប់ mono គូរដោយ Leelawadee UI** ⇒ stack mono = JetBrains Mono, GDM Khmer។
+3. Focus ធាតុ selected (2.8–3.0:1) និងប៊ូតុង/tab/toggle gradient (≈1:1) ⇒ token `--focus-strong` (fill ផ្ទុយ ស/ខ្មៅ)។ ការណែនាំ §06 ចាស់ "accent-grad-hover + underline" មិនដល់ 2.4.13 ទេ។
+4. High contrast: ធាតុ Highlight រួចហើយបាត់ focus ⇒ ប្ដូរគូ `Highlight`/`HighlightText`; toggle off (GrayText ធៀប Highlight មិនធានា) ⇒ track ជិត Canvas + thumb CanvasText; field ⇒ wrapper Highlight ពេលវាយ។
+5. Modal: Tab រត់ទៅខាងក្រោយ ⇒ `inert`។ Field ចុងក្រោយក្នុង Settings focus ជាប់គែម window ⇒ `scroll-padding-block`។ Ellipsis ស្ថានភាព/URL គ្មាន `title` ⇒ បន្ថែម។
+
+### ការប្ដូរពី §06 ដែលម្ចាស់ត្រូវដឹង
+
+- **ដក `--hi-top`** (inset highlight 1 px ខាងលើ card/ប៊ូតុង)។ ច្បាប់ ៨ ហាម keyline ហើយបន្ទាត់ 1 px នេះអាចត្រូវមើលឃើញជា keyline ដូច្នេះខ្ញុំដកវាចេញ ដើម្បីកុំឱ្យខុសច្បាប់។
+- **Theme ភ្លឺ** មាន token ផ្ទាល់ខ្លួន។ Lime `#b5e61d` មាន contrast ត្រឹម 1.4:1 លើផ្ទៃស ⇒ របារ "បញ្ចប់" ក្នុង theme ភ្លឺប្រើ `#4f8c0b`។
+- **Focus = fill ផ្ទុយ** សម្រាប់ធាតុ gradient និងធាតុ selected។
+- **របារ 3 px នៅគែមឆ្វេងនៃជួរ selected** នៅតែរក្សាទុក ព្រោះ §06 ដែលម្ចាស់អនុម័តសរសេរវាច្បាស់ ("fill មិនមែនបន្ទាត់ព័ទ្ធជុំវិញ")។ Council ជុំ ១ ចាត់វាជា keyline ប៉ុន្តែក្នុងជុំ ២ បានយល់ព្រមថាវាមិនមែនជា outline ព័ទ្ធជុំវិញទេ។ ការពន្យល់របស់ខ្ញុំ: វាជា fill នៅគែមម្ខាង មិនមែនជា stroke ព័ទ្ធជុំវិញទេ។ មើលសំណួរ Q3។
+
+### សំណួរទៅម្ចាស់
+
+- **Q1. ព្រំដែនក្នុង high contrast:** ក្នុង Windows HC ប៊ូតុង និង field គ្មានព្រំដែនទេ (មើល `main-en-highcontrast.png`: ប៊ូតុង "Add" និង search បង្ហាញតែអក្សរ)។ អ្នកប្រើ HC ជាធម្មតាពឹងលើ border ប្រព័ន្ធ (`ButtonText`)។ តាមច្បាប់ ៨ ខ្ញុំមិនបានបន្ថែមទេ។ **អនុញ្ញាត border ប្រព័ន្ធតែក្នុង forced-colors ឬទេ?**
+- **Q2. Field focus ក្នុង theme ងងឹត:** ការប្ដូរពេល focus ត្រឹម 1.2–2.6:1។ ជម្រើស (ក) រក្សាតាម §06: fill .10 + label/caret accent (ស្រាល តែខ្សោយ)។ ជម្រើស (ខ) field ពេល focus ប្រើ plate .40 ដូចប៊ូតុង (ឃើញច្បាស់ អក្សរពណ៌សលើវា 5.31:1 តែធ្ងន់ជាង)។ ខ្ញុំណែនាំ (ខ)។
+- **Q3.** របារ 3 px នៃជួរ selected: រក្សាទុក ឬដកចេញ (ទុកតែ wash)?
+- **Q4.** Windows 10 22H2: "ដំណើរការបាន, មិនសន្យា" (អនុសាសន៍) ឬមិនគាំទ្រ (ផ្នែក ៣)?
+- **Q5.** ការប្ដូរ scope P1 ៣ ចំណុច (ផ្នែក ៣ ចុងក្រោយ): យល់ព្រម?
+
+## ២. ច្បាប់ design ម្ចាស់ (D6)
+
+គ្មាន glow, គ្មាន border/outline/ring នៅកន្លែងណាមួយ (check ស្វ័យប្រវត្តិ 0, self-test បញ្ជាក់ថា check ចាប់កំហុសទាំងនោះបាន)។ Focus ប្រើតែ fill/ពណ៌: `--focus-plate` (ធាតុធម្មតា), `--focus-strong` (gradient/selected), `Highlight`/`HighlightText` (high contrast)។ ពិនិត្យ focus រួចក្នុង theme ទាំងពីរ និង forced-colors (ការធ្វើត្រាប់)។ Check CSS មិនអាចបញ្ជាក់ "គ្មាន keyline ដែលមើលឃើញ" ពេញលេញទេ ⇒ ម្ចាស់មើលរូបក្នុង `gallery.html`។
+
+## ៣. វិសាលភាព P1 ដែលបង្កក
+
+### Windows និង architecture
+
+| អ្វី | ស្នើ | ភស្តុតាង / ស្ថានភាព |
+|---|---|---|
+| Windows 11 x64 | **គាំទ្រ, តេស្ត** | G2 ឆ្លងលើ 26H2 build 26300.9711 |
+| Windows 11 arm64 | **គាំទ្រ (§15 build x64 + arm64)** | គ្មានម៉ាស៊ីន arm64 សាក ⇒ R3 |
+| Windows 10 22H2 x64 | **ម្ចាស់សម្រេច (Q4)** | G2 #19 NOT RUN (គ្មាន VM)។ Microsoft បញ្ចប់ការគាំទ្រ Windows 10 ថ្ងៃ 2025-10-14 ហើយ ESU សម្រាប់អ្នកប្រើធម្មតាផុតនៅ 2026-10-13។ Persona ១ (laptop ចាស់) ប្រហែលនៅប្រើ Windows 10។ អនុសាសន៍: "ដំណើរការបាន, មិនសន្យា" + តេស្ត VM មួយដងក្នុង P1 |
+| WebView2 | Evergreen runtime (មានស្រាប់ក្នុង Windows 11; NSIS ដំឡើងបើខ្វះ) | Tauri 2 default |
+| Installer | **NSIS per-user** (ផ្លូវចម្បង G2) | G2 #4–#12 PASS |
+| MSIX / Store | **ផ្លាស់ទៅ P2** (§17 P2 មាន Store រួចហើយ) | G2 #17 BLOCKED, D8/D9 Store ពេលក្រោយ ⇒ ដក exit criteria P1 "MSIX ឆ្លង Store certification" |
+
+### ជួរ P1 ទាំង ៣២ នៃ §04 និង acceptance test
+
+| # | មុខងារ | Acceptance test (ត្រូវរត់បាន, មាន evidence) |
+|---|---|---|
+| 1 | Dynamic segmentation | Fixture 1 GiB: ចាប់ 2 connection, កើនដល់ N ពេលល្បឿនកើន; split តែផ្នែក ≥ 1 MiB (log); hash ត្រូវ |
+| 2 | ពិនិត្យ seam/overlap | Hostile fixture `200-on-range`, Content-Range ខុស, gap/overlap, body ខ្លី, `416`, ETag ប្ដូរ ⇒ ផ្អាកជាមួយមូលហេតុ, មិនធ្លាក់ទៅ 1 connection ដោយស្ងាត់, hash មិនខុស (E-01, E-02) |
+| 3 | Connection 1–32 live | ប្ដូរ 8⇒2⇒16 ពេលកំពុងទាញ ⇒ socket ពិតតាម (log) ក្នុង ≤ 2 វិ, hash ត្រូវ |
+| 4 | Speed limiter | **P1: សរុប + job + toggle លើ tray** ⇒ វាស់ 60 វិ ក្នុង ±10% នៃកម្រិត។ ផ្នែក queue និងផែនការម៉ោង ⇒ P2 (ជាមួយ queue) |
+| 5 | Resume ក្រោយ crash | `TerminateProcess` នៅចំណុចកំណត់ (មុន/ក្រោយ write, flush, DB commit, rename) 1000 ដង ⇒ 0 ឯកសារខូច (E-04)។ មិនមែនជាការធ្វើត្រាប់ដាច់ភ្លើងទេ (power loss មិនត្រូវបានសាក) |
+| 6 | Validator ខ្លាំងពេល resume | Fixture ETag/Last-Modified ប្ដូរ ⇒ សួរ [ចាប់ផ្ដើមឡើងវិញ] [រក្សា]; គ្មាន validator ⇒ "មិនបានផ្ទៀងផ្ទាត់"; គ្មាន Complete ខុស (E-02) |
+| 7 | HTTP/1.1, HTTP/2, HTTPS | Fixture h1 + h2 ⇒ ទាញបាន; badssl expired/wrong-host/self-signed ⇒ បរាជ័យ (W-03); CA ក្រុមហ៊ុនក្នុង Windows store ⇒ ទទួល (`rustls-platform-verifier`) |
+| 8 | User-Agent | Fixture កត់ header: UA សកល និង UA តាម site ត្រូវតាមការកំណត់ |
+| 9 | .part / temp folder | `.part` ក្នុងថតគោលដៅ ⇒ rename atomic; temp folder នៅ volume ផ្សេង ⇒ copy + flush + rename លើ volume គោលដៅ; disk ពេញ / ឯកសារត្រូវ lock / crash ពេល finalise ⇒ គ្មានឯកសារពាក់កណ្ដាលដែលមានឈ្មោះចុងក្រោយ; ជាន់ឈ្មោះ ⇒ ឈ្មោះថ្មី (N-04) |
+| 10 | Hash verify | `.sha256`/`.sha512` ពី origin ដដែល ⇒ ✓; hash ខុស ⇒ "ផ្ទៀងផ្ទាត់មិនត្រូវ", មិនបង្ហាញ Complete |
+| 11 | Chrome, Edge, Firefox, Opera, Brave, Vivaldi | Host manifest ចុះឈ្មោះគ្រប់ទីតាំង (B-07) ⇒ `sendNativeMessage` ពី browser នីមួយៗ ok (G2 បញ្ជាក់ Chrome/Edge/Firefox រួច; Opera/Brave/Vivaldi ត្រូវបន្ថែម); sender ក្លែង ⇒ បដិសេធ (B-01) |
+| 12 | ចាប់តាមប្រភេទឯកសារ | 20 គេហទំព័រពិត (Reddit, Synology, Google Docs export) ⇒ 0 ចាប់ខុស (C-01); MIME + ទំហំអប្បបរមា |
+| 13 | បញ្ជីលើកលែង site | "កុំចាប់គេហទំព័រនេះ" មួយចុចក្នុង popup ⇒ ការទាញបន្ទាប់ពី site នោះទុកឱ្យ browser |
+| 14 | Ctrl+click / Alt+click | Ctrl ⇒ GDM ទាញ; Alt ⇒ browser ទាញ; rebind ក្នុង Settings (C-04); បង្ហាញក្នុង onboarding (mockup ✓) |
+| 15 | Context menu ទាញ / ទាញ link ទាំងអស់ | ទំព័រ fixture 50 link ⇒ preview បញ្ជី ⇒ ជ្រើស ⇒ job ត្រឹមត្រូវ |
+| 16 | Incognito | ទាញពី incognito ⇒ គ្មានដាននៅក្នុង DB, log, toast/notification history, ឯកសារ crash-recovery ក្រោយបញ្ចប់ (C-05) |
+| 17 | Toggle ចាប់លើ icon extension | Popup: ស្ថានភាព, បិទការចាប់, ថ្មីៗ, គេហទំព័រនេះ; បិទ ⇒ 0 handoff |
+| 18 | ប៊ូតុង "Browsers" ដំឡើង extension | Onboarding + Settings បង្ហាញ browser ដែលរកឃើញ ហើយស្ថានភាពប្ដូរជា "បានភ្ជាប់" ពេល hello (mockup ✓) |
+| 19 | Category: ថត, ប្រភេទ, site pattern | .zip ⇒ ថត Compressed; site pattern ⇒ ថតកំណត់; "ចងចាំថត" ⇒ ប្រើលើកក្រោយ |
+| 20 | Tree + ស្វែងរក FTS | 10 000 ជួរ ⇒ ស្វែងរកឈ្មោះ/URL (ខ្មែរ + ឡាតាំង) < 100 ms |
+| 21 | Drag-drop link / drop basket | អូស link ពី browser ទៅ window ⇒ Download Info; basket តូចលើ desktop ទទួល drop |
+| 22 | Download Info | ទាញភ្លាមពេលផ្ទាំងបើក (bytes > 0 មុនចុច Start); [បោះបង់] ⇒ លុប `.part` ដែលទាញទុកមុន; [ទាញពេលក្រោយ] ⇒ **បញ្ជី "ពេលក្រោយ" តែមួយ គ្មាន scheduler** (ចុចចាប់ផ្ដើមដោយដៃ; queue ពិត P2); ផ្ទាំងរួមពេលមានច្រើន (C-03); focus ចូល modal ពេលបើក ហើយត្រឡប់វិញពេលបិទ។ Preview zip ⇒ P3 |
+| 23 | Progress: connection, segment bar, limiter | Details pane + ទម្រង់ mini (360×140) បង្ហាញ segment ពិត, ល្បឿន, limiter |
+| 24 | Complete: បើក, ថត, អូសឯកសារចេញ | Toast មានសកម្មភាព; ឯកសារគ្រោះថ្នាក់គ្មាន [បើក]; អូសពី toast ទៅ Explorer ⇒ ចម្លង |
+| 25 | Silent mode | 0 toast/dialog ក្នុងការទាញ 10 ឯកសារ; **ការសម្រេចដែលត្រូវការ (validator ប្ដូរ, login) មិនត្រូវលាក់ទេ** ⇒ បង្ហាញជាស្ថានភាពជួរ (គ្មាន modal) |
+| 26 | Properties | កែ URL/ថត/description ⇒ រក្សាទុក; **login តាម site ⇒ P2** (ជាមួយ Credential Manager) |
+| 27 | Column បង្ហាញ/លាក់/រៀប/តម្រៀប | ការកំណត់នៅដដែលក្រោយ restart |
+| 28 | លុបជាមួយឯកសារ | ឯកសារទៅ Recycle Bin (មិនលុបជាស្ថាពរ) |
+| 29 | Tray menu | limiter, ផ្អាកទាំងអស់, បើក/ចេញ; queue ⇒ P2 |
+| 30 | Dark mode | ផ្ទាំងទាំងអស់មាន theme ទាំងពីរ; `design/check.cjs` ឆ្លងលើ UI ពិត (Playwright + WebView2) |
+| 31 | ភាសា (ខ្មែរ + EN) | គ្មាន string hard-code (lint); check pixel ខ្មែរ 100/125/150% គ្មាន clip; អ្នកអានខ្មែរពិនិត្យ glossary |
+| 32 | Update / licence / ចែករំលែក | Updater minisign: manifest ក្លែង/សញ្ញាខុស/version ចាស់ ⇒ បដិសេធ (U-01); About បង្ហាញ RPL Exhibit B + ប៊ូតុងចែករំលែក link |
+
+### កាត critical/high ដែល P1 ត្រូវឆ្លង (exit criteria §17)
+
+៣២ កាតក្នុង F01–F05, F12–F17 (ពីសរុប 96 កាត): B-01, B-02, B-03, B-04, B-09, C-01, C-02, E-01, E-02, E-03, E-04, N-01, N-02, N-03, N-04, N-05, N-09, W-01, W-02, W-03, D-01, U-01, U-02, U-03, U-06, X-01, X-02, T-01, P-01, S-01, S-02, S-03។ Test នីមួយៗយកពី field `test` នៃកាតក្នុង `docs/blueprint/scenarios.py`។
+
+### ការប្ដូរ scope ដែលស្នើ (ម្ចាស់សម្រេច)
+
+1. MSIX + Store certification ⇒ ចេញពី P1 exit ទៅ P2 (G2 #17)។
+2. Limiter ផ្នែក queue/ម៉ោង, tray queue, login ក្នុង Properties ⇒ P2 ព្រោះ queue និង site logins ជា P2 ក្នុង §04 រួចហើយ។ P1 "ទាញពេលក្រោយ" = បញ្ជីតែមួយគ្មាន scheduler។
+3. TLS: `rustls-platform-verifier` (ជម្រើសតែមួយ, Windows cert store) មិនមែន `webpki-roots` (ផ្នែក ៤)។ Feature graph ពិតត្រូវផ្ទៀងផ្ទាត់ក្នុង P1។
+
+## ៤. Dependency និង licence inventory
+
+### Rust: `deny.toml` (cargo-deny 0.20.2)
+
+Allow: MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib, Unicode-3.0, OFL-1.1, MPL-2.0 (តាមបញ្ជីម្ចាស់; ខ្ញុំដក "Apache-2.0 WITH LLVM-exception" ចេញវិញ ព្រោះមិនមាន crate ណាត្រូវការ ហើយវាមិននៅក្នុងបញ្ជីម្ចាស់)។ អ្វីផ្សេងទៀតត្រូវបដិសេធ (GPL/AGPL/LGPL/SSPL និង licence មិនស្គាល់)។ Exception: crate GDM ខ្លួនឯង (RPL-1.5, តាមឈ្មោះ)។ Sources: crates.io តែប៉ុណ្ណោះ (គ្មាន git/registry ផ្សេង)។ Targets: x64 + arm64 Windows។
+
+| Manifest | ពាក្យបញ្ជា | លទ្ធផល |
+|---|---|---|
+| `src-tauri/Cargo.toml` (app) | `cargo deny --manifest-path src-tauri/Cargo.toml --config deny.toml check` | **advisories ok, bans ok, licenses ok, sources ok**។ MIT 197, Apache-2.0 150, Unicode-3.0 19, Zlib 5, BSD-3 4, **MPL-2.0 5** (cssparser, cssparser-macros, dtoa-short, option-ext, selectors: មកពី Tauri ⇒ D18 ត្រូវការពិត)។ 0BSD/CC0/MIT-0/Unlicense លេចតែជាជម្រើស "OR" ⇒ ប្រើ MIT |
+| Negative test (scratchpad crate ពឹងលើ `sequoia-openpgp`) | `check licenses` | **FAILED ដូចរំពឹង**: `LGPL-2.0-or-later` (buffered-reader …) ត្រូវបដិសេធ |
+| `spikes/engine/Cargo.toml` (reqwest/rustls ដែល P1 នឹងប្រើ) | `check licenses` | **FAILED**: `webpki-roots` = **CDLA-Permissive-2.0** (ទិន្នន័យ CA ពី Mozilla) តាម `reqwest` feature `rustls-tls` (+ crate spike RPL-1.5 មិននៅក្នុង exception ព្រោះ spike មិនចែកចាយ) |
+| `spikes/distribution/bridge/Cargo.toml` | `check licenses` | **FAILED**: `webpki-roots` (តាម `ureq`) + crate spike គ្មាន license field |
+
+**ការសម្រេចដែលស្នើ:** មិនបន្ថែម CDLA-Permissive-2.0 ទេ។ P1 engine ប្រើ `reqwest` + `rustls-platform-verifier` (Windows cert store)។ វិធីនេះត្រូវនឹង §09 ("rustls + platform verifier") ហើយ CA ក្រុមហ៊ុនរបស់ persona ២ ក៏ដំណើរការផងដែរ។ G2 finding ៦ ស្នើរួចហើយថា bridge ពិតមិនត្រូវការ HTTP ដូច្នេះ `webpki-roots` ក្នុង bridge នឹងបាត់ទៅវិញដោយខ្លួនឯង។
+
+**MPL-2.0 "មិនកែប្រែ":** cargo-deny មិនអាចបញ្ជាក់រឿងនេះបានទេ (council)។ ច្បាប់ P1: គ្មាន `[patch]`, path dependency ឬ vendored copy នៃ crate MPL (បច្ចុប្បន្ន 0) ហើយ `Cargo.lock` checksum ពី crates.io ត្រូវរក្សា។ ពេលចែកចាយ executable, MPL §3.2 តម្រូវឱ្យប្រាប់អ្នកទទួលពីរបៀបទទួល source ⇒ THIRD-PARTY-NOTICES ត្រូវមានឈ្មោះ crate MPL + version + link crates.io។
+
+### npm: `pnpm licenses list` (pnpm 11.15.0)
+
+| ប្រភេទ | លទ្ធផល |
+|---|---|
+| Production (ចូលក្នុង app) | react, react-dom, scheduler (MIT); @tauri-apps/api, @tauri-apps/plugin-opener (MIT OR Apache-2.0) ⇒ **ok** |
+| Dev (មិនចែកចាយ) | MIT 13, Apache-2.0 2 (typescript, detect-libc), MPL-2.0 1 (lightningcss), ISC 1, BSD-3 1 ⇒ ok |
+| Design assets ថ្មី | Kantumruy Pro, Outfit, JetBrains Mono (OFL-1.1, អត្ថបទ licence ក្នុង `design/fonts/OFL-*.txt`); Phosphor (MIT, `design/mockups/LICENSE-phosphor.txt`) |
+
+ខ្ញុំប្រើ `pnpm licenses list` ដែលមានស្រាប់ក្នុង pnpm ជំនួស `license-checker` ព្រោះ repo ប្រើ pnpm ហើយ license-checker អាន `node_modules` ដែលជា symlink របស់ pnpm មិនបានល្អ។
+
+### ផែនការ THIRD-PARTY-NOTICES (P1, ក្នុង release CI)
+
+1. Rust: `cargo about generate` (មិនទាន់ដំឡើង: `cargo install cargo-about --locked`) ជាមួយ accepted list ដូច `deny.toml` ⇒ អត្ថបទ licence ពេញ + notice Apache §4 + MPL §3.2 (ទីតាំង source)។
+2. npm: `pnpm licenses list --prod --json` ⇒ script តូចភ្ជាប់អត្ថបទ LICENSE ពី `node_modules`។
+3. Font + icon: ចម្លង `OFL-*.txt` និង Phosphor MIT ដោយផ្ទាល់។
+4. Component ដែលទាញពេលដំណើរការ (**មិន bundle**): yt-dlp (Unlicense; binary មានផ្នែក GPLv3+) ពី `github.com/yt-dlp/yt-dlp/releases` និង ffmpeg **BtbN FFmpeg-Builds `win64-lgpl`** ពី GitHub។ ទាំងពីរទាញទៅ `%LOCALAPPDATA%\GDM\components` តាម manifest ចុះហត្ថលេខា minisign + sha256 (G2 #10, #11 PASS) ហើយរត់ជា process ដាច់ (មិន link)។ THIRD-PARTY-NOTICES កត់ URL, version និង sha256 ប៉ុន្តែមិនចែកចាយ binary ទេ។ មុនបើកមុខងារវីដេអូ (P2) ត្រូវ pin artifact ពិតប្រាកដ និង audit licence/configure flags (គ្មាន `--enable-gpl`)។ ការរត់ជា process ដាច់មិនដោះស្រាយកាតព្វកិច្ចចែកចាយទាំងអស់ដោយខ្លួនឯងទេ (council)។
+
+## ៥. ការប៉ាន់ស្មាន P1 ឡើងវិញ (បឋម, មិនទាន់គ្រប់)
+
+§17: P1 = **8 សប្ដាហ៍** (អ្នកអភិវឌ្ឍម្នាក់ពេញម៉ោង)។
+
+| ការប្ដូរ | សប្ដាហ៍ | ភស្តុតាង |
+|---|---|---|
+| MSIX/Store ចេញពី P1 | −1.0 | G2 #17 BLOCKED, D8/D9 |
+| Installer ខ្មែរ: LangDLL font, បកប្រែ ~250 ឃ្លា, BOM, អ្នកអានពិនិត្យ | +0.5 | G2 #13, finding ៣–៥ |
+| Upgrade ខណៈ host រត់ + update idle (U-02) មិនទាន់សាក | +0.5 | G2 finding ២ |
+| ការតេស្តលើ Windows 10 VM និង arm64 (គ្មានឧបករណ៍) | +0.5 | G2 #19, ផ្នែក ៣ |
+| TLS platform verifier ជំនួស webpki-roots | +0.2 | ផ្នែក ៤ |
+| Opera/Brave/Vivaldi + browser fork (B-07) | +0.3 | ផ្នែក ៣ ជួរ 11 |
+| ៣២ កាត critical/high (fuzz 24 ម៉ោង, kill ×1000, matrix MOTW) | +1.0 | §17 exit; ពេលវេលា CI/test ដែល §17 មិនបានរាប់ |
+| UI ពិត (component, keyboard, modal focus lifecycle, grid/tab semantics, check.cjs លើ WebView2) | 0 | Mockup មិនមែនជា component ទេ ⇒ មិនកាត់ពេល (council) |
+| **G3 engine evidence (segmenter, benchmark vs IDM)** | **?** | **G3 មិនទាន់សរសេរ ⇒ មិនទាន់ដឹង** |
+
+**សរុបបឋម: ≈ 10 សប្ដាហ៍ (ចន្លោះ 9.5–11.5)** មុនបញ្ចូល G3។ ការប៉ាន់ស្មាននេះមិនទាន់គ្រប់ ហើយមិនមែនជាការសន្យាទេ។ មានតែ exit criteria ទេដែលជាការសន្យា (§17)។ ត្រូវកែម្ដងទៀតពេល G3 មានលទ្ធផល ជាពិសេសលទ្ធផល benchmark ល្បឿនធៀប IDM (P1 exit: ≥ IDM −5%)។
+
+## ៦. ហានិភ័យដែលនៅបើក
+
+| # | ហានិភ័យ | ផលប៉ះពាល់ | ការធ្វើ / បិទពេល |
+|---|---|---|---|
+| R1 | G3 មិនទាន់មានលទ្ធផល/council | ការប៉ាន់ស្មាន និងការបិទ P0 រង់ចាំ | បញ្ចប់ G3 ⇒ council ⇒ កែផ្នែក ៥ |
+| R2 | Windows 10 មិនបានសាក; ស្ថានភាពគាំទ្រ | Persona ១ (laptop ចាស់) | ម្ចាស់សម្រេច Q4 + VM តេស្ត |
+| R3 | arm64 គ្មានឧបករណ៍សាក | build ចេញ តែមិនបានរត់ពិត | arm64 VM/ឧបករណ៍ ឬចេញ arm64 ជា "preview" |
+| R4 | Check HC ជាការធ្វើត្រាប់ Chromium | Windows HC ពិត (WebView2) អាចខុស | សាក theme contrast ពិត ៤ (Aquatic, Desert, Dusk, Night sky) លើ UI ពិតក្នុង P1 |
+| R5 | Mockup ជា HTML; scale ធ្វើត្រាប់ដោយ deviceScaleFactor | Windows scaling/WebView2 zoom និងទំហំ window អប្បបរមាមិនទាន់សាក | រត់ `check.cjs` លើ app ពិតក្នុង P1 CI + សាក 100/125/150% ពិត |
+| R6 | អត្ថបទខ្មែរក្នុង mockup សរសេរដោយ Claude | §05 គោលការណ៍ ៦ (គ្មានការបកប្រែម៉ាស៊ីន) | អ្នកអានខ្មែរពិនិត្យ glossary មុន v0.9 |
+| R7 | HC គ្មានព្រំដែនប៊ូតុង/field; field focus ងងឹតខ្សោយ | អ្នកប្រើ HC / keyboard | Q1, Q2 |
+| R8 | MSIX native messaging មិនទាន់បញ្ជាក់ | ផ្លូវ Store (P2) អាចត្រូវការផែនការ B | Spike ពេញមុន Store (G2 plan S1b) |
+| R9 | `webpki-roots` / CDLA | P1 build បរាជ័យ cargo-deny បើប្រើ reqwest default | Platform verifier (ផ្នែក ៤) |
+| R10 | Key ចុះហត្ថលេខា updater / extension store account / migration DB | បាត់ key ឬ account ⇒ update មិនបាន (U-03, S-03) | Drill ស្ដារ key + checklist release មុន v0.9 |
+| R11 | `src-tauri/Cargo.toml` `authors` មាន "CHHIT Sungchhay" ក្បែរ "Golden IQ" | ច្បាប់ ៥: author ត្រូវជា GoldenIQ ប៉ុណ្ណោះ (§14/§15 ក៏កត់ © Golden IQ និង CHHIT Sungchhay) | ម្ចាស់បញ្ជាក់ថាជាឈ្មោះម្ចាស់ខ្លួនឯង ឬត្រូវដក (ខ្ញុំមិនបានកែ) |
+
+## ៧. Council (G4 review, 2026-11-09)
+
+ChatGPT (Codex CLI, read-only) ពីរជុំ។ ខ្ញុំជាអ្នកដឹកនាំ ហើយបានផ្ទៀងផ្ទាត់គ្រប់ការអះអាងជាមួយកូដ ឬការរត់ពិត។
+
+- **ទទួលយក និងកែរួច:** ផ្ទៃ 2.4.13 ត្រូវជា `4×(w+h)` មិនមែន `2×(w+h)`; "visible<2.4.13" ត្រូវតែ FAIL; check `title` (`el.title !== undefined` តែងតែពិត); clip ដោយ ancestor; DPR ≠ Windows scaling; font fallback; field/toggle ក្នុង forced-colors; cargo-deny ត្រូវរត់គ្រប់ check; MPL §3.2; P1 "ពេលក្រោយ", silent mode, temp volume ផ្សេង, incognito, kill test; ដកការកាត់ −0.5 សប្ដាហ៍។ Check pixel ថ្មីបានរកឃើញការកាត់ជើងខ្មែរពិត ដែល check ចាស់មើលមិនឃើញ។
+- **Codex ដកចេញវិញនៅជុំ ២:** របារ 3 px មិនមែនជា outline ព័ទ្ធជុំវិញទេ (§06 អនុម័តរួច) ⇒ រក្សាទុក ហើយសួរម្ចាស់ (Q3)។
+- **កែការរចនាតាមជុំ ២:** pixel clip check ឥឡូវបែងចែក ink របស់អក្សរនីមួយៗ (គូរ/ថ្លា) និងមាន fixture ដែលដឹងចម្លើយ; ការវាស់ field ហៅថា "heuristic" មិនហៅថា "AA verified" ទេ។
+- **ទម្លាក់:** គ្មាន។ ការរកឃើញទាំងអស់មានភស្តុតាង។
+
+P0 exit council (ក្រោយ G3) ត្រូវធ្វើម្ដងទៀត ពេល G2+G3 ឆ្លង council រួច។

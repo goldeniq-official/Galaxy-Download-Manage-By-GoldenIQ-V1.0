@@ -1,0 +1,36 @@
+# cargo-deny policy (ADR-5, D18). Run: cargo deny --manifest-path src-tauri/Cargo.toml check
+# Anything not in `allow` is denied, so GPL/AGPL/LGPL/SSPL (and any unknown licence) fail the build.
+# MPL-2.0 is allowed only unmodified: no [patch] of an MPL crate (checked in review; see docs/p0/exit.md).
+
+[graph]
+targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "OFL-1.1",
+  "MPL-2.0",
+]
+confidence-threshold = 0.93
+# GDM itself is RPL-1.5 (LICENSE); only our own crates may carry it.
+exceptions = [
+  { crate = "galaxy-download-manager", allow = ["RPL-1.5"] },
+]
+
+[advisories]
+ignore = []
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
