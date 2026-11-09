@@ -31,12 +31,17 @@ the Chrome Web Store, Microsoft Edge Add-ons and Firefox Add-ons listings
 published by the Licensor, the Windows Package Manager (winget) entry published
 by the Licensor, and any other channel the Licensor names in writing.
 
-"Personal Use" means use by one natural person for their own private purposes,
-not for business or professional activities, on devices they own or control.
+"Personal Use" means use by one natural person, for any purpose of their own,
+on devices they own or control.
 
-"Commercial Purpose" means use for business or professional activities, use in
-exchange for money or other payment, and any sale, rental, advertising or
-service offered to others that uses the Work.
+"Internal Use" means use by a company, school, government body or other
+organisation, or by its staff, as a tool within its own operations, on devices
+it owns or controls, without offering the Work, or a service built on it, to
+others.
+
+"Commercial Purpose" means use in exchange for money or other payment, and any
+sale, rental, advertising or service offered to others that uses the Work.
+Personal Use and Internal Use are not Commercial Purposes.
 
 "Derivative Work" means an adaptation that incorporates protected expression
 from the Work, to the extent applicable copyright law recognises it. This
@@ -56,7 +61,8 @@ Subject to your compliance with this Licence, the Licensor grants You a
 personal, non-exclusive, non-transferable, non-sublicensable and free-of-charge
 licence to:
 
- (a) download, install and use the Official Build for Personal Use;
+ (a) download, install and use the Official Build, free of charge, for
+     Personal Use or Internal Use;
 
  (b) make the copies reasonably necessary to download, install, run, update,
      back up and restore the Official Build for permitted use, change its
@@ -74,8 +80,6 @@ any right outside that service, and they do not grant the rights reserved in
 Section 3.
 
 Any other use requires the Licensor's prior written permission (Section 6).
-This includes use by or for a company, school, government body or other
-organisation, unless Section 2A or a written permission allows it.
 
 2A. Platform terms. Some distribution platforms, such as the Microsoft Store,
 have customer terms that by law or contract cannot be narrowed by this Licence.
@@ -159,13 +163,13 @@ by the Licensor.
 
 Every use not allowed by Section 2 needs the Licensor's prior, explicit and
 written permission. This includes any modification, redistribution, commercial
-or organisational use, or reuse of any part of the Work.
+use, or reuse of any part of the Work.
 
 Permission is valid only when the Licensor gives it in writing, for example in
 a signed document or an email sent from the contact address below. It covers
 only the uses, people and period named in it. The Licensor may refuse
-permission, and may charge a fee for it, including for licences for
-organisational or commercial use.
+permission, and may charge a fee for it, including for commercial use
+or redistribution.
 
 Contact: Golden IQ — yr.goldeniq@gmail.com
 
