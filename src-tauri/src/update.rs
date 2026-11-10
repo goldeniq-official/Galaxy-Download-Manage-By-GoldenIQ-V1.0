@@ -96,7 +96,7 @@ pub fn vkey(v: &str) -> Option<(u64, u64, u64, u64)> {
     Some((a, b, c, p))
 }
 
-fn b64(s: &str) -> Option<Vec<u8>> {
+pub fn b64(s: &str) -> Option<Vec<u8>> {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = Vec::new();
     let (mut acc, mut bits) = (0u32, 0);
@@ -115,7 +115,7 @@ fn b64(s: &str) -> Option<Vec<u8>> {
 }
 
 /// key text (Tauri: base64 of "untrusted comment: ...\nRW...") -> minisign public key
-fn public_key(pubkey_b64: &str) -> Option<minisign_verify::PublicKey> {
+pub fn public_key(pubkey_b64: &str) -> Option<minisign_verify::PublicKey> {
     let txt = String::from_utf8(b64(pubkey_b64)?).ok()?;
     minisign_verify::PublicKey::from_base64(txt.lines().nth(1)?.trim()).ok()
 }

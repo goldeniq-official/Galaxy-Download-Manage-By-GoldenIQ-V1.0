@@ -158,7 +158,7 @@ impl Relay {
             (url::Url::parse(&format!("https://{target}/")).ok(), None)
         } else {
             match url::Url::parse(target) {
-                Ok(u) if u.scheme() == "http" => {
+                Ok(u) if u.scheme() == "http" && matches!(method, "GET" | "HEAD") => {
                     let path = match u.query() {
                         Some(q) => format!("{}?{q}", u.path()),
                         None => u.path().to_string(),
@@ -220,10 +220,19 @@ impl Relay {
                 up.write_all(h.as_bytes()).await?;
             }
         }
-        if !rest.is_empty() {
-            up.write_all(&rest).await?;
+        let tunnel = method == "CONNECT";
+        if tunnel {
+            if !rest.is_empty() {
+                up.write_all(&rest).await?;
+            }
+            let _ = tokio::io::copy_bidirectional(&mut s, &mut up).await;
+        } else {
+            // plain http: exactly one bodiless request went upstream; anything else the client sends on this
+            // connection is never forwarded (it would carry this relay's Proxy-Authorization); the response
+            // flows back, then both sides close
+            let _ = tokio::io::copy(&mut up, &mut s).await;
+            let _ = s.shutdown().await;
         }
-        let _ = tokio::io::copy_bidirectional(&mut s, &mut up).await;
         Ok(())
     }
 

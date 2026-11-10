@@ -5,6 +5,7 @@
 pub mod app;
 pub mod cli;
 pub mod clip;
+pub mod components;
 pub mod creds;
 pub mod hook;
 pub mod import;
