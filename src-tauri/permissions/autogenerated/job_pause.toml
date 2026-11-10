@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-job-pause"
+description = "Enables the job_pause command without any pre-configured scope."
+commands.allow = ["job_pause"]
+
+[[permission]]
+identifier = "deny-job-pause"
+description = "Denies the job_pause command without any pre-configured scope."
+commands.deny = ["job_pause"]

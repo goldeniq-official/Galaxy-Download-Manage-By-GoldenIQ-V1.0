@@ -41,4 +41,5 @@ features = [
 [dev-dependencies]
 gdm-fixture = { path = "../../fixtures/hostile" }
 rcgen = "0.14"
+rusqlite = { version = "0.41", features = ["bundled"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }

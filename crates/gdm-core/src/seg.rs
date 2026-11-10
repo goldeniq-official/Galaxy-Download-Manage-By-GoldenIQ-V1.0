@@ -14,7 +14,7 @@ use reqwest::{Client, Response, StatusCode};
 use std::collections::HashMap;
 use std::fs::File;
 use std::os::windows::fs::FileExt;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -75,6 +75,19 @@ pub struct Snapshot {
     pub segs: Vec<[u64; 3]>,
 }
 
+/// live view of a running job for the UI (polled; never persisted). `want_conns` 0 = automatic ramp.
+#[derive(Default, Debug)]
+pub struct Live {
+    /// bytes the writer has written (not yet necessarily flushed)
+    pub written: AtomicU64,
+    /// 0 = unknown length
+    pub total: AtomicU64,
+    pub conns: AtomicUsize,
+    pub want_conns: AtomicUsize,
+    /// [start, end exclusive, written] per segment
+    pub segs: std::sync::Mutex<Vec<[u64; 3]>>,
+}
+
 pub type Checkpoint<'a> = &'a mut (dyn FnMut(&Snapshot) -> Result<(), Fail> + Send);
 
 pub struct Request<'a> {
@@ -88,6 +101,7 @@ pub struct Request<'a> {
     pub resume: Option<Snapshot>,
     pub limit: Option<Arc<JobLimit>>,
     pub checkpoint: Checkpoint<'a>,
+    pub live: Option<Arc<Live>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -511,6 +525,16 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                 }
             },
             _ = tick.tick() => {
+                if let Some(l) = &rq.live {
+                    l.written.store(segs.iter().map(|s| s.written - s.start).sum(), Ordering::Relaxed);
+                    l.total.store(total.unwrap_or(0), Ordering::Relaxed);
+                    l.conns.store(segs.iter().filter(|s| s.worker.is_some()).count(), Ordering::Relaxed);
+                    *l.segs.lock().unwrap_or_else(|p| p.into_inner()) = segs.iter().map(|s| [s.start, s.end, s.written]).collect();
+                    // P1 #3: the user's live connection count replaces the ramp. Raising it spawns workers on the
+                    // next turn; lowering it stops new leases (running leases finish, never cut mid-chunk).
+                    let w = l.want_conns.load(Ordering::Relaxed);
+                    if ranged && w > 0 { target = w.clamp(1, MAX_CONNS); ramp_stopped = true; }
+                }
                 // ramp: +1 every 2 s while total speed rose >= 10 % since the last add (received bytes)
                 let rx = sh.rx_bytes.load(Ordering::Relaxed);
                 if ramp_bytes == 0 && rx == 0 { ramp_t = Instant::now(); }

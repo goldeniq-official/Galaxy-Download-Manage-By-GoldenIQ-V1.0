@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-job-allow-private"
+description = "Enables the job_allow_private command without any pre-configured scope."
+commands.allow = ["job_allow_private"]
+
+[[permission]]
+identifier = "deny-job-allow-private"
+description = "Denies the job_allow_private command without any pre-configured scope."
+commands.deny = ["job_allow_private"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-job-conns"
+description = "Enables the job_conns command without any pre-configured scope."
+commands.allow = ["job_conns"]
+
+[[permission]]
+identifier = "deny-job-conns"
+description = "Denies the job_conns command without any pre-configured scope."
+commands.deny = ["job_conns"]

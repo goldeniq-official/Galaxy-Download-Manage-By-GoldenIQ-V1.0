@@ -3,6 +3,7 @@
 //!
 //! `Engine::open` -> `Engine::add` (reserves a unique name, N-04) -> `Engine::run` (download, checkpoint,
 //! finalise). Every byte offset that reaches SQLite or the sidecar was flushed first (E-04).
+pub use reqwest;
 pub mod failpoint;
 pub mod finalize;
 pub mod fsx;
@@ -280,11 +281,23 @@ impl Engine {
 
     /// download (or resume) and finalise one job
     pub async fn run(&self, id: &str, unverified: Unverified, limit: Option<Arc<limiter::JobLimit>>) -> Result<Outcome, Fail> {
+        self.run_live(id, unverified, limit, None).await
+    }
+
+    /// `run` with a live progress view for the UI. Dropping the future pauses the job: nothing past the last
+    /// checkpoint is claimed (E-04); call `stopped` afterwards so the list does not show "downloading".
+    pub async fn run_live(
+        &self,
+        id: &str,
+        unverified: Unverified,
+        limit: Option<Arc<limiter::JobLimit>>,
+        live: Option<Arc<seg::Live>>,
+    ) -> Result<Outcome, Fail> {
         if !self.running.lock().unwrap_or_else(|p| p.into_inner()).insert(id.to_string()) {
             return Err(Fail::Io("this job is already running".into()));
         }
         let _guard = RunGuard(self, id.to_string());
-        let r = self.run_inner(id, unverified, limit).await;
+        let r = self.run_inner(id, unverified, limit, live).await;
         if let Err(f) = &r {
             let state = match f {
                 Fail::Blocked(_) => "blocked",
@@ -337,7 +350,13 @@ impl Engine {
         Ok(Some(Outcome { path: dir.path.join(&target), name: target, sha256: sha, protection: prot, unverified: job.unverified, transfer }))
     }
 
-    async fn run_inner(&self, id: &str, unverified: Unverified, limit: Option<Arc<limiter::JobLimit>>) -> Result<Outcome, Fail> {
+    async fn run_inner(
+        &self,
+        id: &str,
+        unverified: Unverified,
+        limit: Option<Arc<limiter::JobLimit>>,
+        live: Option<Arc<seg::Live>>,
+    ) -> Result<Outcome, Fail> {
         if self.st().read_only {
             return Err(Fail::Io("database is from a newer GDM: read-only".into()));
         }
@@ -442,7 +461,7 @@ impl Engine {
             self.st().save_checkpoint(id, &snap.final_url, snap.validator.as_deref(), snap.total, snap.epoch, &segs).map_err(Fail::Io)
         };
         let file = Arc::new(file);
-        let rq = seg::Request { url, creds, policy, file: file.clone(), free, resume, limit, checkpoint: &mut cp };
+        let rq = seg::Request { url, creds, policy, file: file.clone(), free, resume, limit, checkpoint: &mut cp, live };
         let done = seg::download(rq, self.cfg.clone()).await?;
         drop(file); // the writer thread has exited: this was the last handle
         failpoint::hit("before_finalizing");
@@ -474,6 +493,61 @@ impl Engine {
             unverified: done.validator.is_none(),
             transfer: done,
         })
+    }
+
+    pub fn is_running(&self, id: &str) -> bool {
+        self.running.lock().unwrap_or_else(|p| p.into_inner()).contains(id)
+    }
+
+    /// after a cancelled (paused) run: a job left "downloading" becomes "paused"; "finalizing" stays so the
+    /// next run reconciles the publication intent
+    pub fn stopped(&self, id: &str) -> Result<(), Fail> {
+        let j = self.job(id)?;
+        if j.state == "downloading" || j.state == "queued" {
+            self.st().set_state(id, "paused", None).map_err(Fail::Io)?;
+        }
+        Ok(())
+    }
+
+    /// remove a job from the list. An unfinished job's own .part and sidecar are deleted (a .part that is not
+    /// the file this job created is left alone, N-03); a finished file goes to the Recycle Bin only when asked
+    /// and only when it is still the file this job published.
+    pub fn remove(&self, id: &str, delete_file: bool) -> Result<(), Fail> {
+        if self.is_running(id) {
+            return Err(Fail::Io("pause the job first".into()));
+        }
+        let job = self.job(id)?;
+        if let Ok(dir) = fsx::Dir::open(&job.dir) {
+            let open = |leaf: &str| {
+                let mut r = dir.open_locked(leaf);
+                for _ in 0..50 {
+                    // a cancelled run's writer thread may still be closing its handle
+                    if !matches!(r, Err(fsx::FsError::Busy)) {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    r = dir.open_locked(leaf);
+                }
+                r
+            };
+            let ours = |leaf: &str| match (open(leaf), job.file_id.as_deref()) {
+                (Ok(f), Some(want)) => fsx::file_id(&f).map(fid_str).ok().as_deref() == Some(want),
+                _ => false,
+            };
+            if job.state == "complete" || job.state == "unprotected" {
+                if delete_file && ours(&job.name) {
+                    fsx::recycle(&dir.path.join(&job.name)).map_err(|e| Fail::Io(e.to_string()))?;
+                }
+            } else {
+                let part = format!("{}.part", job.name);
+                if ours(&part) {
+                    dir.delete(&part).map_err(|e| Fail::Io(e.to_string()))?;
+                }
+                let _ = dir.delete(&sidecar::leaf(&job.name));
+            }
+        }
+        self.creds.lock().unwrap_or_else(|p| p.into_inner()).remove(id);
+        self.st().delete_job(id).map_err(Fail::Io)
     }
 
     /// drop every committed offset of a job (database first, then its sidecar) before its bytes are replaced

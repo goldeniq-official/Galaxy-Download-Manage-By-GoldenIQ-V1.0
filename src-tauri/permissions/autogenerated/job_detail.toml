@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-job-detail"
+description = "Enables the job_detail command without any pre-configured scope."
+commands.allow = ["job_detail"]
+
+[[permission]]
+identifier = "deny-job-detail"
+description = "Denies the job_detail command without any pre-configured scope."
+commands.deny = ["job_detail"]
