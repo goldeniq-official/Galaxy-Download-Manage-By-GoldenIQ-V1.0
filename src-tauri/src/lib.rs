@@ -5,6 +5,7 @@
 pub mod app;
 pub mod cli;
 pub mod clip;
+pub mod creds;
 pub mod hook;
 pub mod import;
 pub mod os;
@@ -308,6 +309,22 @@ async fn refresh_candidate(app: A<'_>, id: String) -> R<Option<refresh::Candidat
 #[tauri::command]
 async fn refresh_decide(app: A<'_>, id: String, choice: String) -> R<String> {
     app.inner().clone().refresh_decide(&id, &choice).await
+}
+
+#[tauri::command]
+fn login_list(app: A) -> Vec<creds::SiteLogin> {
+    lock(&app.settings).site_logins.clone()
+}
+
+/// P-01: the password goes straight to Credential Manager; it is never returned to the WebView
+#[tauri::command]
+fn login_set(app: A, prefix: String, user: String, password: String) -> R<creds::SiteLogin> {
+    app.login_set(&prefix, &user, &password)
+}
+
+#[tauri::command]
+fn login_delete(app: A, id: String) -> R<()> {
+    app.login_delete(&id)
 }
 
 #[tauri::command]
@@ -788,7 +805,10 @@ pub fn run() {
             refresh_start,
             refresh_paste,
             refresh_candidate,
-            refresh_decide
+            refresh_decide,
+            login_list,
+            login_set,
+            login_delete
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();

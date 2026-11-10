@@ -44,6 +44,9 @@ const COMMANDS: &[&str] = &[
     "refresh_paste",
     "refresh_candidate",
     "refresh_decide",
+    "login_list",
+    "login_set",
+    "login_delete",
 ];
 
 fn main() {

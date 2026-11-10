@@ -745,6 +745,21 @@ impl Engine {
         Ok(())
     }
 
+    /// a site login applies to this job: `Authorization` for the job URL's origin only (memory, never persisted);
+    /// a browser Cookie the job already has is kept
+    pub fn set_authorization(&self, id: &str, url: &str, value: &str) -> Result<(), Fail> {
+        let u = url::Url::parse(url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        reqwest::header::HeaderValue::from_str(value).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        let e = c.entry(id.to_string()).or_insert_with(|| net::Creds { origin: Some(net::origin(&u)), headers: vec![] });
+        if e.origin != Some(net::origin(&u)) {
+            return Err(Fail::Forbidden("login for another origin".into()));
+        }
+        e.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+        e.headers.push(("Authorization".into(), value.to_string()));
+        Ok(())
+    }
+
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)
     pub fn creds_of(&self, id: &str) -> Vec<(String, String)> {
         self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).map(|c| c.headers.clone()).unwrap_or_default()

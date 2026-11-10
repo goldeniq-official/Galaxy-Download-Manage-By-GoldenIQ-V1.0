@@ -96,6 +96,8 @@ pub struct Settings {
     pub total_conns: usize,
     /// per-server connection limits (IDM "Exceptions"): host pattern (`*.example.com`) -> connections
     pub host_limits: Vec<HostLimit>,
+    /// site logins (P-01): address prefix + user; the password is in Credential Manager only
+    pub site_logins: Vec<crate::creds::SiteLogin>,
     /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
     pub sounds: HashMap<String, String>,
 }
@@ -135,6 +137,7 @@ impl Default for Settings {
             quota_hours: 1,
             total_conns: gdm_core::TOTAL_CONNS,
             host_limits: vec![],
+            site_logins: vec![],
         }
     }
 }
@@ -292,7 +295,7 @@ impl App {
         let mut cur = serde_json::to_value(&*lock(&self.settings)).map_err(|e| e.to_string())?;
         for (k, v) in p {
             // paths, hooks (Q-01) and updater state are never set through this command
-            if matches!(k.as_str(), "download_dir" | "highest_seen" | "last_check" | "update_failures" | "hooks") {
+            if matches!(k.as_str(), "download_dir" | "highest_seen" | "last_check" | "update_failures" | "hooks" | "site_logins") {
                 continue;
             }
             cur[k] = v;
@@ -310,6 +313,7 @@ impl App {
         {
             let old = lock(&self.settings);
             s.hooks = old.hooks.clone();
+            s.site_logins = old.site_logins.clone();
             // a sound is off, a built-in one, or the WAV already picked in the file dialog (never a path from the UI)
             for (ev, v) in s.sounds.iter_mut() {
                 let keep = v.is_empty() || v.strip_prefix("system:").is_some_and(|a| crate::os::SYSTEM_SOUNDS.contains(&a));
@@ -426,6 +430,7 @@ impl App {
         }
         let queue = lock(&self.engine.store).queue_of(id);
         let qb = queue.and_then(|q| lock(&self.qbuckets).get(&q).cloned());
+        self.apply_login(id);
         let mut runs = lock(&self.runs);
         if runs.contains_key(id) {
             return;
@@ -505,6 +510,52 @@ impl App {
         while q.len() > 20 {
             q.pop_front();
         }
+    }
+
+    /// P-01: a site login for the job's address => Authorization for that origin (password from Credential
+    /// Manager, held in memory for this run only)
+    pub fn apply_login(&self, id: &str) {
+        let Ok(j) = self.engine.job(id) else { return };
+        let url = j.final_url.clone().unwrap_or(j.url.clone());
+        let l = crate::creds::matching(&lock(&self.settings).site_logins, &url).cloned();
+        if let Some(l) = l {
+            if let Some((user, pass)) = crate::creds::load(&l.id) {
+                let _ = self.engine.set_authorization(id, &url, &crate::creds::basic(&user, &pass));
+            }
+        }
+    }
+
+    /// add or replace the login for a prefix (the password goes to Credential Manager, never to settings)
+    pub fn login_set(&self, prefix: &str, user: &str, password: &str) -> Result<crate::creds::SiteLogin, String> {
+        let prefix = crate::creds::norm_prefix(prefix).ok_or("bad-url")?;
+        if user.is_empty() || user.len() > 256 || user.contains(':') || user.chars().any(|c| c.is_control()) || password.len() > 1024 {
+            return Err("bad-login".into());
+        }
+        let id = {
+            let s = lock(&self.settings);
+            s.site_logins.iter().find(|l| l.prefix == prefix).map(|l| l.id.clone()).unwrap_or_else(|| {
+                let n = (1..).find(|n| !s.site_logins.iter().any(|l| l.id == format!("l-{n}"))).unwrap_or(1);
+                format!("l-{n}")
+            })
+        };
+        crate::creds::save(&id, user, password)?;
+        let l = crate::creds::SiteLogin { id: id.clone(), prefix, user: user.to_string() };
+        {
+            let mut s = lock(&self.settings);
+            s.site_logins.retain(|x| x.id != id);
+            s.site_logins.push(l.clone());
+        }
+        self.save_settings()?;
+        Ok(l)
+    }
+
+    pub fn login_delete(&self, id: &str) -> Result<(), String> {
+        if !crate::creds::valid_id(id) {
+            return Err("bad-id".into());
+        }
+        crate::creds::delete(id);
+        lock(&self.settings).site_logins.retain(|l| l.id != id);
+        self.save_settings()
     }
 
     pub fn play(&self, event: &str) {
@@ -649,7 +700,7 @@ impl App {
             .collect();
         let mut set = serde_json::to_value(&*lock(&self.settings)).map_err(|e| e.to_string())?;
         if let Some(o) = set.as_object_mut() {
-            for k in ["hooks", "highest_seen", "last_check", "update_failures", "download_dir", "sounds"] {
+            for k in ["hooks", "highest_seen", "last_check", "update_failures", "download_dir", "sounds", "site_logins"] {
                 o.remove(k);
             }
         }

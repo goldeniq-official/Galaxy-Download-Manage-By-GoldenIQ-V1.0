@@ -48,6 +48,9 @@
     "allow-refresh-start",
     "allow-refresh-paste",
     "allow-refresh-candidate",
-    "allow-refresh-decide"
+    "allow-refresh-decide",
+    "allow-login-list",
+    "allow-login-set",
+    "allow-login-delete"
   ]
 }
