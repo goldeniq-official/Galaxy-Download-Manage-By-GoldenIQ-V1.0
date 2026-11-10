@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: RPL-1.5
 # GDM app (G6, §15): UI lint/types/audit, Playwright UI in Khmer + English (rule 8, clipping, axe, XSS),
 # Tauri app clippy/tests (updater U-01, bridge B-01..B-03), Store-build compile check, NSIS installer with the
-# Khmer language, installed-build E2E (bridge -> pipe -> gdm.exe), real Chromium + extension smoke.
+# Khmer language, installed-build E2E (bridge -> pipe -> gdm.exe), real Chromium + extension smoke, the real
+# WebView2 UI (rule 8, axe, CSP).
 # Actions pinned by commit SHA; read-only token; no secrets (the release workflow signs, this one never does).
 name: app
 on:
@@ -94,6 +95,9 @@ jobs:
           pnpm exec playwright install chromium
           $chrome = Get-ChildItem "$env:LOCALAPPDATA\ms-playwright\chromium-*\chrome-win64\chrome.exe" | Select-Object -First 1
           node tests/e2e/extension.mjs $chrome.FullName
+          if ($LASTEXITCODE) { exit 1 }
+          Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force
+          node tests/e2e/webview2.mjs "$env:LOCALAPPDATA\Galaxy Download Manager" $env:GDM_DATA docs/evidence/g6-shots
           if ($LASTEXITCODE) { exit 1 }
           Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force; Stop-Process $fx -Force
           Start-Process "$env:LOCALAPPDATA\Galaxy Download Manager\uninstall.exe" -ArgumentList "/S" -Wait
