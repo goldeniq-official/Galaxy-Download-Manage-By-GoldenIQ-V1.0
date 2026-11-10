@@ -199,6 +199,8 @@ pub struct App {
     pub qbuckets: Mutex<HashMap<String, Arc<limiter::Bucket>>>,
     /// parsed import waiting for the user's [Add] after the preview (I-03)
     pub import_pending: Mutex<Option<ImportPending>>,
+    /// CLI /q: exit GDM after these downloads succeed
+    pub quit_after: Mutex<std::collections::HashSet<String>>,
 }
 
 pub type ImportPending = (Vec<crate::import::Item>, Option<serde_json::Value>);
@@ -247,6 +249,7 @@ impl App {
             countdown_ms: AtomicU64::new(crate::queue::COUNTDOWN.as_millis() as u64),
             qbuckets: Default::default(),
             import_pending: Default::default(),
+            quit_after: Default::default(),
         });
         app.apply_limit();
         Ok(app)
@@ -436,6 +439,9 @@ impl App {
                 }
             }
         }
+        if r.is_ok() && lock(&self.quit_after).remove(id) && self.running() == 0 {
+            crate::request_quit(); // CLI /q
+        }
         match &r {
             Ok(_) => self.play("complete"),
             Err(Fail::Io(m)) if m.contains("already running") => {}
@@ -561,7 +567,7 @@ impl App {
             }
             list.push(NewJob { url: it.url.clone(), dir, name: it.name.clone(), referrer: it.referrer.clone(), ..Default::default() });
         }
-        let ids = self.engine.add_many(list).map_err(|e| e.code())?;
+        let ids = self.engine.add_many(list, true).map_err(|e| e.code())?;
         {
             let st = lock(&self.engine.store);
             for (id, it) in ids.iter().zip(items) {
@@ -575,6 +581,37 @@ impl App {
         }
         self.bump();
         Ok(ids)
+    }
+
+    /// restore a settings backup (import): only low-risk keys; restored queues never shut down, wake the PC,
+    /// run a hook or start by schedule until the user turns that on again (security review G7)
+    pub fn restore_settings(&self, backup: serde_json::Value) -> Result<Settings, String> {
+        const KEYS: &[&str] = &[
+            "lang",
+            "theme",
+            "max_conns",
+            "limit_on",
+            "limit_kbps",
+            "catch_exts",
+            "catch_min_kb",
+            "columns",
+            "categories",
+            "show_info",
+            "force_key",
+            "bypass_key",
+            "queues",
+        ];
+        let serde_json::Value::Object(o) = backup else { return Err("bad".into()) };
+        let patch: serde_json::Map<String, serde_json::Value> = o.into_iter().filter(|(k, _)| KEYS.contains(&k.as_str())).collect();
+        let mut s = self.merge_settings(serde_json::Value::Object(patch))?;
+        for q in &mut s.queues {
+            q.on_done = "none".into();
+            q.force = false;
+            q.wake = false;
+            q.run_hook = false;
+            q.schedule.enabled = false;
+        }
+        Ok(s)
     }
 
     /// export JSON: the list + a settings backup without hooks, updater state or secrets (P-01)
@@ -722,6 +759,14 @@ mod tests {
         assert_eq!(m.sounds.get("queue").map(String::as_str), Some("system:SystemAsterisk"));
         assert_eq!(m.queues.iter().map(|q| q.id.as_str()).collect::<Vec<_>>(), vec!["main", "sync"]);
         assert_eq!(m.queues[0].on_done, "none");
+        // a restored backup keeps only low-risk keys and disarms queue actions
+        let b = serde_json::json!({"lang": "en", "autostart": true, "clipboard": true, "update_mode": "off", "catch_skip": ["*"],
+            "queues": [{"id": "main", "on_done": "shutdown", "force": true, "wake": true, "run_hook": true, "schedule": {"enabled": true, "start": "02:00", "days": 127}}]});
+        let r = again.restore_settings(b).unwrap();
+        assert_eq!(r.lang, "en");
+        assert!(!r.autostart && !r.clipboard && r.update_mode == "auto" && r.catch_skip.len() == 1);
+        let q = &r.queues[0];
+        assert!(q.on_done == "none" && !q.force && !q.wake && !q.run_hook && !q.schedule.enabled && q.schedule.start.as_deref() == Some("02:00"));
         drop(again);
         let _ = std::fs::remove_dir_all(&d);
     }

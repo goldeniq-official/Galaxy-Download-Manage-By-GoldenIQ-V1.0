@@ -5,72 +5,9 @@
 //!   gdm-bridge unregister        remove them again (T-03)
 use gdm_bridge::*;
 use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
-use windows::core::{HSTRING, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, ERROR_PIPE_BUSY, HANDLE};
-use windows::Win32::Storage::FileSystem::{
-    CreateFileW, ReadFile, WriteFile, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_NONE, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
-};
-use windows::Win32::System::Pipes::{GetNamedPipeServerProcessId, SetNamedPipeHandleState, WaitNamedPipeW, PIPE_READMODE_MESSAGE};
-use windows::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
-
-const GENERIC_RW: u32 = 0xC000_0000;
-
-struct H(HANDLE);
-impl Drop for H {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = CloseHandle(self.0);
-        }
-    }
-}
-
-fn norm(p: &Path) -> String {
-    p.to_string_lossy().to_lowercase()
-}
-
-/// B-02: open the pipe with SQOS identification (the server can never act as us), then check the server
-/// process image while holding its process handle (the pid cannot be reused) BEFORE sending a byte
-pub fn call(pipe: &str, expected: &Path, msg: &[u8], wait: Duration) -> Result<Vec<u8>, String> {
-    let flags = FILE_FLAGS_AND_ATTRIBUTES(SECURITY_SQOS_PRESENT.0 | SECURITY_IDENTIFICATION.0);
-    let deadline = Instant::now() + wait;
-    let h = loop {
-        match unsafe { CreateFileW(&HSTRING::from(pipe), GENERIC_RW, FILE_SHARE_NONE, None, OPEN_EXISTING, flags, None) } {
-            Ok(h) => break H(h),
-            Err(e) if Instant::now() < deadline => {
-                if e.code() == ERROR_PIPE_BUSY.to_hresult() {
-                    unsafe {
-                        let _ = WaitNamedPipeW(&HSTRING::from(pipe), 500);
-                    }
-                } else {
-                    std::thread::sleep(Duration::from_millis(100)); // gdm.exe still starting
-                }
-            }
-            Err(e) => return Err(format!("no GDM: {e}")),
-        }
-    };
-    unsafe {
-        let mut pid = 0;
-        GetNamedPipeServerProcessId(h.0, &mut pid).map_err(|e| e.to_string())?;
-        let ph = H(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).map_err(|e| e.to_string())?);
-        let mut img = vec![0u16; 1024];
-        let mut len = img.len() as u32;
-        QueryFullProcessImageNameW(ph.0, PROCESS_NAME_WIN32, PWSTR(img.as_mut_ptr()), &mut len).map_err(|e| e.to_string())?;
-        let image = PathBuf::from(String::from_utf16_lossy(&img[..len as usize]));
-        if norm(&image) != norm(expected) {
-            return Err(format!("refused: pipe server is {}", image.display()));
-        }
-        SetNamedPipeHandleState(h.0, Some(&PIPE_READMODE_MESSAGE), None, None).map_err(|e| e.to_string())?;
-        WriteFile(h.0, Some(msg), None, None).map_err(|e| format!("write: {e}"))?;
-        let mut buf = vec![0u8; MAX_MSG as usize];
-        let mut n = 0;
-        ReadFile(h.0, Some(&mut buf), Some(&mut n), None).map_err(|e| format!("read: {e}"))?;
-        buf.truncate(n as usize);
-        drop(ph);
-        Ok(buf)
-    }
-}
+use std::path::PathBuf;
+use std::time::Duration;
+use windows::core::HSTRING;
 
 fn frame_out(out: &mut impl Write, v: &[u8]) -> io::Result<()> {
     out.write_all(&(v.len() as u32).to_le_bytes())?;
@@ -216,7 +153,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use windows::Win32::Storage::FileSystem::{FlushFileBuffers, PIPE_ACCESS_DUPLEX};
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Storage::FileSystem::{FlushFileBuffers, ReadFile, WriteFile, PIPE_ACCESS_DUPLEX};
     use windows::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_MESSAGE, PIPE_TYPE_MESSAGE, PIPE_WAIT,
     };

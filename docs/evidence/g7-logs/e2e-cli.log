@@ -1,0 +1,10 @@
+﻿PASS /d /p /n while GDM is not running (starts it in the tray)
+PASS file downloaded into /p
+PASS /p Startup refused (I-02)
+PASS /p junction to Startup refused (I-02)
+PASS nothing written to Startup
+PASS list prints JSON with the job
+PASS /a adds to the main queue without starting
+PASS /s starts the main queue
+RESULT failures=0
+

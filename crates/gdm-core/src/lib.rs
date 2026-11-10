@@ -217,14 +217,13 @@ impl Engine {
 
     /// create a job: validate the URL, sanitize the name, reserve it (N-04). Nothing is downloaded yet.
     pub fn add(&self, nj: NewJob) -> Result<String, Fail> {
-        let mut v = self.add_many(vec![nj])?;
+        let mut v = self.add_many(vec![nj], false)?;
         v.pop().ok_or_else(|| Fail::Io("add".into()))
     }
 
-    /// batch / import (I-03, I-04): every job validated first, then all inserted in one transaction; the job
-    /// state is "paused" (nothing starts by itself) unless `NewJob` came from a single add
-    pub fn add_many(&self, list: Vec<NewJob>) -> Result<Vec<String>, Fail> {
-        let single = list.len() == 1;
+    /// batch / import (I-03, I-04): every job validated first, then all inserted in one transaction.
+    /// `paused`: the jobs wait for the user (import, batch: nothing starts by itself, whatever the count)
+    pub fn add_many(&self, list: Vec<NewJob>, paused: bool) -> Result<Vec<String>, Fail> {
         let mut dirs: std::collections::HashMap<PathBuf, fsx::Dir> = Default::default();
         let mut jobs = Vec::with_capacity(list.len());
         let mut creds = vec![];
@@ -263,7 +262,7 @@ impl Engine {
                 name,
                 dir: dirh.path.clone(),
                 dir_id,
-                state: if single { "queued".into() } else { "paused".into() },
+                state: if paused { "paused".into() } else { "queued".into() },
                 size: None,
                 done: 0,
                 validator: None,

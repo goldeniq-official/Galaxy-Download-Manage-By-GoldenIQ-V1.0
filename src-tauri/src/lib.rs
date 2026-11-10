@@ -3,6 +3,7 @@
 //! notification, autostart, window-state only; no shell/fs/http/opener (X-02). Every command takes job IDs or
 //! plain values, never paths, URLs to open or command lines (X-01).
 pub mod app;
+pub mod cli;
 pub mod hook;
 pub mod import;
 pub mod os;
@@ -243,7 +244,7 @@ fn import_commit(app: A, queue: Option<String>, restore_settings: bool) -> R<usi
     let ids = app.add_items(&items, queue.as_deref())?;
     if restore_settings {
         if let Some(v) = set {
-            apply_settings(app.inner(), app.merge_settings(v)?)?; // hooks and paths are dropped by merge_settings
+            apply_settings(app.inner(), app.restore_settings(v)?)?; // low-risk keys only, queue actions disarmed
         }
     }
     Ok(ids.len())
@@ -685,7 +686,12 @@ fn notifier(h: AppHandle, app: &Arc<App>) {
 }
 
 pub fn run() {
-    let background = std::env::args().any(|a| a == "--background");
+    // I-02: `gdm.exe /d URL ...` is a pipe client of the running GDM (started in the tray if needed), then exits
+    let argv: Vec<String> = std::env::args().collect();
+    if let Some(m) = cli::parse(&argv) {
+        std::process::exit(cli::main(m));
+    }
+    let background = argv.iter().any(|a| a == "--background");
     let app = match App::open(&app::data_dir()) {
         Ok(a) => a,
         Err(e) => {
