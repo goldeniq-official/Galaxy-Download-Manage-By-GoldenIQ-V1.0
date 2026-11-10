@@ -55,6 +55,34 @@ pub struct HostLimit {
     pub conns: usize,
 }
 
+/// proxy (§04 Proxy row, IDM Options > Proxy/Socks): none | system (Internet Options: manual, PAC, WPAD) | manual
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct ProxySettings {
+    pub mode: String,
+    /// manual HTTP/HTTPS proxy host:port ("" = none)
+    pub http: String,
+    /// manual SOCKS5 host:port ("" = none)
+    pub socks: String,
+    pub bypass: Vec<String>,
+    /// login to the proxy: none | basic (user here, password in Credential Manager "GDM/proxy") | windows (SSPI)
+    pub auth: String,
+    pub user: String,
+}
+
+impl Default for ProxySettings {
+    fn default() -> Self {
+        ProxySettings {
+            mode: "none".into(),
+            http: String::new(),
+            socks: String::new(),
+            bypass: vec!["<local>".into()],
+            auth: "none".into(),
+            user: String::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Settings {
@@ -96,6 +124,7 @@ pub struct Settings {
     pub total_conns: usize,
     /// per-server connection limits (IDM "Exceptions"): host pattern (`*.example.com`) -> connections
     pub host_limits: Vec<HostLimit>,
+    pub proxy: ProxySettings,
     /// site logins (P-01): address prefix + user; the password is in Credential Manager only
     pub site_logins: Vec<crate::creds::SiteLogin>,
     /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
@@ -138,6 +167,7 @@ impl Default for Settings {
             total_conns: gdm_core::TOTAL_CONNS,
             host_limits: vec![],
             site_logins: vec![],
+            proxy: ProxySettings::default(),
         }
     }
 }
@@ -351,6 +381,7 @@ impl App {
     pub fn apply_limit(&self) {
         let s = lock(&self.settings);
         self.engine.global.set_rate(if s.limit_on { s.limit_kbps * 1024 } else { 0 });
+        crate::proxy::apply(&s.proxy);
         let prof: Vec<(String, usize)> =
             s.host_limits.iter().filter(|h| !h.host.trim().is_empty()).map(|h| (h.host.trim().to_string(), h.conns.clamp(1, 32))).collect();
         self.engine.conns.lock().unwrap_or_else(|p| p.into_inner()).set(s.total_conns, prof);

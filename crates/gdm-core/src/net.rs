@@ -125,9 +125,15 @@ pub fn tls_config(alpn: &[&[u8]]) -> Result<rustls::ClientConfig, rustls::Error>
 pub fn client(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration) -> Result<reqwest::Client, String> {
     let tls = tls_config(if h1_only { &[b"http/1.1"] } else { &[b"h2", b"http/1.1"] }).map_err(|e| e.to_string())?;
     let p2 = policy.clone();
-    let mut b = reqwest::Client::builder()
-        .tls_backend_preconfigured(tls)
-        .no_proxy() // ponytail: system/corporate proxy is W-05 (medium, later); a proxy would resolve names itself and bypass W-02
+    let relay = crate::relay::global();
+    let mut b = reqwest::Client::builder().tls_backend_preconfigured(tls).no_proxy();
+    if let Some(r) = &relay {
+        // a user proxy (W-05): every request goes through GDM's own relay, which resolves and checks the
+        // destination itself (W-02) and hands the upstream proxy only the checked IP (council G7)
+        let (u, pw) = r.register(&policy);
+        b = b.proxy(reqwest::Proxy::all(r.url()).map_err(|e| e.to_string())?.basic_auth(&u, &pw));
+    }
+    let mut b = b
         .dns_resolver(Arc::new(Resolver(policy)))
         .read_timeout(read_timeout)
         .connect_timeout(Duration::from_secs(15))

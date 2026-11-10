@@ -11,10 +11,12 @@ pub mod http;
 pub mod limiter;
 pub mod name;
 pub mod net;
+pub mod relay;
 pub mod sched;
 pub mod seg;
 pub mod sidecar;
 pub mod store;
+pub mod sysproxy;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

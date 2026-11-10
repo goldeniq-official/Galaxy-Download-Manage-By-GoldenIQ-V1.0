@@ -173,39 +173,45 @@ impl SspiClient {
     }
 }
 
+/// Server side (AcceptSecurityContext, current user) for TESTS of GDM's proxy relay: a fixture proxy that
+/// demands NTLM/Negotiate on one connection. GDM itself never accepts SSPI logins.
+#[doc(hidden)]
+pub struct TestServer(Handles);
+
+impl TestServer {
+    pub fn new(package: &str) -> Result<Self, String> {
+        Ok(TestServer(Handles::acquire(package, SECPKG_CRED_INBOUND)?))
+    }
+
+    pub fn step(&mut self, token: &[u8]) -> Result<Step, String> {
+        let cred = self.0.cred;
+        run(&mut self.0, Some(token), |old, input, new, out| {
+            let mut attrs = 0u32;
+            unsafe {
+                AcceptSecurityContext(
+                    Some(&cred),
+                    old,
+                    input,
+                    ASC_REQ_ALLOCATE_MEMORY | ASC_REQ_CONNECTION,
+                    SECURITY_NATIVE_DREP,
+                    Some(new),
+                    Some(out),
+                    &mut attrs,
+                    None,
+                )
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Test-only server side (AcceptSecurityContext, current user).
-    struct Server(Handles);
-
-    impl Server {
-        fn step(&mut self, token: &[u8]) -> Result<Step, String> {
-            let cred = self.0.cred;
-            run(&mut self.0, Some(token), |old, input, new, out| {
-                let mut attrs = 0u32;
-                unsafe {
-                    AcceptSecurityContext(
-                        Some(&cred),
-                        old,
-                        input,
-                        ASC_REQ_ALLOCATE_MEMORY | ASC_REQ_CONNECTION,
-                        SECURITY_NATIVE_DREP,
-                        Some(new),
-                        Some(out),
-                        &mut attrs,
-                        None,
-                    )
-                }
-            })
-        }
-    }
-
     /// Runs the exchange to the end; returns legs (tokens sent) and both package names.
     fn handshake(package: &str, target: &str) -> Result<(usize, String, String), String> {
         let mut c = SspiClient::new(package, target)?;
-        let mut s = Server(Handles::acquire(package, SECPKG_CRED_INBOUND)?);
+        let mut s = TestServer::new(package)?;
         let mut legs = 0;
         let mut to_server = match c.step(None)? {
             Step::Continue(t) => t,

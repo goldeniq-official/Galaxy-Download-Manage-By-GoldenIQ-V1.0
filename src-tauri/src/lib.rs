@@ -10,6 +10,7 @@ pub mod hook;
 pub mod import;
 pub mod os;
 pub mod pipe;
+pub mod proxy;
 pub mod queue;
 pub mod quota;
 pub mod refresh;
@@ -309,6 +310,22 @@ async fn refresh_candidate(app: A<'_>, id: String) -> R<Option<refresh::Candidat
 #[tauri::command]
 async fn refresh_decide(app: A<'_>, id: String, choice: String) -> R<String> {
     app.inner().clone().refresh_decide(&id, &choice).await
+}
+
+/// proxy login password: straight to Credential Manager ("GDM/proxy"), never into settings
+#[tauri::command]
+fn proxy_login_set(app: A, user: String, password: String) -> R<()> {
+    if user.len() > 256 || password.len() > 1024 || user.chars().any(|c| c.is_control()) {
+        return Err("bad-login".into());
+    }
+    creds::save("proxy", &user, &password)?;
+    let mut p = lock(&app.settings).proxy.clone();
+    p.user = user;
+    p.auth = "basic".into();
+    lock(&app.settings).proxy = p.clone();
+    app.save_settings()?;
+    proxy::apply(&p);
+    Ok(())
 }
 
 #[tauri::command]
@@ -808,7 +825,8 @@ pub fn run() {
             refresh_decide,
             login_list,
             login_set,
-            login_delete
+            login_delete,
+            proxy_login_set
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();

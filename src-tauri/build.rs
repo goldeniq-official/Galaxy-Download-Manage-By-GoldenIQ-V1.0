@@ -47,6 +47,7 @@ const COMMANDS: &[&str] = &[
     "login_list",
     "login_set",
     "login_delete",
+    "proxy_login_set",
 ];
 
 fn main() {

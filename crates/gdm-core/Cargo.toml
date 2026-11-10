@@ -21,6 +21,8 @@ serde_json = "1"
 sha2 = "0.10"
 unicode-normalization = "0.1"
 httpdate = "1"
+getrandom = "0.3"
+gdm-auth = { path = "../gdm-auth" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [dependencies.windows]
@@ -37,6 +39,8 @@ features = [
   "Wdk_Storage_FileSystem",
   "Win32_System_Kernel",
   "Win32_System_WindowsProgramming",
+  "Win32_Networking_WinHttp",
+  "Win32_System_Memory",
 ]
 
 [dev-dependencies]
