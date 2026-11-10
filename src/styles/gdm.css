@@ -82,3 +82,7 @@ span.bar { display: block; }
 /* an off toggle's track is near the rest fill: focus inverts it like the other gradient controls (D6) */
 .fx.toggle:focus-visible { background: var(--focus-strong); }
 .nav.is-selected .n { color: var(--accent); }
+@media (forced-colors: active) {
+  /* a checked tab is already Highlight: keyboard focus swaps the system pair (same as selected rows, owner Q1) */
+  .fx.tab[aria-checked="true"]:focus-visible { forced-color-adjust: none; background: HighlightText !important; color: Highlight !important; }
+}

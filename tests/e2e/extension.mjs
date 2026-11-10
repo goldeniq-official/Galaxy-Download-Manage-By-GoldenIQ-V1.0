@@ -27,8 +27,11 @@ const srv = http.createServer((q, r) => {
       <a id=ctrl href="/t/forced.txt">ctrl</a><form id=post method=post action="/f/post.zip"><button id=pb>post</button></form>`);
   }
   if (u.pathname.startsWith("/t/")) {
-    r.writeHead(200, { "content-type": "text/plain", "content-disposition": "attachment" });
-    return r.end("hello");
+    // paced like a real network: a file the browser finishes before GDM's ack is (correctly) left to the browser (B-05 dup)
+    r.writeHead(200, { "content-type": "text/plain", "content-disposition": "attachment", "content-length": 512 * 1024 });
+    let off = 0;
+    const t = setInterval(() => (r.destroyed || off >= 512 * 1024 ? (clearInterval(t), r.end()) : (r.write("x".repeat(32 * 1024)), (off += 32 * 1024))), 200);
+    return;
   }
   const n = u.pathname.startsWith("/s/") ? 2048 : 2 * 1024 * 1024;
   r.writeHead(200, { "content-type": "application/zip", "content-length": n, "content-disposition": "attachment" });
@@ -72,9 +75,12 @@ check(!(await names()).includes("post.zip"), "C-02 a POST form download is never
 
 await page.goto(base);
 await sleep(800);
+const before = (await native({ t: "status" }))?.recent?.[0]?.name;
 await page.click("#ctrl", { modifiers: ["Control"] });
 await sleep(4000);
-check((await names()).some((n) => n.startsWith("forced")), "C-04 Ctrl+click forces GDM (extension -> bridge -> pipe -> new job), even for a .txt");
+// Playwright stores downloads under GUID file names, so the job may carry that name: check that a new job appeared
+const after = (await native({ t: "status" }))?.recent?.[0]?.name;
+check(!!after && after !== before, `C-04 Ctrl+click forces GDM (extension -> bridge -> pipe -> new job "${after}"), even for a .txt`);
 
 await ctx.close();
 srv.close();

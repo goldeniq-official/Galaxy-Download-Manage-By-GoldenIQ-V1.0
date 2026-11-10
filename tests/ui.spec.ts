@@ -123,3 +123,43 @@ test("D-03 / P1 #20: 10 000 rows stay virtual and search answers fast", async ({
   await expect(page.locator(".foot")).toContainText("104");
   expect(Date.now() - t0).toBeLessThan(1000);
 });
+
+// X-03/X-04 + exit.md R4/R5: Windows scaling 125/150 % (deviceScaleFactor) and high contrast (forced-colors)
+for (const name of ["list", "info", "settings", "onboarding1"])
+  for (const dpr of [1.25, 1.5])
+    for (const lang of ["km", "en"])
+      test(`dpi ${dpr * 100}% ${name} ${lang}`, async ({ browser }) => {
+        const s = SCREENS[name];
+        const ctx = await browser.newContext({ viewport: { width: s.w, height: s.h }, deviceScaleFactor: dpr, reducedMotion: "reduce", baseURL: "http://127.0.0.1:1431" });
+        const page = await ctx.newPage();
+        await open(page, `${s.q}&lang=${lang}&theme=dark`, s.w, s.h);
+        if (s.then) {
+          await s.then(page);
+          await page.waitForTimeout(400);
+        }
+        await page.mouse.move(2, 2);
+        if (lang === "km") await page.screenshot({ path: path.join(SHOTS, `dpi${dpr * 100}-${name}-${lang}.png`) });
+        expect(await page.evaluate(P.rulesProbe), "rule 8").toEqual([]);
+        const lay = await page.evaluate(P.layoutProbe);
+        expect([...lay.hClip, ...lay.offscreen], "layout at this scale").toEqual([]);
+        expect(await P.clipRun(page, await ctx.newPage()), "Khmer/Latin ink clipped at this scale").toEqual([]);
+        await ctx.close();
+      });
+
+for (const name of ["list", "info", "settings"])
+  for (const lang of ["km", "en"])
+    test(`high contrast ${name} ${lang}`, async ({ page, context }) => {
+      const s = SCREENS[name];
+      await page.emulateMedia({ forcedColors: "active" });
+      await open(page, `${s.q}&lang=${lang}&theme=dark`, s.w, s.h);
+      if (s.then) {
+        await s.then(page);
+        await page.waitForTimeout(400);
+      }
+      await page.mouse.move(2, 2);
+      if (lang === "en") await page.screenshot({ path: path.join(SHOTS, `hc-${name}-${lang}.png`) });
+      expect(await page.evaluate(P.rulesProbe, true), "rule 8 (system borders allowed in HC only, owner Q1)").toEqual([]);
+      const focus = await P.focusRun(page, await context.newPage());
+      const bad = focus.filter((f: { ok: string }) => f.ok.startsWith("FAIL"));
+      expect(bad.map((f: { label: string; ok: string }) => `${f.label} ${f.ok}`), "focus visible in high contrast").toEqual([]);
+    });

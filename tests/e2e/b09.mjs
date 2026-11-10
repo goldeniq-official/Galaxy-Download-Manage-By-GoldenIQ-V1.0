@@ -16,7 +16,7 @@ const bridge = path.join(inst, "gdm-bridge.exe");
 const ORIGIN = "chrome-extension://khgpllebdmknoollimkfkggepiembabi/";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const killGdm = () => execFileSync("taskkill", ["/IM", "gdm.exe", "/F"], { stdio: "ignore" });
-const startGdm = () => spawn(path.join(inst, "gdm.exe"), ["--background"], { env: { ...process.env, GDM_DATA: data }, stdio: "ignore", detached: true }).unref();
+const startGdm = (delay = 0) => spawn(path.join(inst, "gdm.exe"), ["--background"], { env: { ...process.env, GDM_DATA: data, ...(delay ? { GDM_TEST_REPLY_DELAY_MS: String(delay) } : {}) }, stdio: "ignore", detached: true }).unref();
 function frame(o) {
   const b = Buffer.from(JSON.stringify(o));
   const h = Buffer.alloc(4);
@@ -47,13 +47,15 @@ const plan = [];
 for (const ms of [0, 5, 20, 60, 150]) plan.push({ who: "engine", afterMs: ms, phase: "around the reply" });
 for (const ms of [0, 5, 20]) plan.push({ who: "bridge", afterMs: ms, phase: "bridge dies mid-exchange" });
 for (const ms of [1500, 3000]) plan.push({ who: "engine-later", afterMs: ms, phase: "mid-download" });
+// deterministic pre-ack window: GDM holds its reply 2 s after creating the job (test hook), the engine dies inside it
+for (const ms of [300, 1000]) plan.push({ who: "engine", afterMs: ms, phase: "job created, reply not sent", delay: 2000 });
 
 startGdm();
 await sleep(3000);
 const results = [];
 for (const [i, k] of plan.entries()) {
   try { killGdm(); } catch { /* ok */ }
-  startGdm();
+  startGdm(k.delay ?? 0);
   await sleep(2500);
   const r = await handoff(i, k.who === "engine-later" ? null : k);
   if (k.who === "engine-later") {

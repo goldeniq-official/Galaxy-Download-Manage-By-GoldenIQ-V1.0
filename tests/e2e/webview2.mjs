@@ -43,6 +43,15 @@ check(!lay.hClip.length && !lay.offscreen.length, `layout on the real UI: hclip 
 const axe = await new AxeBuilder({ page }).analyze();
 const serious = axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
 check(serious.length === 0, `axe on the real UI: ${serious.length} serious/critical ${serious.map((v) => v.id).join(",")}`);
+// second real screen: Settings
+await page.locator(".rail .nav").last().click();
+await page.waitForTimeout(800);
+await page.mouse.move(2, 2);
+await page.screenshot({ path: path.join(shots, `webview2-settings-${lang}.png`) });
+const rules2 = await page.evaluate(P.rulesProbe);
+const lay2 = await page.evaluate(P.layoutProbe);
+const axe2 = (await new AxeBuilder({ page }).analyze()).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+check(!rules2.length && !lay2.hClip.length && !lay2.offscreen.length && !axe2.length, `real Settings screen: rule 8 ${rules2.length}, hclip ${lay2.hClip.length}, offscreen ${lay2.offscreen.length}, axe serious ${axe2.length}`);
 const csp = await page.evaluate(() => {
   const s = document.createElement("script");
   s.textContent = "window.__inline = 1";

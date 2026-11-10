@@ -522,7 +522,25 @@ mod tests {
         assert_eq!(app.category_for("setup.EXE").id, "programs");
         assert_eq!(app.category_for("a.tar.gz").id, "compressed");
         assert_eq!(app.category_for("noext").id, "general");
+        // defaults that touch privacy or interruption (J2.3, D5, §22): off / Khmer / automatic updates
+        {
+            let s = lock(&app.settings);
+            assert!(!s.video_button && !s.clipboard && !s.autostart && !s.silent && s.show_info && s.catch_enabled);
+            assert_eq!(
+                (s.update_mode.as_str(), s.max_conns, s.catch_min_kb, s.force_key.as_str(), s.bypass_key.as_str()),
+                ("auto", 8, 1024, "ctrl", "alt")
+            );
+            assert_eq!(s.categories.len(), 6);
+        }
+        // settings persist across a restart
+        lock(&app.settings).lang = "en".into();
+        lock(&app.settings).limit_kbps = 321;
+        app.save_settings().unwrap();
         drop(app);
+        let again = App::open(&d).unwrap();
+        let s2 = lock(&again.settings).clone();
+        assert_eq!((s2.lang.as_str(), s2.limit_kbps), ("en", 321));
+        drop(again);
         let _ = std::fs::remove_dir_all(&d);
     }
 }

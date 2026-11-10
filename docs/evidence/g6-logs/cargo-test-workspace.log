@@ -1,0 +1,217 @@
+   Compiling tokio-rustls v0.26.6
+   Compiling gdm-fixture v0.1.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\fixtures\hostile)
+   Compiling yasna v0.6.0
+   Compiling galaxy-download-manager v0.9.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\src-tauri)
+   Compiling gdm-bridge v0.9.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\crates\gdm-bridge)
+   Compiling hyper-rustls v0.27.10
+   Compiling rcgen v0.14.10
+   Compiling reqwest v0.13.5
+   Compiling gdm-core v0.1.0 (C:\Users\yrgol\OneDrive\Documents\Code\PC APP\Galaxy Download Manage\crates\gdm-core)
+   Compiling tauri-plugin-updater v2.14.1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 45.11s
+     Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_app-bec550244c160da1.exe)
+
+running 10 tests
+test pipe::tests::c01_exception_glob ... ok
+test update::tests::versions_order ... ok
+test update::tests::u02_installs_only_when_idle ... ok
+test update::tests::u01_good_manifest_accepted ... ok
+test update::tests::u01_tauri_update_must_match_the_signed_manifest ... ok
+test update::tests::u01_forged_body_wrong_key_old_version_expired_channel_refused ... ok
+test os::tests::x02_only_fixed_links_and_http_pages ... ok
+test update::tests::u06_held_installer_cannot_be_swapped_and_tampering_is_seen ... ok
+test update::tests::u06_a_held_installer_still_starts ... ok
+test app::tests::x02_fake_job_id_refused_and_settings_survive_damage ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running unittests src\main.rs (D:/gdm-t6\debug\deps\gdm-84cc842a40eda0e0.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_bridge-cc0dd9a13ed61a1b.exe)
+
+running 3 tests
+test tests::b01_caller_allow_list ... ok
+test tests::b01_unknown_or_path_fields_rejected ... ok
+test tests::b03_limits_and_depth ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (D:/gdm-t6\debug\deps\gdm_bridge-01087c698dea9fa5.exe)
+
+running 1 test
+test tests::b02_bridge_refuses_a_pipe_served_by_another_image ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_core-78bdfe7e89404924.exe)
+
+running 1 test
+test fsx::tests::create_rename_relative ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src\bin\gdm-get.rs (D:/gdm-t6\debug\deps\gdm_get-b2204d542071e2a9.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\d01_store.rs (D:/gdm-t6\debug\deps\d01_store-f57a9d5abecdf37e.exe)
+
+running 7 tests
+test sidecar_untrusted_shapes_rejected ... ok
+test d02_newer_schema_opens_read_only ... ok
+test backups_are_checked_and_seven_kept ... ok
+test l01_job_limit_under_global ... ok
+test l01_global_limit_five_jobs_three_connections_each ... ok
+test l01_engine_five_jobs_never_exceed_global ... ok
+test d01_truncated_database_restored_and_jobs_recovered ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.26s
+
+     Running tests\e01_e03_hostile.rs (D:/gdm-t6\debug\deps\e01_e03_hostile-3f568e16380048e5.exe)
+
+running 16 tests
+test e01_body_past_its_own_content_range_is_refused ... ok
+test e03_declared_size_larger_than_free_space_refused_before_preallocation ... ok
+test e02_file_changed_mid_download_pauses_never_complete ... ok
+test e03_infinite_body_stops_at_cap_disk_not_filled ... ok
+test e01_bad_content_range_and_multipart_rejected ... ok
+test short_bodies_retry_never_wrong_file ... ok
+test e03_overlong_body_extra_bytes_never_written ... ok
+test e01_200_ignoring_range_single_stream ... ok
+test e05_429_retry_after_honoured ... ok
+test e02_changed_between_sessions_is_detected_on_resume ... ok
+test e02_416_on_resume_is_size_changed ... ok
+test e01_206_then_200_mid_download_restarts_from_zero ... ok
+test control_ranged_ramp_probe_headers ... ok
+test e07_slow_body_times_out ... ok
+test e07_slowloris_headers_time_out ... ok
+test e02_no_validator_unverified_and_restart_asks ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.48s
+
+     Running tests\e04_kill.rs (D:/gdm-t6\debug\deps\e04_kill-a1f9d59799071e08.exe)
+
+running 4 tests
+test e04_published_file_changed_after_crash_is_not_completed ... ok
+test e04_intent_survives_a_failed_state ... ok
+test e04_failpoints_then_resume_correct has been running for over 60 seconds
+test e04_kill_rounds has been running for over 60 seconds
+test e04_kill_rounds ... ok
+test e04_failpoints_then_resume_correct ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 114.13s
+
+     Running tests\g6_api.rs (D:/gdm-t6\debug\deps\g6_api-15ade6d3a265bc63.exe)
+
+running 4 tests
+test fts_10k_rows_khmer_and_latin_under_100ms ... ok
+test remove_deletes_own_part_and_recycles_finished_file ... ok
+test live_progress_pause_resume_hash_ok ... ok
+test live_connection_count_is_followed ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.64s
+
+     Running tests\n01_n02_names.rs (D:/gdm-t6\debug\deps\n01_n02_names-f303e05f02226518.exe)
+
+running 7 tests
+test n04_counter_keeps_extension ... ok
+test n02_bidi_stripped_real_extension_dangerous ... ok
+test long_names_truncated_keep_extension ... ok
+test last_segment_only ... ok
+test content_disposition_and_url ... ok
+test hostile_table_never_escapes_or_breaks_windows_rules ... ok
+test randomized_200k_invariants_and_idempotence ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.81s
+
+     Running tests\n03_n09_files.rs (D:/gdm-t6\debug\deps\n03_n09_files-3c04423d0b83a8ab.exe)
+
+running 14 tests
+test n05_only_internet_zone_counts_as_protected ... ok
+test n09_unprotected_targets ... ok
+test n03_ancestor_cannot_be_renamed_while_held ... ok
+test n03_hard_link_at_part_name_never_written ... ok
+test n03_foreign_part_not_adopted ... ok
+test n03_destination_is_a_junction_refused ... ok
+test n03_junction_planted_at_part_name_job_fails_target_untouched ... ok
+test n02_rtlo_name_on_disk ... ok
+test n05_mark_of_the_web_zone3_without_query_secrets ... ok
+test n04_two_jobs_same_name_and_existing_file ... ok
+test n05_eicar_blocked_never_complete ... ok
+test one_run_per_job ... ok
+test n10_replaced_part_is_not_reused ... ok
+test n03_destination_cannot_be_swapped_while_downloading ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.13s
+
+     Running tests\w01_w03_network.rs (D:/gdm-t6\debug\deps\w01_w03_network-756412d6d4d0a0e4.exe)
+
+running 11 tests
+test w02_address_classes_and_mixed_answers ... ok
+test w01_creds_scoped_to_scheme_host_port ... ok
+test w02_redirect_rules ... ok
+test w03_badssl_online ... ok
+test w03_no_tls_bypass_in_source ... ok
+test w04_crlf_in_credentials_refused ... ok
+test w02_untyped_private_url_needs_confirmation ... ok
+test w01_cross_origin_redirect_drops_credentials ... ok
+test w02_redirect_to_loopback_is_stopped ... ok
+test w03_self_signed_expired_wrong_host_all_fail_closed ... ok
+test w01_same_origin_segments_keep_credentials ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.51s
+
+     Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_fixture-c4ec1db7dc84ab8f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (D:/gdm-t6\debug\deps\gdm_fixture-cdd2e49d536d535f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\wire.rs (D:/gdm-t6\debug\deps\wire-781730bc27175aa0.exe)
+
+running 6 tests
+test etag_change ... ok
+test norange_and_range_then_200 ... ok
+test file_ranges_validators_416 ... ok
+test redirect_429_html_multipart ... ok
+test infinite_overlong_short_badcr ... ok
+test slowloris_and_slowbody ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.06s
+
+   Doc-tests gdm_app
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gdm_bridge
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gdm_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gdm_fixture
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

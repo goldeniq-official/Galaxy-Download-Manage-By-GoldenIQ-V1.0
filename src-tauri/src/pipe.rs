@@ -75,7 +75,12 @@ pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(
                         // the engine validates again: the bridge is not a security boundary (B-08)
                         Ok(env) if env.msg.validate().is_ok() => {
                             let (a, m, o) = (app.clone(), env.msg, env.origin);
-                            rt.block_on(async move { handle(&a, &o, m).await })
+                            let reply = rt.block_on(async move { handle(&a, &o, m).await });
+                            // B-09 crash-window test only: hold the reply after the job exists (never set in use)
+                            if let Some(ms) = std::env::var("GDM_TEST_REPLY_DELAY_MS").ok().and_then(|v| v.parse::<u64>().ok()) {
+                                std::thread::sleep(std::time::Duration::from_millis(ms.min(10_000)));
+                            }
+                            reply
                         }
                         _ => json!({"ok": false, "error": "rejected"}),
                     },

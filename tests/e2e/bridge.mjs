@@ -93,6 +93,10 @@ const re1 = await talk([{ t: "handoff", hid: "same1", url: `${fx}/file?size=1024
 const re2 = await talk([{ t: "handoff", hid: "same1", url: `${fx}/file?size=1024&seed=8`, referrer: null, name: "same2.bin", size: null, mime: null, cookie: null }]);
 check(re1.out[0]?.ok === true && re2.out[0]?.ok === false, "reused handoff id refused");
 
+// P1 #15: "download all links" lands as a selection list (nothing starts by itself)
+const ln = await talk([{ t: "links", urls: [`${fx}/file?size=10&seed=1`, `${fx}/file?size=10&seed=2`, `${fx}/file?size=10&seed=3`], referrer: null }]);
+check(ln.out[0]?.ok === true && ln.out[0]?.count === 3, "P1 #15 context menu 'all links': 3 links listed for selection");
+
 // B-04: 35 handoffs at once -> at most 30 start by themselves (counting the 3 above in the same minute)
 const many = Array.from({ length: 35 }, (_, i) => ({ t: "handoff", hid: "rl" + i, url: `${fx}/file?size=1024&seed=${100 + i}`, referrer: null, name: `rl${i}.bin`, size: null, mime: null, cookie: null }));
 const m = await talk(many);
