@@ -56,6 +56,7 @@
     "allow-media-probe",
     "allow-media-start",
     "allow-components-state",
-    "allow-components-install"
+    "allow-components-install",
+    "allow-basket-show"
   ]
 }

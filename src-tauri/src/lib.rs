@@ -400,6 +400,19 @@ async fn components_install(app: A<'_>) -> R<()> {
     Ok(())
 }
 
+/// Tasks > Show drop target (IDM): the small always-on-top basket window; links dropped on it go to add_url
+#[tauri::command]
+fn basket_show(app: A, on: bool) -> R<()> {
+    lock(&app.settings).basket = on;
+    app.save_settings()?;
+    let w = HANDLE.get().and_then(|h| h.get_webview_window("basket")).ok_or("no-basket")?;
+    if on {
+        w.show().map_err(|e| e.to_string())
+    } else {
+        w.hide().map_err(|e| e.to_string())
+    }
+}
+
 #[tauri::command]
 fn login_list(app: A) -> Vec<creds::SiteLogin> {
     lock(&app.settings).site_logins.clone()
@@ -902,7 +915,8 @@ pub fn run() {
             media_probe,
             media_start,
             components_state,
-            components_install
+            components_install,
+            basket_show
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();
@@ -953,6 +967,11 @@ pub fn run() {
                 });
             }
             app.resume_interrupted();
+            if lock(&app.settings).basket {
+                if let Some(b) = h.get_webview_window("basket") {
+                    let _ = b.show();
+                }
+            }
             // I-01: clipboard monitor (reads nothing while off); a URL opens the Download Info dialog, unstarted
             let (ac, ao) = (Arc::downgrade(&app), Arc::downgrade(&app));
             clip::spawn(

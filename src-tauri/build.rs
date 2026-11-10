@@ -52,6 +52,7 @@ const COMMANDS: &[&str] = &[
     "media_start",
     "components_state",
     "components_install",
+    "basket_show",
 ];
 
 fn main() {

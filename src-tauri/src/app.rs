@@ -129,6 +129,8 @@ pub struct Settings {
     /// per-server connection limits (IDM "Exceptions"): host pattern (`*.example.com`) -> connections
     pub host_limits: Vec<HostLimit>,
     pub proxy: ProxySettings,
+    /// the drop basket is shown (Tasks > Show drop target)
+    pub basket: bool,
     /// site logins (P-01): address prefix + user; the password is in Credential Manager only
     pub site_logins: Vec<crate::creds::SiteLogin>,
     /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
@@ -172,6 +174,7 @@ impl Default for Settings {
             host_limits: vec![],
             site_logins: vec![],
             proxy: ProxySettings::default(),
+            basket: false,
         }
     }
 }
