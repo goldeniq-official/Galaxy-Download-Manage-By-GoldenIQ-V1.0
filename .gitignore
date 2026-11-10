@@ -26,3 +26,6 @@ dist-ssr
 # blueprint tooling
 .playwright-mcp/
 __pycache__/
+
+# Rust build output (cargo / rust-analyzer); real builds use %LOCALAPPDATA%\gdm-t*
+/target/
