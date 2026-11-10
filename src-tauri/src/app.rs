@@ -48,6 +48,13 @@ pub fn default_categories() -> Vec<Category> {
 /// IDM's default "File Types" list (catch rules, §22), as lower-case extensions
 pub const CATCH_EXTS: &str = "3gp 7z aac ace aif apk arj asf avi bin bz2 exe gz gzip img iso lzh m4a m4v mkv mov mp3 mp4 mpa mpe mpeg mpg msi msu ogg ogv pdf plj pps ppt qt ra rar rm rmvb sea sit sitx tar tif tiff wav wma wmv xz z zip";
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default)]
+pub struct HostLimit {
+    pub host: String,
+    pub conns: usize,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Settings {
@@ -82,6 +89,13 @@ pub struct Settings {
     pub queues: Vec<crate::queue::Queue>,
     /// "run a program when done" per queue id: written ONLY by the `hook_set` command (Q-01)
     pub hooks: HashMap<String, crate::hook::Hook>,
+    /// download quota (F11): at most quota_mb every quota_hours in total (0 = none)
+    pub quota_mb: u64,
+    pub quota_hours: u32,
+    /// L-02: connections across all downloads (default 48)
+    pub total_conns: usize,
+    /// per-server connection limits (IDM "Exceptions"): host pattern (`*.example.com`) -> connections
+    pub host_limits: Vec<HostLimit>,
     /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
     pub sounds: HashMap<String, String>,
 }
@@ -117,6 +131,10 @@ impl Default for Settings {
             queues: crate::queue::default_queues(),
             hooks: HashMap::new(),
             sounds: HashMap::new(),
+            quota_mb: 0,
+            quota_hours: 1,
+            total_conns: gdm_core::TOTAL_CONNS,
+            host_limits: vec![],
         }
     }
 }
@@ -201,6 +219,7 @@ pub struct App {
     pub import_pending: Mutex<Option<ImportPending>>,
     /// CLI /q: exit GDM after these downloads succeed
     pub quit_after: Mutex<std::collections::HashSet<String>>,
+    pub quota: Mutex<crate::quota::QuotaState>,
 }
 
 pub type ImportPending = (Vec<crate::import::Item>, Option<serde_json::Value>);
@@ -250,6 +269,7 @@ impl App {
             qbuckets: Default::default(),
             import_pending: Default::default(),
             quit_after: Default::default(),
+            quota: Default::default(),
         });
         app.apply_limit();
         Ok(app)
@@ -324,6 +344,9 @@ impl App {
     pub fn apply_limit(&self) {
         let s = lock(&self.settings);
         self.engine.global.set_rate(if s.limit_on { s.limit_kbps * 1024 } else { 0 });
+        let prof: Vec<(String, usize)> =
+            s.host_limits.iter().filter(|h| !h.host.trim().is_empty()).map(|h| (h.host.trim().to_string(), h.conns.clamp(1, 32))).collect();
+        self.engine.conns.lock().unwrap_or_else(|p| p.into_inner()).set(s.total_conns, prof);
         let mut b = lock(&self.qbuckets);
         for q in &s.queues {
             b.entry(q.id.clone()).or_insert_with(|| limiter::Bucket::new(0)).set_rate(q.speed_kbps * 1024);

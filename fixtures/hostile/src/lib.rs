@@ -49,6 +49,9 @@ struct State {
     blobs: Mutex<HashMap<String, Arc<Vec<u8>>>>,
     active: AtomicUsize,
     peak: AtomicUsize,
+    /// requests being answered right now (an idle keep-alive connection is not counted)
+    inflight: AtomicUsize,
+    peak_inflight: AtomicUsize,
     conns: AtomicUsize,
 }
 
@@ -88,6 +91,10 @@ impl Fixture {
     pub fn clear_log(&self) {
         self.st.log.lock().unwrap().clear();
         self.st.peak.store(0, Ordering::SeqCst);
+    }
+    /// peak number of requests answered at the same time (transfers, not idle sockets)
+    pub fn peak_inflight(&self) -> usize {
+        self.st.peak_inflight.load(Ordering::SeqCst)
     }
     pub fn peak_conns(&self) -> usize {
         self.st.peak.load(Ordering::SeqCst)
@@ -137,7 +144,11 @@ impl Fixture {
                 headers: headers.clone(),
                 ms: self.t0.elapsed().as_millis(),
             });
-            let keep = self.respond(&mut s, &method, &target, &headers).await?;
+            let n = self.st.inflight.fetch_add(1, Ordering::SeqCst) + 1;
+            self.st.peak_inflight.fetch_max(n, Ordering::SeqCst);
+            let r = self.respond(&mut s, &method, &target, &headers).await;
+            self.st.inflight.fetch_sub(1, Ordering::SeqCst);
+            let keep = r?;
             if !keep {
                 return Ok(());
             }

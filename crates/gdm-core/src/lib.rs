@@ -116,6 +116,67 @@ pub struct Engine {
     creds: Mutex<std::collections::HashMap<String, net::Creds>>,
     /// one execution per job at a time
     running: Mutex<std::collections::HashSet<String>>,
+    /// F11: connection limits shared by all jobs
+    pub conns: Mutex<ConnPolicy>,
+}
+
+/// L-02 total connection cap + per-server profiles (IDM "Exceptions") + caps learned from 429/503
+#[derive(Debug)]
+pub struct ConnPolicy {
+    pub total: Arc<tokio::sync::Semaphore>,
+    pub total_n: usize,
+    /// (host pattern with `*`, max connections)
+    pub profiles: Vec<(String, usize)>,
+    hosts: std::collections::HashMap<String, (Arc<tokio::sync::Semaphore>, Arc<std::sync::atomic::AtomicUsize>)>,
+}
+
+pub const TOTAL_CONNS: usize = 48;
+
+impl Default for ConnPolicy {
+    fn default() -> Self {
+        ConnPolicy { total: Arc::new(tokio::sync::Semaphore::new(TOTAL_CONNS)), total_n: TOTAL_CONNS, profiles: vec![], hosts: Default::default() }
+    }
+}
+
+/// `*` wildcard, case-insensitive, whole host
+pub fn host_match(pat: &str, host: &str) -> bool {
+    let (p, h) = (pat.trim().to_ascii_lowercase(), host.to_ascii_lowercase());
+    match p.strip_prefix("*.") {
+        Some(rest) => h == rest || h.ends_with(&format!(".{rest}")),
+        None => p == h || p == "*",
+    }
+}
+
+impl ConnPolicy {
+    /// change the total cap and profiles (Settings); running connections keep their permits
+    pub fn set(&mut self, total: usize, profiles: Vec<(String, usize)>) {
+        let total = total.clamp(1, 512);
+        if total != self.total_n {
+            self.total = Arc::new(tokio::sync::Semaphore::new(total));
+            self.total_n = total;
+        }
+        if profiles != self.profiles {
+            self.profiles = profiles;
+            self.hosts.clear();
+        }
+    }
+
+    /// the job's config: cap = min(job cap, profile, learned); slots = total + this host's
+    pub fn for_host(&mut self, host: &str, mut cfg: seg::Config) -> seg::Config {
+        let prof = self.profiles.iter().find(|(p, _)| host_match(p, host)).map(|(_, n)| (*n).clamp(1, seg::MAX_CONNS));
+        let (sem, learned) = self
+            .hosts
+            .entry(host.to_ascii_lowercase())
+            .or_insert_with(|| {
+                (Arc::new(tokio::sync::Semaphore::new(prof.unwrap_or(seg::MAX_CONNS * 4))), Arc::new(std::sync::atomic::AtomicUsize::new(0)))
+            })
+            .clone();
+        let l = learned.load(std::sync::atomic::Ordering::Relaxed);
+        cfg.cap = cfg.cap.min(prof.unwrap_or(usize::MAX)).min(if l > 0 { l } else { usize::MAX }).max(1);
+        cfg.slots = vec![self.total.clone(), sem];
+        cfg.learned = Some(learned);
+        cfg
+    }
 }
 
 struct RunGuard<'a>(&'a Engine, String);
@@ -145,8 +206,15 @@ impl Engine {
     /// then recover jobs from sidecars found in the known download folders (D-01)
     pub fn open(db: &Path, cfg: seg::Config) -> Result<Engine, Fail> {
         let (st, report) = store::Store::open(db).map_err(Fail::Io)?;
-        let e =
-            Engine { store: Mutex::new(st), report, cfg, global: limiter::Bucket::new(0), creds: Default::default(), running: Default::default() };
+        let e = Engine {
+            store: Mutex::new(st),
+            report,
+            cfg,
+            global: limiter::Bucket::new(0),
+            creds: Default::default(),
+            running: Default::default(),
+            conns: Default::default(),
+        };
         if e.report.restored_from.is_some() || e.report.quarantined.is_some() {
             e.recover_sidecars()?;
         }
@@ -483,7 +551,8 @@ impl Engine {
         };
         let file = Arc::new(file);
         let rq = seg::Request { url, creds, policy, file: file.clone(), free, resume, limit, checkpoint: &mut cp, live };
-        let done = seg::download(rq, self.cfg.clone()).await?;
+        let cfg = self.conns.lock().unwrap_or_else(|p| p.into_inner()).for_host(rq.url.host_str().unwrap_or(""), self.cfg.clone());
+        let done = seg::download(rq, cfg).await?;
         drop(file); // the writer thread has exited: this was the last handle
         failpoint::hit("before_finalizing");
         self.st().set_state(id, "finalizing", None).map_err(Fail::Io)?;

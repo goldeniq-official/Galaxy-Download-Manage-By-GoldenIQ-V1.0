@@ -10,6 +10,7 @@ pub mod import;
 pub mod os;
 pub mod pipe;
 pub mod queue;
+pub mod quota;
 pub mod update;
 
 use app::{lock, App, RowView, Settings};
@@ -835,6 +836,7 @@ pub fn run() {
                 loop {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     let now = chrono::Utc::now();
+                    aq.quota_tick().await;
                     aq.queue_tick(now, last).await;
                     last = now;
                 }

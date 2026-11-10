@@ -282,7 +282,7 @@ impl App {
                 continue;
             }
             waiting += 1;
-            if running < def.max_active.max(1) && !self.finishing.load(Ordering::SeqCst) {
+            if running < def.max_active.max(1) && !self.finishing.load(Ordering::SeqCst) && !self.quota_blocked(&def.id) {
                 self.start(j, Unverified::Ask);
                 running += 1;
             }

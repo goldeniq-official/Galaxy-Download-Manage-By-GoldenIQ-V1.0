@@ -115,3 +115,33 @@ async fn failed_file_retries_then_stops_and_queue_finishes() {
     assert!(row.row.retries >= 2, "retried once, then given up: {}", row.row.retries);
     let _ = std::fs::remove_dir_all(d);
 }
+
+/// F11 quota (IDM "Download limits"): over the cap => downloads pause; the next period resumes them by itself
+#[tokio::test(flavor = "multi_thread")]
+async fn quota_pauses_then_resumes_next_period() {
+    let fx = gdm_fixture::Fixture::start("127.0.0.1:0").await;
+    let (a, _rec, d) = app("quota", Queue { id: "main".into(), ..Default::default() });
+    lock(&a.settings).quota_mb = 2; // > one checkpoint (2 s) of transfer, so each period keeps its bytes
+    lock(&a.quota).test_period = Some(Duration::from_secs(5));
+    let id = a.add_and_start(&fx.url("/file?size=5242880&seed=21&trate=600000"), None, None, vec![], true, true).unwrap();
+    let t0 = std::time::Instant::now();
+    let mut paused_seen = false;
+    loop {
+        a.quota_tick().await;
+        if !a.is_running(&id) && a.quota_blocked("") {
+            paused_seen = true;
+        }
+        if a.engine.job(&id).unwrap().state == "complete" {
+            break;
+        }
+        assert!(t0.elapsed() < Duration::from_secs(60), "never completed");
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    assert!(paused_seen, "the quota never paused the download");
+    assert!(t0.elapsed() > Duration::from_secs(5), "5 MB under a 2 MB/period quota needs more than one period");
+    assert_eq!(
+        gdm_core::finalize::sha_handle(&std::fs::File::open(a.engine.job(&id).unwrap().dir.join("file")).unwrap()).unwrap(),
+        gdm_fixture::expected_sha256(21, 5242880)
+    );
+    let _ = std::fs::remove_dir_all(d);
+}

@@ -23,6 +23,10 @@ use url::Url;
 pub const MIB: u64 = 1 << 20;
 pub const MAX_CONNS: usize = 32;
 
+/// connections (workers) alive in this process, and the peak (L-02 evidence; never used for decisions)
+pub static LIVE_CONNS: AtomicUsize = AtomicUsize::new(0);
+pub static PEAK_CONNS: AtomicUsize = AtomicUsize::new(0);
+
 #[derive(Clone, Debug)]
 pub struct Config {
     /// connection cap for one job: default 8, max 32 (per-host profile)
@@ -42,6 +46,12 @@ pub struct Config {
     pub retries: u32,
     /// unknown length: stop here (E-03); None = min(20 GB, 90 % of free space minus the 1 GB reserve)
     pub unknown_cap: Option<u64>,
+    /// connection slots shared with other jobs (L-02 total cap, per-server limit, F11): every connection after
+    /// the first holds one permit of each; the first always runs so a job never waits forever
+    pub slots: Vec<Arc<tokio::sync::Semaphore>>,
+    /// a 429/503 halved the connection target: the new target is written here so later jobs to the same host
+    /// start at it (F11 "learn from 429")
+    pub learned: Option<Arc<AtomicUsize>>,
 }
 
 impl Default for Config {
@@ -58,6 +68,8 @@ impl Default for Config {
             min_speed: (1024, Duration::from_secs(120)),
             retries: 10,
             unknown_cap: None,
+            slots: vec![],
+            learned: None,
         }
     }
 }
@@ -224,6 +236,12 @@ fn writer(file: Arc<File>, epoch: Arc<AtomicU64>, mut rx: mpsc::Receiver<Chunk>,
 }
 
 pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
+    // L-02: the first connection (the probe, then the first lease) waits for a slot in every shared limit, so
+    // the total cap holds even when other jobs already use every slot
+    let mut first_permits = Vec::with_capacity(cfg.slots.len());
+    for s in &cfg.slots {
+        first_permits.push(s.clone().acquire_owned().await.map_err(|e| Fail::Io(e.to_string()))?);
+    }
     let t0 = Instant::now();
     let client = net::client(rq.policy.clone(), true, cfg.read_timeout).map_err(Fail::Io)?;
     rq.policy.check_url(&rq.url).map_err(|e| Fail::Forbidden(e.0))?;
@@ -263,7 +281,13 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             e if tries < cfg.retries => {
                 tries += 1;
                 let w = match e {
-                    Step::RetryAfter(s) => s,
+                    Step::RetryAfter(s) => {
+                        // throttled before the first byte: later jobs to this host start at half the cap
+                        if let Some(l) = &cfg.learned {
+                            l.store((cfg.cap / 2).max(1), Ordering::Relaxed);
+                        }
+                        s
+                    }
                     _ => 1u64 << tries.min(6),
                 };
                 tokio::time::sleep(Duration::from_secs(w)).await;
@@ -383,7 +407,8 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let mut probe = Some(probe);
 
     macro_rules! spawn_worker {
-        ($i:expr, $resp:expr) => {{
+        ($i:expr, $resp:expr, $permits:expr) => {{
+            let permits: Vec<tokio::sync::OwnedSemaphorePermit> = $permits;
             let wid = next_wid;
             next_wid += 1;
             let (tx, rx) = mpsc::unbounded_channel();
@@ -392,6 +417,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             s.worker = Some(wid);
             s.gen += 1;
             tasks.0.push(tokio::spawn(worker(
+                permits,
                 wid,
                 s.gen,
                 s.start,
@@ -425,7 +451,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     if let Some(i) = segs.iter().position(|s| s.next < s.end) {
         // the probe body starts at `first`: hand it over only if that is still where this lease starts
         let pre = if !ranged || segs[i].next == first { probe.take() } else { None };
-        spawn_worker!(i, pre);
+        spawn_worker!(i, pre, std::mem::take(&mut first_permits));
     }
     drop(probe);
 
@@ -433,10 +459,17 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     loop {
         // fill idle slots: unassigned segments first, then split the largest remaining half
         let active = segs.iter().filter(|s| s.worker.is_some()).count();
-        if active < target {
+        // a further connection needs a free slot in every shared limit (all or none)
+        let permits = || -> Option<Vec<tokio::sync::OwnedSemaphorePermit>> { cfg.slots.iter().map(|s| s.clone().try_acquire_owned().ok()).collect() };
+        let free = cfg.slots.iter().all(|s| s.available_permits() > 0) || (active == 0 && !first_permits.is_empty());
+        if active < target && free {
             if let Some(i) = segs.iter().position(|s| s.worker.is_none() && s.next < s.end) {
-                spawn_worker!(i, None);
-                continue;
+                // the job's own first slots come back when its only connection restarts (retry after an error)
+                let p = if active == 0 && !first_permits.is_empty() { std::mem::take(&mut first_permits) } else { permits().unwrap_or_default() };
+                if p.len() == cfg.slots.len() {
+                    spawn_worker!(i, None, p);
+                    continue;
+                }
             }
             if ranged && pending_split.is_none() {
                 if let Some(s) = segs.iter().filter(|s| s.worker.is_some()).max_by_key(|s| s.end - s.next) {
@@ -510,7 +543,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                             if segs[i].tries > cfg.retries {
                                 fail!(match e { WErr::Retry(m) if m.contains("timed out") || m.contains("timeout") => Fail::Timeout, e => Fail::TooManyRetries(format!("{e:?}")) });
                             }
-                            let wait = match e { WErr::RetryAfter(s) => { target = (target / 2).max(1); s } WErr::Backoff => 1u64 << segs[i].tries.min(6), _ => 0 };
+                            let wait = match e { WErr::RetryAfter(s) => { target = (target / 2).max(1); if let Some(l) = &cfg.learned { l.store(target, Ordering::Relaxed); } s } WErr::Backoff => 1u64 << segs[i].tries.min(6), _ => 0 };
                             if !ranged {
                                 // no resume without ranges: start over in a new epoch
                                 let e2 = epoch_cell.fetch_add(1, Ordering::SeqCst) + 1;
@@ -629,6 +662,7 @@ async fn seam_ok(sh: &Shared, f: &File, a: u64, b: u64) -> bool {
 
 #[allow(clippy::too_many_arguments)]
 async fn worker(
+    _permits: Vec<tokio::sync::OwnedSemaphorePermit>, // released when this connection ends
     wid: usize,
     gen: u64,
     seg: u64,
@@ -641,8 +675,11 @@ async fn worker(
     ev: mpsc::UnboundedSender<Ev>,
     ranged: bool,
 ) {
+    let n = LIVE_CONNS.fetch_add(1, Ordering::SeqCst) + 1;
+    PEAK_CONNS.fetch_max(n, Ordering::SeqCst);
     let mut next = start;
     let r = run_worker(wid, gen, seg, &mut next, end, epoch, &sh, pre, &mut ctl, &ev, ranged).await;
+    LIVE_CONNS.fetch_sub(1, Ordering::SeqCst);
     let _ = ev.send(Ev::Exit { wid, next, err: r.err() });
 }
 
