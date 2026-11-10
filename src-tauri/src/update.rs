@@ -146,6 +146,73 @@ pub fn may_install(state: &State, mode: &str, failures: u32, running: usize, idl
     *state == State::Ready && mode == "auto" && failures < 2 && running == 0 && idle_for.is_some_and(|d| d >= std::time::Duration::from_secs(120))
 }
 
+/// U-06 (verify-to-execute): write the verified installer into GDM's own updates folder, close it, reopen it
+/// READ-only with share mode READ (nobody can write, delete or rename it while held), check its SHA-256 through
+/// that handle against the bytes the minisign check accepted, and keep the handle until the installer runs.
+pub fn stage_and_hold(dir: &std::path::Path, bytes: &[u8]) -> Result<(std::fs::File, std::path::PathBuf), String> {
+    use std::io::Write;
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    if std::fs::symlink_metadata(dir).map_err(|e| e.to_string())?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err("updates folder is a junction/link".into());
+    }
+    // leftovers of an earlier failed install (best effort; a held one cannot be deleted)
+    for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        if e.file_name().to_string_lossy().starts_with("gdm-update-") {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let path = dir.join(format!("gdm-update-{nanos:x}-{}.exe", std::process::id()));
+    {
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).share_mode(0).open(&path).map_err(|e| e.to_string())?;
+        f.write_all(bytes).map_err(|e| e.to_string())?;
+        f.sync_all().map_err(|e| e.to_string())?;
+    }
+    let held = hold(&path, &gdm_core::finalize::hex(&sha256(bytes)))?;
+    Ok((held, path))
+}
+
+fn sha256(b: &[u8]) -> Vec<u8> {
+    use sha2::Digest;
+    sha2::Sha256::digest(b).to_vec()
+}
+
+/// open read-only, deny writers and deleters, refuse a reparse point, and compare the hash read through this handle
+pub fn hold(path: &std::path::Path, want_sha: &str) -> Result<std::fs::File, String> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    let f = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1) // FILE_SHARE_READ only
+        .custom_flags(0x0020_0000) // FILE_FLAG_OPEN_REPARSE_POINT: never follow a planted link
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    if f.metadata().map_err(|e| e.to_string())?.file_attributes() & 0x400 != 0 {
+        return Err("installer is a reparse point".into());
+    }
+    let got = gdm_core::finalize::sha_handle(&f).map_err(|e| e.to_string())?;
+    if !got.eq_ignore_ascii_case(want_sha) {
+        return Err("installer changed after verification".into());
+    }
+    Ok(f)
+}
+
+/// run the held installer like Tauri does (NSIS passive, /UPDATE, restart GDM afterwards), then exit
+pub fn launch_held(path: &std::path::Path) -> Result<(), String> {
+    use windows::core::{HSTRING, PCWSTR};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOW;
+    let r = unsafe {
+        ShellExecuteW(None, &HSTRING::from("open"), &HSTRING::from(path.as_os_str()), &HSTRING::from("/P /UPDATE /R"), PCWSTR::null(), SW_SHOW)
+    };
+    if r.0 as isize > 32 {
+        Ok(())
+    } else {
+        Err(format!("installer did not start ({})", r.0 as isize))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,6 +262,39 @@ mod tests {
         assert!(!m.binds("windows-x86_64", "0.9.1", &p.url, "other-signature"));
         assert!(!m.binds("windows-x86_64", "0.9.2", &p.url, &p.signature));
         assert!(!m.binds("windows-aarch64", "0.9.1", &p.url, &p.signature));
+    }
+    #[test]
+    fn u06_held_installer_cannot_be_swapped_and_tampering_is_seen() {
+        let d = std::env::temp_dir().join(format!("gdm-u06-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let (held, path) = stage_and_hold(&d, b"MZ installer bytes").unwrap();
+        assert!(std::fs::OpenOptions::new().write(true).open(&path).is_err(), "no writer while held");
+        assert!(std::fs::remove_file(&path).is_err(), "no delete while held");
+        assert!(std::fs::rename(&path, d.join("x.exe")).is_err(), "no rename while held");
+        assert!(std::fs::read(&path).is_ok(), "readers (the installer itself) still allowed");
+        drop(held);
+        // a swap between the write and the hold is detected by the hash read through the held handle
+        std::fs::write(&path, b"MZ evil").unwrap();
+        assert_eq!(hold(&path, &gdm_core::finalize::hex(&sha256(b"MZ installer bytes"))).unwrap_err(), "installer changed after verification");
+        // a junction as the updates folder is refused
+        let j = std::env::temp_dir().join(format!("gdm-u06j-{}", std::process::id()));
+        let ok = std::process::Command::new("cmd").args(["/c", "mklink", "/J"]).arg(&j).arg(&d).output().unwrap().status.success();
+        assert!(ok, "mklink /J");
+        assert_eq!(stage_and_hold(&j, b"MZ x").unwrap_err(), "updates folder is a junction/link");
+        let _ = std::fs::remove_dir(&j);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+    #[test]
+    fn u06_a_held_installer_still_starts() {
+        // the Windows loader opens the image with share READ, compatible with our hold: a real exe must run
+        let d = std::env::temp_dir().join(format!("gdm-u06r-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let exe = std::fs::read(r"C:\Windows\System32\whoami.exe").unwrap();
+        let (held, path) = stage_and_hold(&d, &exe).unwrap();
+        let out = std::process::Command::new(&path).output().expect("held installer starts");
+        assert!(out.status.success() && !out.stdout.is_empty());
+        drop(held);
+        let _ = std::fs::remove_dir_all(&d);
     }
     #[test]
     fn versions_order() {

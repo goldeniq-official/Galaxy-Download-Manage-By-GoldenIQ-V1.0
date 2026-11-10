@@ -428,7 +428,13 @@ async fn install_update(app: &Arc<App>) {
     let Some((up, bytes)) = lock(&STAGED).take() else { return };
     set_update(|u| u.state = update::State::Installing);
     app.pause_all().await;
-    if let Err(e) = up.install(bytes) {
+    let _ = up; // Tauri verified the minisign signature of `bytes`; GDM runs them itself (U-06)
+    let res: Result<(), String> = update::stage_and_hold(&app.data.join("updates"), &bytes).and_then(|(held, path)| {
+        update::launch_held(&path)?;
+        drop(held); // the installer has opened its own image (share READ) before we let go
+        std::process::exit(0)
+    });
+    if let Err(e) = res {
         let n = {
             let mut s = lock(&app.settings);
             s.update_failures += 1;
