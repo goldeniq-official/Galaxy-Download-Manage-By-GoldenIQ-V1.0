@@ -296,6 +296,17 @@ mod tests {
         drop(held);
         let _ = std::fs::remove_dir_all(&d);
     }
+    /// U-03 restore drill: a manifest signed with a key RESTORED from backup verifies against the key compiled
+    /// into the shipped app. Run with GDM_DRILL_BODY=<file> GDM_DRILL_SIG=<file.sig> (skipped otherwise).
+    #[test]
+    fn u03_restore_drill() {
+        let (Ok(b), Ok(g)) = (std::env::var("GDM_DRILL_BODY"), std::env::var("GDM_DRILL_SIG")) else { return };
+        let body = std::fs::read(b).unwrap();
+        let sig = std::fs::read_to_string(g).unwrap();
+        let m =
+            verify_manifest(&body, &sig, PUBKEY, gdm_core::store::now(), "stable", "0.9.0").expect("restored key verifies against the shipped key");
+        println!("u03 drill: manifest {} verified with the production public key", m.version);
+    }
     #[test]
     fn versions_order() {
         assert!(vkey("0.9.1") > vkey("0.9.0"));
