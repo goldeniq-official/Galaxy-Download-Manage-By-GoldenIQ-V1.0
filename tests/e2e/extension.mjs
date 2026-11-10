@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: RPL-1.5
 // Real Chromium + the real extension + the INSTALLED gdm-bridge/gdm.exe (B-07 smoke, C-01, C-02, C-04).
 // node tests/e2e/extension.mjs <chrome.exe>
-// Harness limit (recorded in docs/evidence/G6.md): under Playwright/CDP a same-tab navigation download is taken
-// over by the automation layer and never reaches chrome.downloads, so "plain click on a .zip is caught" is a
-// manual check. Everything below goes through the browser's real download manager.
+// "A plain navigation to a .zip is caught" is covered by tests/e2e/c01-sites.mjs (real Edge, no automation,
+// public file): loopback .zip downloads are held back by this PC's security software, so this file covers the
+// modifier, size and POST rules.
 import { chromium } from "@playwright/test";
 import http from "node:http";
 import fs from "node:fs";

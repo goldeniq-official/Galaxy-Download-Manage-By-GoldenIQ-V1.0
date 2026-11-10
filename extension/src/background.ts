@@ -93,10 +93,21 @@ async function cookieFor(url: string): Promise<string | undefined> {
   }
 }
 
+/** Chromium fills `filename` a moment after onCreated; the final URL of a CDN redirect often has no extension,
+ * so the real name (Content-Disposition / save name) is needed to apply the type rule (found in the G6 Edge test) */
+async function withName(item: chrome.downloads.DownloadItem): Promise<chrome.downloads.DownloadItem> {
+  for (let i = 0; i < 20 && !item.filename && item.state === "in_progress"; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    item = (await chrome.downloads.search({ id: item.id }))[0] ?? item;
+  }
+  return item;
+}
+
 const handled = new Set<number>();
-chrome.downloads.onCreated.addListener(async (item) => {
-  if (handled.has(item.id)) return; // B-05: a restarted worker never sends the same download twice
-  handled.add(item.id);
+chrome.downloads.onCreated.addListener(async (created) => {
+  if (handled.has(created.id)) return; // B-05: a restarted worker never sends the same download twice
+  handled.add(created.id);
+  const item = await withName(created);
   if (!(await decide(item))) return;
   const hid = crypto.randomUUID();
   const url = item.finalUrl || item.url;
