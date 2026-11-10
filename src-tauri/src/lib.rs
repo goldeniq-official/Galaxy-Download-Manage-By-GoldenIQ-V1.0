@@ -4,6 +4,7 @@
 //! plain values, never paths, URLs to open or command lines (X-01).
 pub mod app;
 pub mod cli;
+pub mod clip;
 pub mod hook;
 pub mod import;
 pub mod os;
@@ -639,6 +640,13 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
     )?;
     if let Some(t) = h.tray_by_id("gdm") {
         t.set_menu(Some(menu))?;
+        // I-01: the tray says when the clipboard is being watched
+        let tip = match (lock(&app.settings).clipboard, lang == "en") {
+            (true, true) => "Galaxy Download Manager (watching the clipboard)",
+            (true, false) => "Galaxy Download Manager (កំពុងមើល clipboard)",
+            _ => "Galaxy Download Manager",
+        };
+        t.set_tooltip(Some(tip))?;
     }
     Ok(())
 }
@@ -802,6 +810,24 @@ pub fn run() {
                 });
             }
             app.resume_interrupted();
+            // I-01: clipboard monitor (reads nothing while off); a URL opens the Download Info dialog, unstarted
+            let (ac, ao) = (Arc::downgrade(&app), Arc::downgrade(&app));
+            clip::spawn(
+                Box::new(move || {
+                    ac.upgrade().and_then(|a| {
+                        let s = lock(&a.settings);
+                        s.clipboard.then(|| s.catch_exts.clone())
+                    })
+                }),
+                Box::new(move |u| {
+                    if let Some(a) = ao.upgrade() {
+                        if let Ok(id) = a.add_and_start(&u, None, None, vec![], false, false) {
+                            lock(&a.pending).push(id);
+                            show_main(&a, true);
+                        }
+                    }
+                }),
+            );
             // queue scheduler: every second (schedules use wall time, countdowns use Instant)
             let aq = app.clone();
             tauri::async_runtime::spawn(async move {
