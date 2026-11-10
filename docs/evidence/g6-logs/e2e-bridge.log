@@ -1,6 +1,6 @@
 PASS B-01 unknown extension origin: exit 1, no pipe
 PASS B-03 length 0xFFFFFFFF: clean exit 2
-PASS hello -> GDM (pipe + server image verified) in 1280 ms: catch policy received
+PASS hello -> GDM (pipe + server image verified) in 1435 ms: catch policy received
 PASS B-01 handoff with a dir field: rejected
 PASS handoff of a public URL acknowledged and started
 PASS file published in the download folder
@@ -11,6 +11,7 @@ PASS W-02 private host from the browser: not downloaded without asking
 PASS B-05 dup accepted
 PASS B-05 duplicate job removed from GDM
 PASS reused handoff id refused
+PASS P1 #15 context menu 'all links': 3 links listed for selection
 PASS B-04 rate limit: 26/35 started, the rest wait for the user
 PASS C-05 chrome manifest incognito=not_allowed
 PASS C-05 firefox manifest incognito=not_allowed

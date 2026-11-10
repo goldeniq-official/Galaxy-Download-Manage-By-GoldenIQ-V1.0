@@ -1,4 +1,4 @@
 sites opened: 20
 PASS positive control: a navigation to a 2 MB .zip is caught
 PASS C-01 false catches on 20 real sites: 0 
-browser download folder: Unconfirmed 433509.crdownload
+browser download folder: Unconfirmed 531606.crdownload

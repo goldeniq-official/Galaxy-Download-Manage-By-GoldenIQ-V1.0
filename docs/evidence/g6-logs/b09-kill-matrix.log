@@ -4,9 +4,11 @@ PASS trial 2 kill engine @20 ms (around the reply): ack=true gdm=complete file c
 PASS trial 3 kill engine @60 ms (around the reply): ack=true gdm=complete file complete
 PASS trial 4 kill engine @150 ms (around the reply): ack=true gdm=complete file complete
 PASS trial 5 kill bridge @0 ms (bridge dies mid-exchange): ack=false gdm=no job
-PASS trial 6 kill bridge @5 ms (bridge dies mid-exchange): ack=true gdm=complete file complete
+PASS trial 6 kill bridge @5 ms (bridge dies mid-exchange): ack=false gdm=no job
 PASS trial 7 kill bridge @20 ms (bridge dies mid-exchange): ack=true gdm=complete file complete
 PASS trial 8 kill engine-later @1500 ms (mid-download): ack=true gdm=complete file complete
 PASS trial 9 kill engine-later @3000 ms (mid-download): ack=true gdm=complete file complete
-never-lost violations: 0; visible duplicates (no ack, GDM also has it): 0
+PASS trial 10 kill engine @300 ms (job created, reply not sent): ack=false gdm=complete file complete
+PASS trial 11 kill engine @1000 ms (job created, reply not sent): ack=false gdm=complete file complete
+never-lost violations: 0; visible duplicates (no ack, GDM also has it): 2
 B-09 PASS

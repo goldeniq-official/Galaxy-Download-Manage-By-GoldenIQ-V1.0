@@ -3,6 +3,7 @@ PASS the real UI renders the download list (19 rows)
 PASS rule 8 on the real UI: no border/outline/ring/glow
 PASS layout on the real UI: hclip 0, offscreen 0
 PASS axe on the real UI: 0 serious/critical 
+PASS real Settings screen: rule 8 0, hclip 0, offscreen 0, axe serious 0
 PASS X-01 CSP: an injected inline script does not run
 PASS X-01 withGlobalTauri=false: no window.__TAURI__ global
 PASS no page errors: none
