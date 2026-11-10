@@ -52,7 +52,7 @@ async fn w01_same_origin_segments_keep_credentials() {
 
 #[test]
 fn w01_creds_scoped_to_scheme_host_port() {
-    let c = Creds { origin: Some(net::origin(&Url::parse("https://drive.example.com/a").unwrap())), headers: creds() };
+    let c = Creds { origin: Some(net::origin(&Url::parse("https://drive.example.com/a").unwrap())), headers: creds(), digest: None };
     assert_eq!(c.for_url(&Url::parse("https://drive.example.com/other?x").unwrap()).len(), 2);
     for other in ["https://cdn.attacker.net/a", "http://drive.example.com/a", "https://drive.example.com:8443/a", "https://sub.drive.example.com/a"] {
         assert!(c.for_url(&Url::parse(other).unwrap()).is_empty(), "{other}");

@@ -165,8 +165,35 @@ pub fn redirect_ok(previous: &[Url], next: &Url, p: &Policy) -> Result<(), Forbi
 pub struct Creds {
     pub origin: Option<Origin>,
     pub headers: Vec<(String, String)>,
+    /// a site login answered with Digest (RFC 7616): a fresh Authorization per request (nonce count + 1)
+    pub digest: Option<Arc<Digest>>,
 }
+
+#[derive(Debug)]
+pub struct Digest {
+    pub challenge: gdm_auth::Challenge,
+    pub user: String,
+    pub pass: String,
+    pub nc: std::sync::atomic::AtomicU32,
+    pub cnonce: String,
+}
+
 impl Creds {
+    /// every header for a GET of `u` (nothing for another origin)
+    pub fn headers_for(&self, u: &Url) -> Vec<(String, String)> {
+        let mut v = self.for_url(u).to_vec();
+        if let (Some(d), true) = (&self.digest, self.origin.as_ref() == Some(&origin(u))) {
+            let n = d.nc.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            let uri = match u.query() {
+                Some(q) => format!("{}?{q}", u.path()),
+                None => u.path().to_string(),
+            };
+            v.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+            v.push(("Authorization".into(), gdm_auth::authorization(&d.challenge, &d.user, &d.pass, "GET", &uri, n, &d.cnonce)));
+        }
+        v
+    }
+
     pub fn for_url(&self, u: &Url) -> &[(String, String)] {
         match &self.origin {
             Some(o) if *o == origin(u) => &self.headers,

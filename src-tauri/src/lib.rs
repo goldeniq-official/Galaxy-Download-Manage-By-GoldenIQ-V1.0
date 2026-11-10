@@ -314,14 +314,24 @@ async fn refresh_decide(app: A<'_>, id: String, choice: String) -> R<String> {
 
 /// proxy login password: straight to Credential Manager ("GDM/proxy"), never into settings
 #[tauri::command]
-fn proxy_login_set(app: A, user: String, password: String) -> R<()> {
-    if user.len() > 256 || password.len() > 1024 || user.chars().any(|c| c.is_control()) {
+fn proxy_login_set(app: A, host: String, user: String, password: String, windows: bool) -> R<()> {
+    if host.trim().is_empty()
+        || host.len() > 256
+        || user.len() > 256
+        || password.len() > 1024
+        || format!("{host}{user}").chars().any(|c| c.is_control())
+    {
         return Err("bad-login".into());
     }
-    creds::save("proxy", &user, &password)?;
     let mut p = lock(&app.settings).proxy.clone();
+    if windows {
+        p.auth = "windows".into(); // the logged-on user's Windows sign-in (SSPI), nothing stored
+    } else {
+        creds::save("proxy", &user, &password)?;
+        p.auth = "basic".into();
+    }
     p.user = user;
-    p.auth = "basic".into();
+    p.auth_host = gdm_core::relay::hostport(&host, 80);
     lock(&app.settings).proxy = p.clone();
     app.save_settings()?;
     proxy::apply(&p);

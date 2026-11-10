@@ -26,6 +26,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 gdm-core = { path = "../crates/gdm-core" }
 gdm-bridge = { path = "../crates/gdm-bridge" }
+gdm-auth = { path = "../crates/gdm-auth" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"

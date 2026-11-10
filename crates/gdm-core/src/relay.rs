@@ -208,13 +208,15 @@ impl Relay {
             None => s.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?,
             Some(path) => {
                 // origin-form request line; the client's Proxy-* headers never go upstream
+                // one request per connection (security review G7): with keep-alive the client's next request,
+                // carrying its Proxy-Authorization for this relay, would go upstream unparsed
                 let mut h = format!("{method} {path} HTTP/1.1\r\n");
                 for (k, v) in &hdrs {
-                    if !k.starts_with("proxy-") {
+                    if !k.starts_with("proxy-") && k != "connection" && k != "keep-alive" {
                         h.push_str(&format!("{k}: {v}\r\n"));
                     }
                 }
-                h.push_str("\r\n");
+                h.push_str("Connection: close\r\n\r\n");
                 up.write_all(h.as_bytes()).await?;
             }
         }

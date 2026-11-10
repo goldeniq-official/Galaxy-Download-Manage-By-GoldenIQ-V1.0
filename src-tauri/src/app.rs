@@ -68,6 +68,9 @@ pub struct ProxySettings {
     /// login to the proxy: none | basic (user here, password in Credential Manager "GDM/proxy") | windows (SSPI)
     pub auth: String,
     pub user: String,
+    /// the proxy host:port the login belongs to: credentials (Basic or Windows SSPI) go to that proxy only,
+    /// never to one a PAC/WPAD answer names (security review G7)
+    pub auth_host: String,
 }
 
 impl Default for ProxySettings {
@@ -79,6 +82,7 @@ impl Default for ProxySettings {
             bypass: vec!["<local>".into()],
             auth: "none".into(),
             user: String::new(),
+            auth_host: String::new(),
         }
     }
 }
@@ -248,6 +252,8 @@ pub struct App {
     pub countdown_ms: AtomicU64,
     /// queue speed buckets (queue id -> bucket)
     pub qbuckets: Mutex<HashMap<String, Arc<limiter::Bucket>>>,
+    /// jobs whose 401 already led to one Digest attempt
+    pub digest_tried: Mutex<std::collections::HashSet<String>>,
     /// parsed import waiting for the user's [Add] after the preview (I-03)
     pub import_pending: Mutex<Option<ImportPending>>,
     /// CLI /q: exit GDM after these downloads succeed
@@ -302,6 +308,7 @@ impl App {
             power: Mutex::new(crate::queue::real_power()),
             countdown_ms: AtomicU64::new(crate::queue::COUNTDOWN.as_millis() as u64),
             qbuckets: Default::default(),
+            digest_tried: Default::default(),
             import_pending: Default::default(),
             quit_after: Default::default(),
             quota: Default::default(),
@@ -459,9 +466,19 @@ impl App {
         if self.finishing.load(Ordering::SeqCst) {
             return; // Q-02: a shutdown/sleep is being carried out
         }
+        if !lock(&self.digest_tried).contains(id) {
+            self.apply_login(id);
+        }
+        self.start_keep_auth(id, decision);
+    }
+
+    /// `start` without (re)applying the Basic site login (after a switch to Digest)
+    pub fn start_keep_auth(self: &Arc<Self>, id: &str, decision: Unverified) {
+        if self.finishing.load(Ordering::SeqCst) {
+            return;
+        }
         let queue = lock(&self.engine.store).queue_of(id);
         let qb = queue.and_then(|q| lock(&self.qbuckets).get(&q).cloned());
-        self.apply_login(id);
         let mut runs = lock(&self.runs);
         if runs.contains_key(id) {
             return;
@@ -480,8 +497,26 @@ impl App {
         self.bump();
     }
 
-    fn finished(&self, id: &str, r: Result<gdm_core::Outcome, Fail>) {
+    fn finished(self: &Arc<Self>, id: &str, r: Result<gdm_core::Outcome, Fail>) {
         self.bump();
+        // a site login got 401 with Basic: if the server asks for Digest, switch and try once more
+        if matches!(r, Err(Fail::Auth)) && !lock(&self.digest_tried).contains(id) {
+            let j = self.engine.job(id).ok();
+            let login = j.as_ref().and_then(|j| crate::creds::matching(&lock(&self.settings).site_logins, &j.url).cloned());
+            if let (Some(j), Some(l)) = (j, login) {
+                lock(&self.digest_tried).insert(id.to_string());
+                let (me, id2) = (self.clone(), id.to_string());
+                tauri::async_runtime::spawn(async move {
+                    let ch = me.engine.auth_challenge(&id2).await.and_then(|h| gdm_auth::parse_challenge(&h).ok());
+                    if let (Some(ch), Some((user, pass))) = (ch, crate::creds::load(&l.id)) {
+                        if me.engine.set_digest(&id2, &j.url, ch, &user, &pass).is_ok() {
+                            me.start_keep_auth(&id2, Unverified::Ask);
+                        }
+                    }
+                });
+                return;
+            }
+        }
         let queue = lock(&self.engine.store).queue_of(id);
         if let Some(q) = queue {
             let sync = self.queue_defs().iter().any(|d| d.id == q && d.sync);

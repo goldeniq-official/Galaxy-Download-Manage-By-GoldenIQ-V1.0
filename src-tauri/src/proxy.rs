@@ -13,8 +13,22 @@ pub fn router(p: &ProxySettings) -> Option<Router> {
         "windows" => ProxyAuth::Sspi("Negotiate".into()),
         _ => ProxyAuth::None,
     };
+    let host = relay::hostport(&p.auth_host, 80).to_ascii_lowercase();
+    let only_there = move |routes: Vec<Route>| -> Vec<Route> {
+        routes
+            .into_iter()
+            .map(|r| match r {
+                Route::Http(h, a) if h.to_ascii_lowercase() == host && !p_empty(&host) => Route::Http(h, a),
+                Route::Http(h, _) => Route::Http(h, ProxyAuth::None),
+                r => r,
+            })
+            .collect()
+    };
     match p.mode.as_str() {
-        "system" => Some(gdm_core::sysproxy::system_router(auth)),
+        "system" => {
+            let inner = gdm_core::sysproxy::system_router(auth);
+            Some(Arc::new(move |u: &url::Url| only_there(inner(u))))
+        }
         "manual" => {
             let (http, socks, bypass) = (p.http.trim().to_string(), p.socks.trim().to_string(), p.bypass.clone());
             if http.is_empty() && socks.is_empty() {
@@ -27,11 +41,15 @@ pub fn router(p: &ProxySettings) -> Option<Router> {
                 if !socks.is_empty() {
                     return vec![Route::Socks5(relay::hostport(&socks, 1080), None)];
                 }
-                vec![Route::Http(relay::hostport(&http, 80), auth.clone())]
+                only_there(vec![Route::Http(relay::hostport(&http, 80), auth.clone())])
             }))
         }
         _ => None,
     }
+}
+
+fn p_empty(h: &str) -> bool {
+    h.is_empty() || h == ":80"
 }
 
 /// (re)start the relay when the setting changed; the relay itself is created on the async runtime
@@ -56,5 +74,30 @@ pub fn apply(p: &ProxySettings) {
                 }
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// security review G7: Windows sign-in (SSPI) or a saved proxy password goes only to the proxy it was set for
+    #[test]
+    fn proxy_credentials_only_to_their_host() {
+        let u = url::Url::parse("https://files.example.com/a.zip").unwrap();
+        let mut p = ProxySettings {
+            mode: "manual".into(),
+            http: "corp:8080".into(),
+            auth: "windows".into(),
+            auth_host: "corp:8080".into(),
+            ..Default::default()
+        };
+        assert_eq!(router(&p).unwrap()(&u), vec![Route::Http("corp:8080".into(), ProxyAuth::Sspi("Negotiate".into()))]);
+        p.http = "other:3128".into();
+        assert_eq!(router(&p).unwrap()(&u), vec![Route::Http("other:3128".into(), ProxyAuth::None)], "another proxy gets no credentials");
+        p.auth_host = String::new();
+        assert_eq!(router(&p).unwrap()(&u), vec![Route::Http("other:3128".into(), ProxyAuth::None)]);
+        p.bypass = vec!["*.example.com".into()];
+        assert_eq!(router(&p).unwrap()(&u), vec![Route::Direct]);
+        assert!(router(&ProxySettings::default()).is_none(), "no proxy by default");
     }
 }

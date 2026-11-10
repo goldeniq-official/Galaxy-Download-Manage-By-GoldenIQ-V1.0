@@ -19,6 +19,7 @@
 //!   /cr-lie        206 whose Content-Range declares 1 KiB, no Content-Length, then sends the whole range
 //!   /novalidator   206 ranges with no ETag and no Last-Modified          (E-02 unverified)
 //!   /429           first request per seed: 429 Retry-After: 2, then /file
+//!   /digest        like /file but needs a Digest Authorization (401 + challenge otherwise)
 //!   /status?code=N  that status, empty body
 //!   /html          200 text/html page                                   (R-03)
 //!   /multipart     206 multipart/byteranges                             (not requested => reject)
@@ -183,6 +184,15 @@ impl Fixture {
                     return not_modified(s, &etag).await;
                 }
                 self.ranged(s, size, seed, rate, trate, range, hdr("if-range"), head_only, &etag).await
+            }
+            "/digest" => {
+                // needs a Digest login (structure only; the hash maths is tested with the RFC 7616 vectors)
+                let ok = hdr("authorization").is_some_and(|a| a.starts_with("Digest ") && a.contains("username=\"alice\"") && a.contains("nc="));
+                if !ok {
+                    s.write_all(b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Digest realm=\"gdm\", nonce=\"n0nce\", qop=\"auth\", algorithm=SHA-256\r\nContent-Length: 0\r\n\r\n").await?;
+                    return Ok(true);
+                }
+                self.ranged(s, size, seed, rate, trate, range, hdr("if-range"), head_only, &format!("\"s{seed}-{size}\"")).await
             }
             "/status" => {
                 let code = num("code", 500);

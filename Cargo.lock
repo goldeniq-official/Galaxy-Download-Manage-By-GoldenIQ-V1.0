@@ -1294,6 +1294,7 @@ name = "galaxy-download-manager"
 version = "0.9.0"
 dependencies = [
  "chrono",
+ "gdm-auth",
  "gdm-bridge",
  "gdm-core",
  "gdm-fixture",

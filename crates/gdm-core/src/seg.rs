@@ -204,7 +204,7 @@ fn get(sh: &Shared, url: &Url, range: String, if_range: bool) -> reqwest::Reques
             rq = rq.header("If-Range", v);
         }
     }
-    for (k, v) in sh.creds.for_url(url) {
+    for (k, v) in sh.creds.headers_for(url) {
         rq = rq.header(k, v);
     }
     rq
@@ -259,7 +259,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         if let Some(v) = resume.as_ref().and_then(|r| r.validator.as_ref()) {
             b = b.header("If-Range", v);
         }
-        for (k, v) in rq.creds.for_url(&probe_url) {
+        for (k, v) in rq.creds.headers_for(&probe_url) {
             b = b.header(k, v);
         }
         // the whole response head must arrive within read_timeout (slowloris headers, E-07)

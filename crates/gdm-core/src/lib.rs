@@ -333,7 +333,7 @@ impl Engine {
             let id = new_id();
             let dir_id = self.st().dir_id(&dirh.path).map_err(Fail::Io)?;
             if !nj.creds.is_empty() {
-                creds.push((id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds }));
+                creds.push((id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds, digest: None }));
             }
             jobs.push(store::Job {
                 id,
@@ -742,7 +742,7 @@ impl Engine {
         let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
         c.remove(id);
         if !creds.is_empty() {
-            c.insert(id.to_string(), net::Creds { origin: Some(net::origin(&url)), headers: creds });
+            c.insert(id.to_string(), net::Creds { origin: Some(net::origin(&url)), headers: creds, digest: None });
         }
         Ok(())
     }
@@ -753,12 +753,38 @@ impl Engine {
         let u = url::Url::parse(url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
         reqwest::header::HeaderValue::from_str(value).map_err(|_| Fail::Forbidden("bad header value".into()))?;
         let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
-        let e = c.entry(id.to_string()).or_insert_with(|| net::Creds { origin: Some(net::origin(&u)), headers: vec![] });
+        let e = c.entry(id.to_string()).or_insert_with(|| net::Creds { origin: Some(net::origin(&u)), ..Default::default() });
         if e.origin != Some(net::origin(&u)) {
             return Err(Fail::Forbidden("login for another origin".into()));
         }
         e.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
         e.headers.push(("Authorization".into(), value.to_string()));
+        Ok(())
+    }
+
+    /// a site login met a 401: what does the server ask for? (one GET Range 0-0 without credentials)
+    pub async fn auth_challenge(&self, id: &str) -> Option<String> {
+        let job = self.job(id).ok()?;
+        let url = url::Url::parse(&job.url).ok()?;
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&url).ok()?;
+        let c = net::client(policy, true, std::time::Duration::from_secs(30)).ok()?;
+        let r = c.get(url).header("Range", "bytes=0-0").send().await.ok()?;
+        (r.status().as_u16() == 401)
+            .then(|| r.headers().get_all("www-authenticate").iter().filter_map(|v| v.to_str().ok()).collect::<Vec<_>>().join(", "))
+    }
+
+    /// switch a job's site login to Digest for its origin (password in memory for this session only)
+    pub fn set_digest(&self, id: &str, url: &str, challenge: gdm_auth::Challenge, user: &str, pass: &str) -> Result<(), Fail> {
+        let u = url::Url::parse(url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        let cnonce = gdm_auth::new_cnonce().map_err(Fail::Io)?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        let e = c.entry(id.to_string()).or_insert_with(|| net::Creds { origin: Some(net::origin(&u)), ..Default::default() });
+        if e.origin != Some(net::origin(&u)) {
+            return Err(Fail::Forbidden("login for another origin".into()));
+        }
+        e.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+        e.digest = Some(Arc::new(net::Digest { challenge, user: user.into(), pass: pass.into(), nc: Default::default(), cnonce }));
         Ok(())
     }
 
