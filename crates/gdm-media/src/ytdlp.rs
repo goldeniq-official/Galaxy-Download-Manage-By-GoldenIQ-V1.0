@@ -236,6 +236,20 @@ pub fn choices(info: &Info) -> Vec<Choice> {
             est_size,
         });
     }
+    // a page whose formats say nothing about their height (generic HLS without RESOLUTION): one "best" entry
+    if out.is_empty() {
+        let unknown = ok.iter().copied().filter(|f| !is_none(&f.vcodec) && f.height.is_none());
+        if let Some(v) = best(unknown, |_| 0) {
+            out.push(Choice {
+                label: "Best MKV".into(),
+                height: None,
+                video_id: Some(v.id.clone()),
+                audio_id: None,
+                container: "mkv".into(),
+                est_size: v.filesize,
+            });
+        }
+    }
     if let Some((a, c)) = best_audio(AAC).map(|a| (a, "m4a")).or_else(|| best_audio(&["opus"]).map(|a| (a, "opus"))) {
         out.push(Choice {
             label: format!("Audio only {}", c.to_uppercase()),
@@ -252,6 +266,14 @@ pub fn choices(info: &Info) -> Vec<Choice> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_height_gets_one_best_choice() {
+        let i = parse_info(r#"{"title":"t","formats":[{"format_id":"0","ext":"mp4","url":"https://h/v.m3u8","protocol":"m3u8_native"}]}"#).unwrap();
+        let c = choices(&i);
+        assert_eq!(c.len(), 1);
+        assert_eq!((c[0].label.as_str(), c[0].container.as_str(), c[0].video_id.as_deref()), ("Best MKV", "mkv", Some("0")));
+    }
 
     #[test]
     fn argv_shape_and_url_after_double_dash() {

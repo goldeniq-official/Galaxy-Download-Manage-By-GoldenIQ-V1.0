@@ -48,6 +48,10 @@ const COMMANDS: &[&str] = &[
     "login_set",
     "login_delete",
     "proxy_login_set",
+    "media_probe",
+    "media_start",
+    "components_state",
+    "components_install",
 ];
 
 fn main() {

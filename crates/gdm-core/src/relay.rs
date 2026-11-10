@@ -49,6 +49,8 @@ pub struct Relay {
     active: std::sync::atomic::AtomicUsize,
     /// every CONNECT target the relay sent upstream (tests: never a name)
     pub log: Mutex<Vec<String>>,
+    /// requests (plain) and tunnels (CONNECT) this relay passed on
+    pub served: std::sync::atomic::AtomicUsize,
 }
 
 fn random_hex(n: usize) -> String {
@@ -83,6 +85,7 @@ impl Relay {
             router: Mutex::new(router),
             active: Default::default(),
             log: Default::default(),
+            served: Default::default(),
         });
         let me = Arc::downgrade(&r);
         tokio::spawn(async move {
@@ -220,6 +223,7 @@ impl Relay {
                 up.write_all(h.as_bytes()).await?;
             }
         }
+        self.served.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let tunnel = method == "CONNECT";
         if tunnel {
             if !rest.is_empty() {
@@ -228,9 +232,58 @@ impl Relay {
             let _ = tokio::io::copy_bidirectional(&mut s, &mut up).await;
         } else {
             // plain http: exactly one bodiless request went upstream; anything else the client sends on this
-            // connection is never forwarded (it would carry this relay's Proxy-Authorization); the response
-            // flows back, then both sides close
-            let _ = tokio::io::copy(&mut up, &mut s).await;
+            // connection is never forwarded (it would carry this relay's Proxy-Authorization). The response
+            // head tells the client `Connection: close` (so it opens a new connection for its next request),
+            // the body is passed on (exactly Content-Length bytes when given, else until the server closes)
+            let mut b = Vec::new();
+            let end = loop {
+                if let Some(i) = b.windows(4).position(|w| w == b"\r\n\r\n") {
+                    break i + 4;
+                }
+                if b.len() > MAX_HEAD {
+                    return Ok(());
+                }
+                let mut t = [0u8; 4096];
+                let n = up.read(&mut t).await?;
+                if n == 0 {
+                    return Ok(());
+                }
+                b.extend_from_slice(&t[..n]);
+            };
+            let head = String::from_utf8_lossy(&b[..end]).to_string();
+            let mut out = String::new();
+            let mut len: Option<u64> = None;
+            for (i, l) in head.split("\r\n").enumerate() {
+                if l.is_empty() {
+                    continue;
+                }
+                let k = l.split(':').next().unwrap_or("").trim().to_ascii_lowercase();
+                if i > 0 && (k == "connection" || k == "keep-alive" || k == "proxy-connection") {
+                    continue;
+                }
+                if k == "content-length" {
+                    len = l.split_once(':').and_then(|(_, v)| v.trim().parse().ok());
+                }
+                out.push_str(l);
+                out.push_str("\r\n");
+            }
+            out.push_str("Connection: close\r\n\r\n");
+            s.write_all(out.as_bytes()).await?;
+            let body = &b[end..];
+            let no_body = method == "HEAD" || head.split(' ').nth(1).is_some_and(|c| c == "204" || c == "304" || c.starts_with('1'));
+            match (len, no_body) {
+                (_, true) => {}
+                (Some(n), _) => {
+                    let first = body.len().min(n as usize);
+                    s.write_all(&body[..first]).await?;
+                    let mut rest = (&mut up).take(n - first as u64);
+                    let _ = tokio::io::copy(&mut rest, &mut s).await;
+                }
+                (None, _) => {
+                    s.write_all(body).await?;
+                    let _ = tokio::io::copy(&mut up, &mut s).await;
+                }
+            }
             let _ = s.shutdown().await;
         }
         Ok(())

@@ -52,6 +52,10 @@
     "allow-login-list",
     "allow-login-set",
     "allow-login-delete",
-    "allow-proxy-login-set"
+    "allow-proxy-login-set",
+    "allow-media-probe",
+    "allow-media-start",
+    "allow-components-state",
+    "allow-components-install"
   ]
 }

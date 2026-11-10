@@ -9,6 +9,7 @@ pub mod components;
 pub mod creds;
 pub mod hook;
 pub mod import;
+pub mod media;
 pub mod os;
 pub mod pipe;
 pub mod proxy;
@@ -336,6 +337,66 @@ fn proxy_login_set(app: A, host: String, user: String, password: String, windows
     lock(&app.settings).proxy = p.clone();
     app.save_settings()?;
     proxy::apply(&p);
+    Ok(())
+}
+
+#[tauri::command]
+async fn media_probe(app: A<'_>, url: String) -> R<media::Probe> {
+    if url.len() > gdm_bridge::MAX_URL {
+        return Err("bad-url".into());
+    }
+    app.inner().clone().media_probe(url.trim()).await
+}
+
+#[tauri::command]
+fn media_start(app: A, token: String, choice: usize) -> R<()> {
+    app.inner().media_start(&token, choice)
+}
+
+#[derive(Serialize)]
+struct ComponentState {
+    ytdlp: bool,
+    ffmpeg: bool,
+}
+
+#[tauri::command]
+fn components_state(app: A) -> ComponentState {
+    ComponentState {
+        ytdlp: components::has(&app.data, "yt-dlp.exe"),
+        ffmpeg: components::has(&app.data, "ffmpeg.exe") && components::has(&app.data, "ffprobe.exe"),
+    }
+}
+
+/// D10 consent given in the UI: fetch the signed components.json, then each component (sha256-checked)
+#[tauri::command]
+async fn components_install(app: A<'_>) -> R<()> {
+    let a = app.inner().clone();
+    let c = gdm_core::net::client(Arc::new(Default::default()), false, Duration::from_secs(60))?;
+    let get = |u: String, cap: u64| {
+        let c = c.clone();
+        async move {
+            let mut r = c.get(u).send().await.map_err(|e| e.to_string())?;
+            if !r.status().is_success() {
+                return Err(format!("http {}", r.status()));
+            }
+            let mut b = Vec::new();
+            while let Some(ch) = r.chunk().await.map_err(|e| e.to_string())? {
+                if (b.len() + ch.len()) as u64 > cap {
+                    return Err("too-large".to_string());
+                }
+                b.extend_from_slice(&ch);
+            }
+            Ok(b)
+        }
+    };
+    let body = get(components::MANIFEST_URL.to_string(), 256 * 1024).await?;
+    let sig = get(format!("{}.sig", components::MANIFEST_URL), 4096).await?;
+    let m = components::verify(&body, &String::from_utf8_lossy(&sig), update::PUBKEY, gdm_core::store::now())?;
+    for comp in &m.components {
+        let bytes = get(comp.url.clone(), comp.size.min(components::MAX_DOWNLOAD)).await?;
+        let (d, cc) = (a.data.clone(), comp.clone());
+        tauri::async_runtime::spawn_blocking(move || components::install(&d, &cc, &bytes)).await.map_err(|e| e.to_string())??;
+    }
     Ok(())
 }
 
@@ -837,7 +898,11 @@ pub fn run() {
             login_list,
             login_set,
             login_delete,
-            proxy_login_set
+            proxy_login_set,
+            media_probe,
+            media_start,
+            components_state,
+            components_install
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();

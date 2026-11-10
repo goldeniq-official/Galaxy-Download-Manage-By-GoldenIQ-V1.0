@@ -788,6 +788,42 @@ impl Engine {
         Ok(())
     }
 
+    /// a file GDM produced itself (a muxed video) appears in the list as finished, with its hash
+    pub fn record_finished(&self, source: &str, dir: &Path, name: &str, sha256: &str) -> Result<String, Fail> {
+        let id = new_id();
+        let mut st = self.st();
+        let dir_id = st.dir_id(dir).map_err(Fail::Io)?;
+        let size = std::fs::metadata(dir.join(name)).map(|m| m.len()).ok();
+        let j = store::Job {
+            id: id.clone(),
+            url: finalize::clean_url(source),
+            final_url: None,
+            referrer: None,
+            name: name.into(),
+            dir: dir.to_path_buf(),
+            dir_id,
+            state: "queued".into(),
+            size,
+            done: size.unwrap_or(0),
+            validator: None,
+            sha256_expected: None,
+            sha256: None,
+            epoch: 0,
+            unverified: false,
+            protection: None,
+            error_code: None,
+            file_id: None,
+            allow_private: None,
+            target: None,
+            replaces: None,
+        };
+        let got = st.insert_job(&j, &|_| false).map_err(Fail::Io)?;
+        let zone = fsx::Dir::open(dir).ok().and_then(|d| fsx::zone_identifier(&d, name));
+        let prot = if finalize::zone_internet(zone.as_deref()) { "protected" } else { "unprotected" };
+        st.finish(&id, if prot == "protected" { "complete" } else { "unprotected" }, &got, sha256, prot).map_err(Fail::Io)?;
+        Ok(id)
+    }
+
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)
     pub fn creds_of(&self, id: &str) -> Vec<(String, String)> {
         self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).map(|c| c.headers.clone()).unwrap_or_default()

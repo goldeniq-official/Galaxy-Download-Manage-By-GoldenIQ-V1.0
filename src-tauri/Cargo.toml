@@ -27,6 +27,7 @@ tauri-build = { version = "2", features = [] }
 gdm-core = { path = "../crates/gdm-core" }
 gdm-bridge = { path = "../crates/gdm-bridge" }
 gdm-auth = { path = "../crates/gdm-auth" }
+gdm-media = { path = "../crates/gdm-media" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"
@@ -35,7 +36,7 @@ tauri-plugin-autostart = "2"
 tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs"] }
 minisign-verify = "0.2"
 url = "2"
 sha2 = "0.10"
@@ -43,6 +44,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 
 [dev-dependencies]
 gdm-fixture = { path = "../fixtures/hostile" }
+gdm-core = { path = "../crates/gdm-core" }
 
 [dependencies.windows]
 version = "0.61"

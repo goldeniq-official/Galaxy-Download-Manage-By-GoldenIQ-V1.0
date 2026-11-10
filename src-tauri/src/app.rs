@@ -261,6 +261,8 @@ pub struct App {
     pub quota: Mutex<crate::quota::QuotaState>,
     /// refresh candidates waiting for the user's confirmation (F06)
     pub refresh: Mutex<HashMap<String, crate::refresh::Candidate>>,
+    /// yt-dlp results waiting for the user's quality choice (F07)
+    pub media: Mutex<HashMap<String, crate::media::Pending>>,
 }
 
 pub type ImportPending = (Vec<crate::import::Item>, Option<serde_json::Value>);
@@ -313,6 +315,7 @@ impl App {
             quit_after: Default::default(),
             quota: Default::default(),
             refresh: Default::default(),
+            media: Default::default(),
         });
         app.apply_limit();
         Ok(app)
