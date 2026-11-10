@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: RPL-1.5
+[package]
+name = "gdm-auth"
+version = "0.1.0"
+edition = "2021"
+publish = false
+authors = ["GoldenIQ"]
+license = "RPL-1.5"
+description = "Galaxy Download Manager HTTP authentication: Digest (RFC 7616) and Windows SSPI NTLM/Negotiate tokens"
+
+[dependencies]

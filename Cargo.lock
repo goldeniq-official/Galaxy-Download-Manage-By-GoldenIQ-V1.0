@@ -1413,6 +1413,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "gdm-auth"
+version = "0.1.0"
+
+[[package]]
 name = "gdm-bridge"
 version = "0.9.0"
 dependencies = [
@@ -1451,6 +1455,15 @@ version = "0.1.0"
 dependencies = [
  "sha2",
  "tokio",
+]
+
+[[package]]
+name = "gdm-media"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
