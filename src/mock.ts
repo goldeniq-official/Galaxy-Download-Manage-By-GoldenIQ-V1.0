@@ -105,6 +105,7 @@ const calls: [string, unknown][] = [];
 
 export async function mock(cmd: string, args: Record<string, unknown>): Promise<unknown> {
   calls.push([cmd, args]);
+  await new Promise((r) => setTimeout(r, 25)); // like real IPC: the UI must render before the first answers arrive
   const q = String(args.q ?? "").toLowerCase();
   switch (cmd) {
     case "settings_get":

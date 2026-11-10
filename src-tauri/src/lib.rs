@@ -324,7 +324,21 @@ fn set_update(f: impl FnOnce(&mut update::Status)) {
 }
 
 #[cfg(not(feature = "store"))]
+static CHECKING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// single flight (council G6): two overlapping checks could stage a lower version after a higher one
+#[cfg(not(feature = "store"))]
 async fn check_update(h: &AppHandle, app: &Arc<App>, manual: bool) {
+    use std::sync::atomic::Ordering::SeqCst;
+    if CHECKING.swap(true, SeqCst) {
+        return;
+    }
+    check_update_inner(h, app, manual).await;
+    CHECKING.store(false, SeqCst);
+}
+
+#[cfg(not(feature = "store"))]
+async fn check_update_inner(h: &AppHandle, app: &Arc<App>, manual: bool) {
     use tauri_plugin_updater::UpdaterExt;
     let (mode, channel, seen) = {
         let s = lock(&app.settings);
@@ -344,15 +358,19 @@ async fn check_update(h: &AppHandle, app: &Arc<App>, manual: bool) {
         let get = |u: String| {
             let c = c.clone();
             async move {
-                let r = c.get(u).send().await.map_err(|e| e.to_string())?;
+                let mut r = c.get(u).send().await.map_err(|e| e.to_string())?;
                 if !r.status().is_success() {
                     return Err(format!("http {}", r.status()));
                 }
-                let b = r.bytes().await.map_err(|e| e.to_string())?;
-                if b.len() > 256 * 1024 {
-                    return Err("manifest too large".to_string());
+                // capped while streaming, not after buffering
+                let mut b = Vec::new();
+                while let Some(chunk) = r.chunk().await.map_err(|e| e.to_string())? {
+                    if b.len() + chunk.len() > 256 * 1024 {
+                        return Err("manifest too large".to_string());
+                    }
+                    b.extend_from_slice(&chunk);
                 }
-                Ok(b.to_vec())
+                Ok(b)
             }
         };
         let body = get(update::MANIFEST_URL.to_string()).await?;
@@ -380,8 +398,8 @@ async fn check_update(h: &AppHandle, app: &Arc<App>, manual: bool) {
     }
     let res = async {
         let up = h.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?.ok_or("no update")?;
-        if up.version != m.version {
-            return Err(format!("updater offered {} but the signed manifest says {}", up.version, m.version));
+        if !m.binds("windows-x86_64", &up.version, up.download_url.as_str(), &up.signature) {
+            return Err(format!("refused: the updater's {} is not the installer the signed manifest names ({})", up.version, m.version));
         }
         set_update(|u| u.state = update::State::Verifying);
         let bytes = up.download(|_, _| {}, || {}).await.map_err(|e| e.to_string())?; // minisign checked by Tauri
@@ -390,7 +408,12 @@ async fn check_update(h: &AppHandle, app: &Arc<App>, manual: bool) {
     match res.await {
         Ok(staged) => {
             *lock(&STAGED) = Some(staged);
-            lock(&app.settings).highest_seen = m.version.clone();
+            {
+                let mut st = lock(&app.settings);
+                if update::vkey(&m.version) > update::vkey(&st.highest_seen) {
+                    st.highest_seen = m.version.clone(); // never lowered
+                }
+            }
             let _ = app.save_settings();
             set_update(|u| u.state = update::State::Ready);
         }

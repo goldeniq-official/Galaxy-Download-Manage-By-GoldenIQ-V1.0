@@ -132,11 +132,19 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
             if !s.catch_enabled || s.catch_skip.iter().any(|p| glob(p, url.split("://").nth(1).unwrap_or(""))) {
                 return json!({"ok": false, "error": "not-caught"});
             }
+            // admission bound (council G6): a hijacked extension cannot pile up unbounded jobs or mappings
+            {
+                let mut m = lock(&app.handoff_jobs);
+                m.retain(|_, (_, at)| at.elapsed() < std::time::Duration::from_secs(600)); // a dup comes within seconds
+                if m.contains_key(&hid) || m.len() >= 1000 || lock(&app.pending).len() >= 200 {
+                    return json!({"ok": false, "error": "busy"}); // reused id or too many open proposals
+                }
+            }
             let start = app.handoff_allowed();
             let creds = cookie.filter(|c| !c.is_empty()).map(|c| vec![("Cookie".to_string(), c)]).unwrap_or_default();
             match app.add_and_start(&url, name, referrer, creds, false, start) {
                 Ok(id) => {
-                    lock(&app.handoff_jobs).insert(hid, id.clone());
+                    lock(&app.handoff_jobs).insert(hid, (id.clone(), std::time::Instant::now()));
                     if s.show_info || !start {
                         lock(&app.pending).push(id.clone());
                         crate::show_main(app, true);
@@ -148,12 +156,15 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
         }
         Msg::Dup { hid } => {
             let id = lock(&app.handoff_jobs).remove(&hid);
-            if let Some(id) = id {
+            if let Some((id, _)) = id {
                 let _ = app.info_cancel(&id).await;
             }
             json!({"ok": true})
         }
         Msg::Links { urls, referrer } => {
+            if lock(&app.pending).len() + urls.len() > 600 {
+                return json!({"ok": false, "error": "busy"});
+            }
             let mut ids = vec![];
             for u in urls {
                 if let Ok(id) = app.add_and_start(&u, None, referrer.clone(), vec![], false, false) {

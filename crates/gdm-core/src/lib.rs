@@ -495,6 +495,11 @@ impl Engine {
         })
     }
 
+    /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)
+    pub fn creds_of(&self, id: &str) -> Vec<(String, String)> {
+        self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).map(|c| c.headers.clone()).unwrap_or_default()
+    }
+
     pub fn is_running(&self, id: &str) -> bool {
         self.running.lock().unwrap_or_else(|p| p.into_inner()).contains(id)
     }

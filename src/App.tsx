@@ -10,6 +10,8 @@ import { bytes, eta, host, isActive, isDone, speed, view, type Action } from "./
 import { ftClass, ftIcon, Icon, Modal } from "./ui";
 import { Onboarding, SettingsView } from "./Settings";
 
+const NONE: Row[] = []; // a stable empty list: a new [] in a selector re-renders forever (React #185)
+
 const catName = (lang: string, c: { name_km: string; name_en: string }) => (lang === "en" ? c.name_en : c.name_km);
 
 function useWide() {
@@ -507,7 +509,7 @@ function UpdateBanner() {
 
 function InfoDialog() {
   const { t, i18n } = useTranslation();
-  const pending = useStore((s) => s.tick?.pending ?? []);
+  const pending = useStore((s) => s.tick?.pending ?? NONE);
   const live = useStore((s) => s.live);
   const settings = useStore((s) => s.settings)!;
   const closed = useStore((s) => s.infoClosed);

@@ -88,6 +88,11 @@ check(d1.out[0]?.ok === true && dd.out[0]?.ok === true, "B-05 dup accepted");
 const st = await talk([{ t: "status" }]);
 check(!st.out[0]?.recent?.some((x) => x.name === "dup.bin"), "B-05 duplicate job removed from GDM");
 
+// council G6: a reused handoff id is refused (no silent remapping of an open proposal)
+const re1 = await talk([{ t: "handoff", hid: "same1", url: `${fx}/file?size=1024&seed=7`, referrer: null, name: "same.bin", size: null, mime: null, cookie: null }]);
+const re2 = await talk([{ t: "handoff", hid: "same1", url: `${fx}/file?size=1024&seed=8`, referrer: null, name: "same2.bin", size: null, mime: null, cookie: null }]);
+check(re1.out[0]?.ok === true && re2.out[0]?.ok === false, "reused handoff id refused");
+
 // B-04: 35 handoffs at once -> at most 30 start by themselves (counting the 3 above in the same minute)
 const many = Array.from({ length: 35 }, (_, i) => ({ t: "handoff", hid: "rl" + i, url: `${fx}/file?size=1024&seed=${100 + i}`, referrer: null, name: `rl${i}.bin`, size: null, mime: null, cookie: null }));
 const m = await talk(many);

@@ -178,7 +178,7 @@ pub struct App {
     pub browsers_seen: Mutex<HashMap<String, i64>>,
     handoffs: Mutex<VecDeque<Instant>>,
     /// handoff id -> job id (B-05: the browser finished first => drop our copy)
-    pub handoff_jobs: Mutex<HashMap<String, String>>,
+    pub handoff_jobs: Mutex<HashMap<String, (String, Instant)>>,
     pub banner: Mutex<Option<String>>,
     pub notify: Mutex<Option<Notify>>,
 }
@@ -450,6 +450,7 @@ impl App {
             let c = category.and_then(|c| cats.iter().find(|x| x.id == c).cloned()).unwrap_or_else(|| self.category_for(&new_name));
             let dir = self.category_dir(&c);
             std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
+            let creds = self.engine.creds_of(&id); // the browser's cookie follows the renamed job
             self.remove(&id, false).await?;
             id = self
                 .engine
@@ -458,7 +459,7 @@ impl App {
                     dir,
                     name: Some(new_name),
                     referrer: j.referrer.clone(),
-                    creds: vec![],
+                    creds,
                     sha256: None,
                     typed: j.allow_private.is_some(),
                 })

@@ -12,7 +12,7 @@ export default tseslint.config(
   {
     // node test/build scripts
     files: ["**/*.mjs"],
-    languageOptions: { globals: { process: "readonly", console: "readonly", Buffer: "readonly", setTimeout: "readonly", setInterval: "readonly", clearInterval: "readonly", URL: "readonly", fetch: "readonly", chrome: "readonly" } },
+    languageOptions: { globals: { process: "readonly", console: "readonly", Buffer: "readonly", setTimeout: "readonly", setInterval: "readonly", clearInterval: "readonly", URL: "readonly", fetch: "readonly", chrome: "readonly", document: "readonly", window: "readonly", WebSocket: "readonly" } },
   },
   {
     files: ["**/*.{ts,tsx}"],

@@ -47,6 +47,28 @@ pub struct Manifest {
     pub notes_km: Option<String>,
     #[serde(default)]
     pub notes_en: Option<String>,
+    /// Tauri's per-platform installer url + minisign signature: covered by OUR signature, and the update Tauri
+    /// fetches again must carry exactly these (council G6: otherwise a second response could relabel an older
+    /// signed installer with the new version number)
+    pub platforms: std::collections::BTreeMap<String, Platform>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub struct Platform {
+    pub url: String,
+    pub signature: String,
+}
+
+impl Manifest {
+    /// the update Tauri is about to download is the one this signed manifest describes
+    /// Tauri picks "<os>-<arch>-<installer>" before "<os>-<arch>"; either entry of OUR signed manifest may match
+    pub fn binds(&self, platform: &str, version: &str, url: &str, signature: &str) -> bool {
+        self.version == version
+            && [format!("{platform}-nsis"), platform.to_string()]
+                .iter()
+                .filter_map(|k| self.platforms.get(k))
+                .any(|p| p.url == url && p.signature.trim() == signature.trim())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -160,6 +182,19 @@ mod tests {
         assert!(!may_install(&State::Ready, "notify", 0, 0, idle), "notify mode never installs by itself");
         assert!(!may_install(&State::Ready, "auto", 2, 0, idle), "after 2 failed installs the user decides");
         assert!(!may_install(&State::Downloading, "auto", 0, 0, idle));
+    }
+    #[test]
+    fn u01_tauri_update_must_match_the_signed_manifest() {
+        let m = verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "0.9.0").unwrap();
+        let p = &m.platforms["windows-x86_64"];
+        assert!(m.binds("windows-x86_64", "0.9.1", &p.url, &p.signature));
+        assert!(
+            !m.binds("windows-x86_64", "0.9.1", "https://github.com/x/y/releases/download/v0.8.0/old.exe", &p.signature),
+            "relabelled older installer"
+        );
+        assert!(!m.binds("windows-x86_64", "0.9.1", &p.url, "other-signature"));
+        assert!(!m.binds("windows-x86_64", "0.9.2", &p.url, &p.signature));
+        assert!(!m.binds("windows-aarch64", "0.9.1", &p.url, &p.signature));
     }
     #[test]
     fn versions_order() {

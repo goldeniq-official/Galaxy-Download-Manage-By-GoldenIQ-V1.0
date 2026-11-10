@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: RPL-1.5
+// The INSTALLED gdm.exe in its real WebView2 (P1 #30): rule 8 probe, layout/clipping probe, axe, screenshots,
+// and "the CSP blocks inline script" — over WebView2's own DevTools port (test only, via
+// WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; release builds have no devtools and no port).
+// node tests/e2e/webview2.mjs <install dir> <data dir> <shots dir>
+import { chromium } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import path from "node:path";
+
+const require = createRequire(import.meta.url);
+const P = require("../../design/check.cjs");
+const [inst, data, shots] = process.argv.slice(2);
+fs.mkdirSync(shots, { recursive: true });
+let fails = 0;
+const check = (ok, what) => {
+  console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
+  if (!ok) fails++;
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const app = spawn(path.join(inst, "gdm.exe"), [], { env: { ...process.env, GDM_DATA: data, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: "--remote-debugging-port=9339" }, stdio: "ignore" });
+await sleep(6000);
+const browser = await chromium.connectOverCDP("http://127.0.0.1:9339");
+const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools"));
+check(!!page, `WebView2 page found (${page?.url()})`);
+await page.setViewportSize({ width: 1280, height: 760 }).catch(() => {});
+const errors = [];
+page.on("pageerror", (e) => errors.push(e.message));
+await page.reload();
+await page.waitForSelector("#shell .row", { timeout: 15000 }).catch(() => {});
+await page.evaluate(() => document.fonts.ready);
+check((await page.locator("#shell .row").count()) > 0, `the real UI renders the download list (${await page.locator("#shell .row").count()} rows)`);
+const lang = JSON.parse(fs.readFileSync(path.join(data, "settings.json"), "utf8")).lang ?? "km";
+await page.mouse.move(2, 2);
+await page.screenshot({ path: path.join(shots, `webview2-list-${lang}.png`) });
+const rules = await page.evaluate(P.rulesProbe);
+check(rules.length === 0, `rule 8 on the real UI: ${rules.length ? rules.join("; ") : "no border/outline/ring/glow"}`);
+const lay = await page.evaluate(P.layoutProbe);
+check(!lay.hClip.length && !lay.offscreen.length, `layout on the real UI: hclip ${lay.hClip.length}, offscreen ${lay.offscreen.length}`);
+const axe = await new AxeBuilder({ page }).analyze();
+const serious = axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+check(serious.length === 0, `axe on the real UI: ${serious.length} serious/critical ${serious.map((v) => v.id).join(",")}`);
+const csp = await page.evaluate(() => {
+  const s = document.createElement("script");
+  s.textContent = "window.__inline = 1";
+  document.head.append(s);
+  return window.__inline === undefined;
+});
+check(csp, "X-01 CSP: an injected inline script does not run");
+const ipc = await page.evaluate(() => typeof window.__TAURI__ === "undefined");
+check(ipc, "X-01 withGlobalTauri=false: no window.__TAURI__ global");
+check(errors.length === 0, `no page errors: ${errors.join(" | ") || "none"}`);
+await browser.close().catch(() => {});
+app.kill();
+console.log(fails ? `${fails} FAIL` : "ALL PASS");
+process.exit(fails ? 1 : 0);
