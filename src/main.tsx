@@ -1,9 +1,17 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
+// SPDX-License-Identifier: RPL-1.5
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./styles/tokens.css";
+import "./styles/app.css";
+import "./styles/gdm.css";
+import "./i18n";
 import App from "./App";
+import { boot } from "./store";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+void boot().then(() =>
+  createRoot(document.getElementById("root") as HTMLElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  ),
 );

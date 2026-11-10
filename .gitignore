@@ -36,3 +36,4 @@ __pycache__/
 /extension/dist/
 /test-results/
 /playwright-report/
+/.playwright-mcp/
