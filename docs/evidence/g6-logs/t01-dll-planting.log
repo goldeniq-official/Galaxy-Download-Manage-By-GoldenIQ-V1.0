@@ -1,0 +1,4 @@
+﻿positive control (probe loaded by rundll32 leaves a marker): True
+setup exit=0; planted names: 22
+markers after setup + uninstall: 0 
+T-01 PASS

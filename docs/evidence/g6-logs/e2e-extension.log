@@ -1,0 +1,7 @@
+PASS extension loaded with the fixed id the bridge allows (B-01)
+PASS native messaging from the real extension reaches GDM; catch policy received
+PASS C-04 Alt+click on a 2 MB .zip: the browser keeps it
+PASS C-01 a .zip below the 1 MB minimum is left to the browser
+PASS C-02 a POST form download is never caught
+PASS C-04 Ctrl+click forces GDM (extension -> bridge -> pipe -> new job), even for a .txt
+ALL PASS

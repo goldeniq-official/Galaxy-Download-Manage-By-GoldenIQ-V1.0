@@ -37,3 +37,5 @@ __pycache__/
 /test-results/
 /playwright-report/
 /.playwright-mcp/
+# evidence logs are part of the record
+!docs/evidence/**/*.log
