@@ -126,7 +126,7 @@ test("D-03 / P1 #20: 10 000 rows stay virtual and search answers fast", async ({
 
 // X-03/X-04 + exit.md R4/R5: Windows scaling 125/150 % (deviceScaleFactor) and high contrast (forced-colors)
 for (const name of ["list", "info", "settings", "onboarding1"])
-  for (const dpr of [1.25, 1.5])
+  for (const dpr of [1.25, 1.5, 2])
     for (const lang of ["km", "en"])
       test(`dpi ${dpr * 100}% ${name} ${lang}`, async ({ browser }) => {
         const s = SCREENS[name];

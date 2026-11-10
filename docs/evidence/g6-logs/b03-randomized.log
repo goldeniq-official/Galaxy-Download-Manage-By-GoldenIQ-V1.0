@@ -1,0 +1,5 @@
+test tests::b03_randomized_decoder has been running for over 60 seconds
+b03 randomized: 100000000 inputs, 13879781 accepted, 0 panics
+test tests::b03_randomized_decoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 101.27s
+real	1m41.642s

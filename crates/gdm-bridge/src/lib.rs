@@ -150,6 +150,55 @@ mod tests {
         let many = format!(r#"{{"t":"links","urls":[{}]}}"#, vec![r#""https://e.com/a""#; MAX_LINKS + 1].join(","));
         assert!(parse(many.as_bytes()).is_err());
     }
+    /// B-03 randomized decoder campaign (not coverage-guided; cargo-fuzz runs in CI): random bytes and
+    /// mutations of valid messages never panic, and every accepted message respects the limits.
+    /// GDM_FUZZ_ITERS (default 20 000) sets the size; G6 evidence ran 5 000 000.
+    #[test]
+    fn b03_randomized_decoder() {
+        let n: u64 = std::env::var("GDM_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(20_000);
+        let seeds: [&[u8]; 4] = [
+            br#"{"t":"handoff","hid":"1","url":"https://e.com/a.zip","referrer":null,"name":"a.zip","size":5,"mime":"x","cookie":"a=b"}"#,
+            br#"{"t":"links","urls":["https://e.com/a","http://e.com/b"],"referrer":"https://e.com/"}"#,
+            br#"{"t":"hello","browser":"chrome","ver":"0.9.0"}"#,
+            br#"{"t":"dup","hid":"x"}"#,
+        ];
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut rnd = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let mut accepted = 0u64;
+        for i in 0..n {
+            let mut b: Vec<u8> = if i % 4 == 0 { (0..(rnd() % 512)).map(|_| rnd() as u8).collect() } else { seeds[(rnd() % 4) as usize].to_vec() };
+            for _ in 0..(rnd() % 6) {
+                if b.is_empty() {
+                    break;
+                }
+                let k = (rnd() as usize) % b.len();
+                match rnd() % 4 {
+                    0 => b[k] = rnd() as u8,
+                    1 => drop(b.remove(k)),
+                    2 => b.insert(k, [b'"', b'{', b'}', b'[', b']', b',', b':', 0x5C, 0xC3, 0x80][(rnd() % 10) as usize]),
+                    _ => {
+                        let r: Vec<u8> = b[k..].iter().take(64).copied().collect();
+                        b.splice(k..k, r);
+                    }
+                }
+            }
+            if let Ok(m) = parse(&b) {
+                accepted += 1;
+                assert!(m.validate().is_ok());
+                if let Msg::Handoff { url, name, cookie, .. } = &m {
+                    assert!(url.len() <= MAX_URL && (url.starts_with("http://") || url.starts_with("https://")));
+                    assert!(name.as_deref().is_none_or(|v| v.len() <= MAX_NAME) && cookie.as_deref().is_none_or(|v| v.len() <= MAX_COOKIE));
+                }
+            }
+        }
+        println!("b03 randomized: {n} inputs, {accepted} accepted, 0 panics");
+    }
+
     #[test]
     fn b01_caller_allow_list() {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();

@@ -16,6 +16,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 gdm-core = { path = "../crates/gdm-core" }
+gdm-bridge = { path = "../crates/gdm-bridge" }
 url = "2"
 
 [[bin]]
@@ -27,5 +28,11 @@ doc = false
 [[bin]]
 name = "sidecar"
 path = "fuzz_targets/sidecar.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bridge"
+path = "fuzz_targets/bridge.rs"
 test = false
 doc = false

@@ -74,5 +74,6 @@ jobs:
       - name: fuzz the filename sanitizer and the sidecar parser
         working-directory: fuzz
         run: |
-          cargo +nightly fuzz run names -- -max_total_time=9900
-          cargo +nightly fuzz run sidecar -- -max_total_time=9900
+          cargo +nightly fuzz run names -- -max_total_time=6600
+          cargo +nightly fuzz run sidecar -- -max_total_time=6600
+          cargo +nightly fuzz run bridge -- -max_total_time=6600
