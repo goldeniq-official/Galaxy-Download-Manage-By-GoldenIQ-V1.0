@@ -205,6 +205,13 @@ fn job_folder(app: A, id: String) -> R<()> {
     os::open_folder(&target)
 }
 
+/// X-02: the page comes from the job's own referrer (or its URL), looked up by id
+#[tauri::command]
+fn job_page(app: A, id: String) -> R<()> {
+    let j = app.engine.job(&id).map_err(|e| e.code())?;
+    os::open_web(j.referrer.as_deref().filter(|r| r.starts_with("http")).unwrap_or(&j.url))
+}
+
 #[tauri::command]
 fn job_desc(app: A, id: String, text: String) -> R<()> {
     let t: String = text.chars().take(2000).collect();
@@ -508,6 +515,7 @@ pub fn run() {
             job_remove,
             job_open,
             job_folder,
+            job_page,
             job_desc,
             job_conns,
             job_limit,

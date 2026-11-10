@@ -18,6 +18,7 @@
     "allow-job-remove",
     "allow-job-open",
     "allow-job-folder",
+    "allow-job-page",
     "allow-job-desc",
     "allow-job-conns",
     "allow-job-limit",

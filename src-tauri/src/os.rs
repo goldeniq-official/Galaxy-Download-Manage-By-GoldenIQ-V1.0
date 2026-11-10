@@ -34,6 +34,15 @@ pub fn open_link(key: &str) -> Result<(), String> {
     shell_open(link(key).ok_or("unknown link")?, "open")
 }
 
+/// a job's source page (J5 refresh, "login needed"): from the database, http(s) only, never a file: or custom scheme
+pub fn open_web(url: &str) -> Result<(), String> {
+    let u = url::Url::parse(url).map_err(|_| "bad-url")?;
+    if !matches!(u.scheme(), "http" | "https") {
+        return Err("bad-url".into());
+    }
+    shell_open(u.as_str(), "open")
+}
+
 /// open a finished download with its associated program. Dangerous types are never opened directly (N-02):
 /// the UI shows only [open folder] for them, and this refuses even if asked.
 pub fn open_file(path: &Path, name: &str) -> Result<(), String> {

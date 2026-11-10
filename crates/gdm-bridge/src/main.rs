@@ -108,7 +108,13 @@ fn host(origin: String) -> i32 {
                 if r.as_ref().is_err_and(|e| e.starts_with("no GDM")) && !launched && !matches!(msg, Msg::Status {}) {
                     // B-06: GDM is installed but not running: start it in the tray, then retry (< 3 s ack budget)
                     launched = true;
-                    let _ = std::process::Command::new(&exe).arg("--background").spawn();
+                    // never hand GDM our stdio: stdout is the browser's native messaging channel
+                    let _ = std::process::Command::new(&exe)
+                        .arg("--background")
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn();
                     r = call(&pipe, &exe, &env, Duration::from_millis(2500));
                 }
                 r.unwrap_or_else(|e| {

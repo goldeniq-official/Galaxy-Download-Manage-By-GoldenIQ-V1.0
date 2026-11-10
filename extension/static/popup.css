@@ -1,0 +1,22 @@
+/* SPDX-License-Identifier: RPL-1.5 — same tokens as the app (§06): fill only, no border/outline/glow */
+:root { color-scheme: dark; --bg: #060912; --chip: rgba(255,255,255,.08); --chip-h: rgba(255,255,255,.16); --tx: #e4e7f0; --mut: #8a91a6; --done: #b5e61d; --warn: #f5a524; --acc: linear-gradient(135deg, #1f6fe0 0%, #1660d0 45%, #0b3a9c 100%); --plate: rgba(255,255,255,.40); }
+@media (prefers-color-scheme: light) { :root { color-scheme: light; --bg: #f9fafc; --chip: rgba(16,28,64,.06); --chip-h: rgba(16,28,64,.11); --tx: #1f2738; --mut: #5b6478; --done: #3a6806; --warn: #a35a00; --plate: #26324d; } }
+* { box-sizing: border-box; }
+body { margin: 0; width: 340px; background: var(--bg); color: var(--tx); font: 500 13px/1.6 system-ui, "Khmer UI", "Leelawadee UI", sans-serif; }
+main { padding: 14px 16px; }
+header { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+button { font: inherit; color: inherit; border: 0; outline: none; cursor: pointer; }
+button:focus-visible { background: var(--plate); color: #fff; }
+.st.ok { color: var(--done); } .st.off { color: var(--warn); }
+.meta { color: var(--mut); font-size: 12px; }
+.opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; }
+.toggle { width: 40px; height: 24px; border-radius: 999px; background: rgba(127,127,127,.3); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s; }
+.toggle[aria-checked="true"] { background: var(--acc); }
+.toggle[aria-checked="true"]::after { transform: translateX(16px); }
+.btn { width: 100%; min-height: 36px; border-radius: 10px; background: var(--chip); padding: 6px 12px; text-align: start; }
+.btn:hover { background: var(--chip-h); }
+h3 { font-size: 11.5px; color: var(--mut); margin: 14px 0 4px; font-weight: 600; }
+ul { list-style: none; margin: 0; padding: 0; }
+li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; }
+li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-block: .2em; }

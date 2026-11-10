@@ -121,11 +121,12 @@ pub fn ext_of(name: &str) -> String {
     gdm_core::name::real_extension(name)
 }
 
-/// the per-user data folder: %LOCALAPPDATA%\GDM (db, settings, backups)
+/// the per-user data folder (db, settings, backups): %LOCALAPPDATA%\<identifier>, the folder the NSIS
+/// uninstaller's "delete the application data" box removes (T-03: the user chooses; downloads stay)
 pub fn data_dir() -> PathBuf {
-    std::env::var_os("GDM_DATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("GDM"))
+    std::env::var_os("GDM_DATA").map(PathBuf::from).unwrap_or_else(|| {
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("GoldenIQ.GalaxyDownloadManager")
+    })
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -189,7 +190,15 @@ pub const HANDOFFS_PER_MIN: usize = 30;
 impl App {
     pub fn open(data: &Path) -> Result<Arc<App>, String> {
         std::fs::create_dir_all(data).map_err(|e| e.to_string())?;
-        let settings: Settings = std::fs::read(data.join("settings.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let sp = data.join("settings.json");
+        let settings: Settings = match std::fs::read(&sp) {
+            Err(_) => Settings::default(),
+            Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|_| {
+                // a damaged settings file is kept for the user, never silently overwritten (UX rule 2)
+                let _ = std::fs::rename(&sp, data.join(format!("settings.json.bad-{}", gdm_core::store::now())));
+                Settings::default()
+            }),
+        };
         let engine = Engine::open(&data.join("gdm.db"), gdm_core::seg::Config { cap: settings.max_conns.clamp(1, 32), ..Default::default() })
             .map_err(|e| e.to_string())?;
         let banner = engine

@@ -19,7 +19,7 @@ pub const MAX_LINKS: usize = 500;
 
 /// Chrome Web Store / Edge Add-ons / unpacked (key in extension/manifest) ids, and the Firefox id (B-01).
 /// The store ids are added here when the owner publishes the extension (release notes).
-pub const CHROME_IDS: &[&str] = &["ilcjejcdbmhbcfbmppoeefndagnhapmb"];
+pub const CHROME_IDS: &[&str] = &["khgpllebdmknoollimkfkggepiembabi"];
 pub const FIREFOX_IDS: &[&str] = &["gdm@goldeniq.dev"];
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]

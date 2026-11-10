@@ -15,6 +15,7 @@ const COMMANDS: &[&str] = &[
     "job_remove",
     "job_open",
     "job_folder",
+    "job_page",
     "job_desc",
     "job_conns",
     "job_limit",
