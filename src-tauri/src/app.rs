@@ -197,7 +197,11 @@ pub struct App {
     pub countdown_ms: AtomicU64,
     /// queue speed buckets (queue id -> bucket)
     pub qbuckets: Mutex<HashMap<String, Arc<limiter::Bucket>>>,
+    /// parsed import waiting for the user's [Add] after the preview (I-03)
+    pub import_pending: Mutex<Option<ImportPending>>,
 }
+
+pub type ImportPending = (Vec<crate::import::Item>, Option<serde_json::Value>);
 
 pub type Notify = Box<dyn Fn(&Toast) + Send + Sync>;
 
@@ -242,6 +246,7 @@ impl App {
             power: Mutex::new(crate::queue::real_power()),
             countdown_ms: AtomicU64::new(crate::queue::COUNTDOWN.as_millis() as u64),
             qbuckets: Default::default(),
+            import_pending: Default::default(),
         });
         app.apply_limit();
         Ok(app)
@@ -540,6 +545,53 @@ impl App {
         }
         self.bump();
         Ok(id)
+    }
+
+    /// import / batch / CLI lists: jobs go to their category folders, nothing starts by itself (I-03, I-04);
+    /// all rows in one transaction
+    pub fn add_items(&self, items: &[crate::import::Item], queue: Option<&str>) -> Result<Vec<String>, String> {
+        let mut list = Vec::with_capacity(items.len());
+        let mut dirs = std::collections::HashSet::new();
+        for it in items {
+            let u = url::Url::parse(&it.url).map_err(|_| "bad-url".to_string())?;
+            let guess = it.name.clone().unwrap_or_else(|| gdm_core::name::file_name(None, &u));
+            let dir = self.category_dir(&self.category_for(&guess));
+            if dirs.insert(dir.clone()) {
+                std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
+            }
+            list.push(NewJob { url: it.url.clone(), dir, name: it.name.clone(), referrer: it.referrer.clone(), ..Default::default() });
+        }
+        let ids = self.engine.add_many(list).map_err(|e| e.code())?;
+        {
+            let st = lock(&self.engine.store);
+            for (id, it) in ids.iter().zip(items) {
+                if let Some(d) = &it.description {
+                    let _ = st.set_description(id, Some(d));
+                }
+            }
+        }
+        if queue.is_some() {
+            self.queue_put(&ids, queue)?;
+        }
+        self.bump();
+        Ok(ids)
+    }
+
+    /// export JSON: the list + a settings backup without hooks, updater state or secrets (P-01)
+    pub fn export_json(&self) -> Result<Vec<u8>, String> {
+        let jobs = lock(&self.engine.store)
+            .list(None, crate::import::MAX_ITEMS)?
+            .into_iter()
+            .map(|r| crate::import::Item { url: r.url, name: Some(r.name), referrer: None, description: r.description })
+            .collect();
+        let mut set = serde_json::to_value(&*lock(&self.settings)).map_err(|e| e.to_string())?;
+        if let Some(o) = set.as_object_mut() {
+            for k in ["hooks", "highest_seen", "last_check", "update_failures", "download_dir", "sounds"] {
+                o.remove(k);
+            }
+        }
+        let e = crate::import::Export { gdm_export: 1, app_version: env!("CARGO_PKG_VERSION").into(), jobs, settings: Some(set) };
+        serde_json::to_vec_pretty(&e).map_err(|e| e.to_string())
     }
 
     /// B-04: at most 30 handoffs a minute start by themselves; the rest wait in the Info dialog unstarted

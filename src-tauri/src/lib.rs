@@ -89,6 +89,10 @@ fn settings_get(app: A) -> Settings {
 #[tauri::command]
 fn settings_set(app: A, patch: Value) -> R<Settings> {
     let s = app.merge_settings(patch)?;
+    apply_settings(app.inner(), s)
+}
+
+fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
     let wake: Vec<queue::Queue> = s.queues.clone();
     let autostart = s.autostart;
     *lock(&app.settings) = s.clone();
@@ -99,7 +103,7 @@ fn settings_set(app: A, patch: Value) -> R<Settings> {
         use tauri_plugin_autostart::ManagerExt;
         let al = h.autolaunch();
         let _ = if autostart { al.enable() } else { al.disable() };
-        let _ = rebuild_tray(h, &app);
+        let _ = rebuild_tray(h, app);
     }
     Ok(s)
 }
@@ -181,7 +185,8 @@ fn hook_set(app: A, queue: String, pick: bool, args: Vec<String>, clear: bool) -
     } else {
         "Run this program when the queue finishes?"
     };
-    let shown = format!("{ask}\n\n{}\n{}", h.program, h.args.join("\n"));
+    let args: String = h.args.iter().enumerate().map(|(i, a)| format!("[{}] \"{a}\"\n", i + 1)).collect();
+    let shown = format!("{ask}\n\n\"{}\"\n{args}", h.program);
     if !os::confirm("Galaxy Download Manager", &shown) {
         return Ok(lock(&app.settings).hooks.get(&queue).cloned());
     }
@@ -207,6 +212,75 @@ fn sound_pick(app: A, event: String) -> R<Option<String>> {
 #[tauri::command]
 fn sound_test(app: A, event: String) {
     app.play(&event);
+}
+
+#[derive(Serialize)]
+struct ImportPreview {
+    count: usize,
+    sample: Vec<import::Item>,
+    has_settings: bool,
+}
+
+/// Tasks > Import: the file comes from the native dialog; nothing is added before [Add] (I-03 preview)
+#[tauri::command]
+fn import_pick(app: A) -> R<Option<ImportPreview>> {
+    let start = app::downloads_dir();
+    let Some(p) = os::pick_file(&start, "IDM .ef2, text, GDM .json", "*.ef2;*.txt;*.json") else { return Ok(None) };
+    let len = std::fs::metadata(&p).map_err(|e| e.to_string())?.len();
+    if len > import::MAX_FILE {
+        return Err("too-large".into());
+    }
+    let bytes = std::fs::read(&p).map_err(|e| e.to_string())?;
+    let (items, set) = import::parse_file(&p.display().to_string(), &bytes)?;
+    let pv = ImportPreview { count: items.len(), sample: items.iter().take(50).cloned().collect(), has_settings: set.is_some() };
+    *lock(&app.import_pending) = Some((items, set));
+    Ok(Some(pv))
+}
+
+#[tauri::command]
+fn import_commit(app: A, queue: Option<String>, restore_settings: bool) -> R<usize> {
+    let Some((items, set)) = lock(&app.import_pending).take() else { return Err("nothing".into()) };
+    let ids = app.add_items(&items, queue.as_deref())?;
+    if restore_settings {
+        if let Some(v) = set {
+            apply_settings(app.inner(), app.merge_settings(v)?)?; // hooks and paths are dropped by merge_settings
+        }
+    }
+    Ok(ids.len())
+}
+
+#[tauri::command]
+fn export_pick(app: A) -> R<Option<String>> {
+    let Some(p) = os::pick_save(&app::downloads_dir(), "gdm-export.json") else { return Ok(None) };
+    std::fs::write(&p, app.export_json()?).map_err(|e| e.to_string())?;
+    Ok(Some(p.display().to_string()))
+}
+
+#[derive(Serialize)]
+struct BatchPreview {
+    count: u64,
+    first: Vec<String>,
+    needs_confirm: bool,
+}
+
+#[tauri::command]
+fn batch_preview(b: import::Batch) -> R<BatchPreview> {
+    let count = b.count()?;
+    Ok(BatchPreview { count, first: b.urls(5)?, needs_confirm: count > import::BATCH_CONFIRM })
+}
+
+/// I-04: > 10 000 needs `confirmed`; > 100 000 is refused; one transaction
+#[tauri::command]
+fn batch_add(app: A, b: import::Batch, confirmed: bool, queue: Option<String>) -> R<usize> {
+    let n = b.count()?;
+    if n > import::MAX_ITEMS as u64 {
+        return Err("too-many".into());
+    }
+    if n > import::BATCH_CONFIRM && !confirmed {
+        return Err("confirm".into());
+    }
+    let items: Vec<import::Item> = b.urls(n as usize)?.into_iter().map(|url| import::Item { url, ..Default::default() }).collect();
+    Ok(app.add_items(&items, queue.as_deref())?.len())
 }
 
 #[tauri::command]
@@ -666,7 +740,12 @@ pub fn run() {
             queue_cancel_action,
             hook_set,
             sound_pick,
-            sound_test
+            sound_test,
+            import_pick,
+            import_commit,
+            export_pick,
+            batch_preview,
+            batch_add
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();

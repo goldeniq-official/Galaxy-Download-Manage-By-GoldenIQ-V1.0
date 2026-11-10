@@ -35,6 +35,11 @@ const COMMANDS: &[&str] = &[
     "hook_set",
     "sound_pick",
     "sound_test",
+    "import_pick",
+    "import_commit",
+    "export_pick",
+    "batch_preview",
+    "batch_add",
 ];
 
 fn main() {

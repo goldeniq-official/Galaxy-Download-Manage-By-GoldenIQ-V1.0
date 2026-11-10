@@ -39,6 +39,11 @@
     "allow-queue-cancel-action",
     "allow-hook-set",
     "allow-sound-pick",
-    "allow-sound-test"
+    "allow-sound-test",
+    "allow-import-pick",
+    "allow-import-commit",
+    "allow-export-pick",
+    "allow-batch-preview",
+    "allow-batch-add"
   ]
 }

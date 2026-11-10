@@ -62,7 +62,14 @@ pub fn validate(h: &Hook) -> Result<(), String> {
     if !(l.ends_with(".exe") || is_batch(&l)) {
         return Err("program-type".into()); // .exe, .bat, .cmd only (no .ps1/.vbs/.lnk: they need a host or a shell)
     }
-    if h.args.len() > 32 || h.args.iter().any(|a| a.len() > 1024 || a.chars().any(|c| c.is_control())) {
+    // what the native confirmation shows must be what runs: no control, bidi/format or line/paragraph
+    // separator characters (they can hide or reorder text in the dialog), bounded total length
+    let hidden = |c: char| {
+        c.is_control()
+            || matches!(c, '\u{00AD}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{2028}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}' | '\u{FFF9}'..='\u{FFFB}')
+    };
+    let total: usize = h.args.iter().map(|a| a.len()).sum();
+    if h.args.len() > 32 || total > 4096 || h.args.iter().any(|a| a.chars().any(hidden)) || h.program.chars().any(hidden) {
         return Err("bad-args".into());
     }
     if is_batch(&l) && h.args.iter().any(|a| a.contains(CMD_META)) {
@@ -109,6 +116,12 @@ mod tests {
         assert_eq!(validate(&Hook { program: r"C:\Windows\System32\cmd.exe".into(), args: vec![] }), Err("program-interpreter".into()));
         let ps = tmp("x.ps1", "calc");
         assert_eq!(validate(&Hook { program: ps, args: vec![] }), Err("program-type".into()));
+        let exe0 = std::env::current_exe().unwrap().display().to_string();
+        for bad in ["a\u{202E}gpj.exe", "x\u{200B}", "a\u{2028}b", "\u{FEFF}"] {
+            assert_eq!(validate(&Hook { program: exe0.clone(), args: vec![bad.into()] }), Err("bad-args".into()), "{bad:?}");
+        }
+        assert!(validate(&Hook { program: exe0.clone(), args: vec!["ឯកសារ {file}".into()] }).is_ok(), "Khmer text is fine");
+        assert_eq!(validate(&Hook { program: exe0, args: vec!["x".repeat(4097)] }), Err("bad-args".into()));
         let bat = tmp("post.bat", "@echo %1 > nul");
         for bad in ["a&calc", "%PATH%", "x|y", "\"q\"", "a^b", "!x!", "<in", ">out"] {
             assert_eq!(validate(&Hook { program: bat.clone(), args: vec![bad.into()] }), Err("batch-metachar".into()), "{bad}");
