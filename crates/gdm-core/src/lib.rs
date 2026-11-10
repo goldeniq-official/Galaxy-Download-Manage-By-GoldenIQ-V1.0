@@ -217,59 +217,78 @@ impl Engine {
 
     /// create a job: validate the URL, sanitize the name, reserve it (N-04). Nothing is downloaded yet.
     pub fn add(&self, nj: NewJob) -> Result<String, Fail> {
-        let url = url::Url::parse(&nj.url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
-        if !url.username().is_empty() || url.password().is_some() {
-            return Err(Fail::Forbidden("credentials in the URL are not stored; use the login fields".into()));
-        }
-        if !matches!(url.scheme(), "http" | "https") {
-            return Err(Fail::Forbidden(format!("scheme {}", url.scheme())));
-        }
-        for (k, v) in &nj.creds {
-            // W-01: only the two credential headers reqwest also strips on a cross-host redirect; any other
-            // header would follow a redirect to another origin. W-04: CR/LF/NUL refused before anything is kept.
-            if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") {
-                return Err(Fail::Forbidden(format!("credential header {k} not allowed")));
+        let mut v = self.add_many(vec![nj])?;
+        v.pop().ok_or_else(|| Fail::Io("add".into()))
+    }
+
+    /// batch / import (I-03, I-04): every job validated first, then all inserted in one transaction; the job
+    /// state is "paused" (nothing starts by itself) unless `NewJob` came from a single add
+    pub fn add_many(&self, list: Vec<NewJob>) -> Result<Vec<String>, Fail> {
+        let single = list.len() == 1;
+        let mut dirs: std::collections::HashMap<PathBuf, fsx::Dir> = Default::default();
+        let mut jobs = Vec::with_capacity(list.len());
+        let mut creds = vec![];
+        for nj in list {
+            let url = url::Url::parse(&nj.url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+            if !url.username().is_empty() || url.password().is_some() {
+                return Err(Fail::Forbidden("credentials in the URL are not stored; use the login fields".into()));
             }
-            reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+            if !matches!(url.scheme(), "http" | "https") {
+                return Err(Fail::Forbidden(format!("scheme {}", url.scheme())));
+            }
+            for (k, v) in &nj.creds {
+                // W-01: only the two credential headers reqwest also strips on a cross-host redirect; any other
+                // header would follow a redirect to another origin. W-04: CR/LF/NUL refused before anything is kept.
+                if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") {
+                    return Err(Fail::Forbidden(format!("credential header {k} not allowed")));
+                }
+                reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+            }
+            let name = nj.name.as_deref().map(name::sanitize).unwrap_or_else(|| name::file_name(None, &url));
+            if !dirs.contains_key(&nj.dir) {
+                let dh = fsx::Dir::open(&nj.dir).map_err(|e| Fail::Reparse(e.to_string()))?;
+                dirs.insert(nj.dir.clone(), dh);
+            }
+            let dirh = &dirs[&nj.dir];
+            let id = new_id();
+            let dir_id = self.st().dir_id(&dirh.path).map_err(Fail::Io)?;
+            if !nj.creds.is_empty() {
+                creds.push((id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds }));
+            }
+            jobs.push(store::Job {
+                id,
+                url: url.to_string(),
+                final_url: None,
+                referrer: nj.referrer,
+                name,
+                dir: dirh.path.clone(),
+                dir_id,
+                state: if single { "queued".into() } else { "paused".into() },
+                size: None,
+                done: 0,
+                validator: None,
+                sha256_expected: nj.sha256,
+                sha256: None,
+                epoch: 0,
+                unverified: false,
+                protection: None,
+                error_code: None,
+                file_id: None,
+                allow_private: nj.typed.then(|| url.host_str().unwrap_or("").to_string()),
+                target: None,
+                replaces: None,
+            });
         }
-        let name = nj.name.as_deref().map(name::sanitize).unwrap_or_else(|| name::file_name(None, &url));
-        let dirh = fsx::Dir::open(&nj.dir).map_err(|e| Fail::Reparse(e.to_string()))?;
-        let id = new_id();
-        let mut st = self.st();
-        let dir_id = st.dir_id(&dirh.path).map_err(Fail::Io)?;
-        let j = store::Job {
-            id: id.clone(),
-            url: url.to_string(),
-            final_url: None,
-            referrer: nj.referrer,
-            name,
-            dir: dirh.path.clone(),
-            dir_id,
-            state: "queued".into(),
-            size: None,
-            done: 0,
-            validator: None,
-            sha256_expected: nj.sha256,
-            sha256: None,
-            epoch: 0,
-            unverified: false,
-            protection: None,
-            error_code: None,
-            file_id: None,
-            allow_private: nj.typed.then(|| url.host_str().unwrap_or("").to_string()),
-            target: None,
-            replaces: None,
+        let by_path: std::collections::HashMap<PathBuf, &fsx::Dir> = dirs.values().map(|d| (d.path.clone(), d)).collect();
+        let taken = |j: &store::Job, n: &str| {
+            by_path.get(&j.dir).is_some_and(|d| d.exists(n) || d.exists(&format!("{n}.part")) || d.exists(&sidecar::leaf(n)))
         };
-        let taken = |n: &str| dirh.exists(n) || dirh.exists(&format!("{n}.part")) || dirh.exists(&sidecar::leaf(n));
-        st.insert_job(&j, &taken).map_err(Fail::Io)?;
-        drop(st);
-        if !nj.creds.is_empty() {
-            self.creds
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .insert(id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds });
+        self.st().insert_jobs(&jobs, &taken).map_err(Fail::Io)?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        for (id, cr) in creds {
+            c.insert(id, cr);
         }
-        Ok(id)
+        Ok(jobs.into_iter().map(|j| j.id).collect())
     }
 
     /// the user confirmed "download from the local network?" for this job's host (W-02). A job recovered from

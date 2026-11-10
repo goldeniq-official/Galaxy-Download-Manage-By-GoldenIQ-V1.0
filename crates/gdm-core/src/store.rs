@@ -277,6 +277,23 @@ impl Store {
     /// `taken(name)` reports a file already on disk (final name or its .part).
     pub fn insert_job(&mut self, j: &Job, taken: &dyn Fn(&str) -> bool) -> Result<String, String> {
         let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
+        let name = Self::insert_tx(&tx, j, taken)?;
+        tx.commit().map_err(err)?;
+        Ok(name)
+    }
+
+    /// I-04: many jobs in ONE transaction (a batch of 10 000 is one commit, all or nothing)
+    pub fn insert_jobs(&mut self, jobs: &[Job], taken: &dyn Fn(&Job, &str) -> bool) -> Result<Vec<String>, String> {
+        let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
+        let mut names = Vec::with_capacity(jobs.len());
+        for j in jobs {
+            names.push(Self::insert_tx(&tx, j, &|n| taken(j, n))?);
+        }
+        tx.commit().map_err(err)?;
+        Ok(names)
+    }
+
+    fn insert_tx(tx: &rusqlite::Transaction, j: &Job, taken: &dyn Fn(&str) -> bool) -> Result<String, String> {
         let mut chosen = None;
         for n in 0..10_000u32 {
             let cand = if n == 0 { j.name.clone() } else { crate::name::with_counter(&j.name, n) };
@@ -299,7 +316,6 @@ impl Store {
             params![j.id, j.url, j.final_url, j.referrer, name, j.dir_id, j.state, j.size.map(|s| s as i64), j.done as i64, j.validator, j.sha256_expected, j.epoch as i64, j.unverified, j.allow_private, now()],
         ).map_err(err)?;
         tx.execute("INSERT INTO history(job_id, at, event) VALUES (?1, ?2, 'added')", params![j.id, now()]).map_err(err)?;
-        tx.commit().map_err(err)?;
         Ok(name)
     }
 

@@ -4,6 +4,7 @@
 //! plain values, never paths, URLs to open or command lines (X-01).
 pub mod app;
 pub mod hook;
+pub mod import;
 pub mod os;
 pub mod pipe;
 pub mod queue;
@@ -173,6 +174,17 @@ fn hook_set(app: A, queue: String, pick: bool, args: Vec<String>, clear: bool) -
     };
     let h = hook::Hook { program, args };
     hook::validate(&h)?;
+    // the exact program and argv are confirmed in a native box, never only in the WebView (security review G7)
+    let km = lock(&app.settings).lang != "en";
+    let ask = if km {
+        "ដំណើរការកម្មវិធីនេះពេល queue បញ្ចប់?"
+    } else {
+        "Run this program when the queue finishes?"
+    };
+    let shown = format!("{ask}\n\n{}\n{}", h.program, h.args.join("\n"));
+    if !os::confirm("Galaxy Download Manager", &shown) {
+        return Ok(lock(&app.settings).hooks.get(&queue).cloned());
+    }
     lock(&app.settings).hooks.insert(queue, h.clone());
     app.save_settings()?;
     Ok(Some(h))

@@ -64,6 +64,13 @@ impl Default for Queue {
     }
 }
 
+/// "main", "sync" or q-[0-9a-z]{1,16}: the id also names the wake task (Task Scheduler path), so nothing else
+pub fn valid_id(id: &str) -> bool {
+    id == "main"
+        || id == "sync"
+        || id.strip_prefix("q-").is_some_and(|r| (1..=16).contains(&r.len()) && r.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase()))
+}
+
 pub fn default_queues() -> Vec<Queue> {
     vec![Queue { id: "main".into(), ..Default::default() }, Queue { id: "sync".into(), sync: true, ..Default::default() }]
 }
@@ -365,5 +372,19 @@ impl App {
             self.push_toast("failed", &def.id, &format!("{action}: {e}")); // a refused power action is reported
         }
         self.bump();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// the queue id also names a Task Scheduler task: only main, sync, q-[0-9a-z]{1,16}
+    #[test]
+    fn queue_ids_are_plain() {
+        for ok in ["main", "sync", "q-1", "q-night2"] {
+            assert!(super::valid_id(ok), "{ok}");
+        }
+        for bad in ["q-", "q-A", "q-a b", "q-a/../x", "q-a\"", "q-12345678901234567", "other", "q-ä"] {
+            assert!(!super::valid_id(bad), "{bad}");
+        }
     }
 }

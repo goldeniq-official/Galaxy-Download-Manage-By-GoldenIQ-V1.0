@@ -289,7 +289,7 @@ impl App {
             s.sounds.retain(|k, _| matches!(k.as_str(), "complete" | "failed" | "queue"));
             // queues: the two built-in ones always exist; ids are kept; user queues get q-<n>
             let mut seen = std::collections::HashSet::new();
-            s.queues.retain(|q| seen.insert(q.id.clone()) && (q.id == "main" || q.id == "sync" || q.id.starts_with("q-")));
+            s.queues.retain(|q| seen.insert(q.id.clone()) && crate::queue::valid_id(&q.id));
             for d in crate::queue::default_queues() {
                 if !s.queues.iter().any(|q| q.id == d.id) {
                     s.queues.push(d);

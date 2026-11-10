@@ -158,6 +158,12 @@ fn system32(exe: &str) -> PathBuf {
     std::env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Windows")).join("System32").join(exe)
 }
 
+/// a native Yes/No box (default No) outside the WebView: what a compromised page cannot click for the user
+pub fn confirm(title: &str, text: &str) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDYES, MB_DEFBUTTON2, MB_ICONWARNING, MB_SETFOREGROUND, MB_YESNO};
+    unsafe { MessageBoxW(None, &HSTRING::from(text), &HSTRING::from(title), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SETFOREGROUND) == IDYES }
+}
+
 /// queue finish actions (Q-02). shutdown: `/t 0` so `/f` is NOT implied (shutdown.exe implies /f only for
 /// /t > 0); `/f` only when the user chose "force processes to terminate". Our own 60 s countdown came first.
 pub fn power(action: &str, force: bool) -> Result<(), String> {

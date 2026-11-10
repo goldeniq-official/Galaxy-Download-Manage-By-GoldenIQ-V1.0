@@ -15,6 +15,31 @@ pub struct Hook {
     pub args: Vec<String>,
 }
 
+pub const LOLBINS: &[&str] = &[
+    "cmd.exe",
+    "powershell.exe",
+    "pwsh.exe",
+    "wscript.exe",
+    "cscript.exe",
+    "mshta.exe",
+    "rundll32.exe",
+    "regsvr32.exe",
+    "msbuild.exe",
+    "installutil.exe",
+    "regasm.exe",
+    "regsvcs.exe",
+    "msiexec.exe",
+    "bash.exe",
+    "wsl.exe",
+    "conhost.exe",
+    "forfiles.exe",
+    "schtasks.exe",
+    "certutil.exe",
+    "bitsadmin.exe",
+    "wmic.exe",
+    "explorer.exe",
+];
+
 pub const CMD_META: &[char] = &['%', '^', '&', '!', '|', '<', '>', '"'];
 
 fn is_batch(p: &str) -> bool {
@@ -29,6 +54,11 @@ pub fn validate(h: &Hook) -> Result<(), String> {
         return Err("program-not-found".into());
     }
     let l = h.program.to_ascii_lowercase();
+    // interpreters and LOLBins would turn the argument list into a command line (security review G7)
+    let leaf = l.rsplit(['\\', '/']).next().unwrap_or("");
+    if LOLBINS.contains(&leaf) {
+        return Err("program-interpreter".into());
+    }
     if !(l.ends_with(".exe") || is_batch(&l)) {
         return Err("program-type".into()); // .exe, .bat, .cmd only (no .ps1/.vbs/.lnk: they need a host or a shell)
     }
@@ -76,6 +106,7 @@ mod tests {
         let exe = std::env::current_exe().unwrap().display().to_string();
         assert!(validate(&Hook { program: exe.clone(), args: vec!["{file}".into()] }).is_ok());
         assert_eq!(validate(&Hook { program: "notepad.exe".into(), args: vec![] }), Err("program-not-found".into()), "relative path");
+        assert_eq!(validate(&Hook { program: r"C:\Windows\System32\cmd.exe".into(), args: vec![] }), Err("program-interpreter".into()));
         let ps = tmp("x.ps1", "calc");
         assert_eq!(validate(&Hook { program: ps, args: vec![] }), Err("program-type".into()));
         let bat = tmp("post.bat", "@echo %1 > nul");
