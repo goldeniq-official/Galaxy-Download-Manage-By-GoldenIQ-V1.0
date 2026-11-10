@@ -36,6 +36,11 @@ async fn r01_refresh_flow_candidate_probe_decide() {
     let k = c.check.unwrap();
     assert!(!k.strong && k.seam == Some(false), "{k:?}");
     assert_eq!(a.refresh_decide(&id, "resume").await.unwrap_err(), "not-allowed", "R-01: no resume onto other bytes");
+    lock(&a.engine.store).ticket_put(&id, "*", "127.0.0.1", gdm_core::store::now() + 600).unwrap();
+    assert!(a.refresh_take(&other, None, vec![]).is_none(), "no referrer => not a candidate");
+    a.refresh_take(&other, Some(&page), vec![]).unwrap();
+    a.refresh_candidate(&id).await.unwrap();
+    assert_eq!(a.refresh_decide(&id, "continue").await.unwrap_err(), "not-allowed", "no 'continue' onto bytes that differ");
     // again, choose [start over]: a new job; the old job and its .part stay
     lock(&a.engine.store).ticket_put(&id, "*", "127.0.0.1", gdm_core::store::now() + 600).unwrap();
     a.refresh_take(&other, Some(&page), vec![]).unwrap();

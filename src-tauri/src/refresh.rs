@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: RPL-1.5
 //! Refresh download address (F06, R-01..R-03), IDM's flow with the GDM fixes: [Refresh address] makes a
-//! 10-minute ticket in SQLite bound to the page's site and opens the page; the next download the user clicks
+//! 10-minute ticket in SQLite bound to the page's exact host and opens the page; the next download the user clicks
 //! there (any browser with the GDM extension) becomes a candidate instead of a new job; GDM probes it and shows
 //! "new address, size X" with what it found. Resume is offered as safe only with the same strong validator and
 //! size; otherwise the 3-point seam check is a hint and the default is [start over] (a new job, the old .part
 //! is kept). Fallback: paste the new address.
 //!
-//! The ticket is bound to the site, not to a browser tab: GDM opens the page itself and cannot learn the new
+//! The ticket is bound to the page host (the clicked link's referrer must be on it), not to a browser tab: GDM opens the page itself and cannot learn the new
 //! tab's id without changing the page URL (a #fragment would break hash-routed pages). The confirmation step
 //! covers a wrong candidate (decision recorded in docs/decisions.md).
 use crate::app::{lock, App};
@@ -16,20 +16,9 @@ use std::sync::Arc;
 
 pub const TICKET_SECS: i64 = 600;
 
-/// registrable part of a host, approximately (eTLD+1; two-letter country codes with a common second level)
-pub fn site(host: &str) -> String {
-    let h = host.trim_end_matches('.').to_ascii_lowercase();
-    let l: Vec<&str> = h.split('.').collect();
-    if l.len() <= 2 || h.parse::<std::net::IpAddr>().is_ok() {
-        return h;
-    }
-    let sld = ["com", "net", "org", "edu", "gov", "co", "ac", "or", "ne", "go"];
-    let n = if l[l.len() - 1].len() == 2 && sld.contains(&l[l.len() - 2]) { 3 } else { 2 };
-    l[l.len().saturating_sub(n)..].join(".")
-}
-
-fn site_of(u: &str) -> Option<String> {
-    url::Url::parse(u).ok()?.host_str().map(site)
+/// the ticket binds to the exact host of the page (security review G7: no eTLD+1 guess, no fallback)
+fn host_of(u: &str) -> Option<String> {
+    url::Url::parse(u).ok()?.host_str().map(|h| h.trim_end_matches('.').to_ascii_lowercase())
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -46,7 +35,7 @@ impl App {
     pub fn refresh_start(&self, id: &str) -> Result<(), String> {
         let j = self.engine.job(id).map_err(|e| e.code())?;
         let page = j.referrer.clone().filter(|r| r.starts_with("http")).unwrap_or(j.url.clone());
-        let s = site_of(&page).ok_or("bad-url")?;
+        let s = host_of(&page).ok_or("bad-url")?;
         lock(&self.engine.store).ticket_put(id, "*", &s, gdm_core::store::now() + TICKET_SECS)?;
         lock(&self.refresh).remove(id);
         crate::os::open_web(&page)
@@ -54,8 +43,8 @@ impl App {
 
     /// a caught download: is it the new link a ticket waits for? (called before the normal catch flow)
     pub fn refresh_take(&self, url: &str, referrer: Option<&str>, creds: Vec<(String, String)>) -> Option<String> {
-        let page = referrer.unwrap_or(url);
-        let s = site_of(page)?;
+        // only a download clicked on a page of that exact host (its referrer); no referrer => not a candidate
+        let s = host_of(referrer?)?;
         let st = lock(&self.engine.store);
         let id = st.ticket_match("*", &s, gdm_core::store::now()).ok().flatten()?;
         let _ = st.ticket_drop(&id); // one candidate per ticket
@@ -99,7 +88,8 @@ impl App {
                 self.start(id, Unverified::Ask);
                 Ok(id.to_string())
             }
-            "continue" if c.check.as_ref().is_some_and(|k| k.same_size) => {
+            // never onto bytes the seam check saw differ (security review G7): that is [start over]
+            "continue" if c.check.as_ref().is_some_and(|k| k.same_size && k.seam != Some(false)) => {
                 // the user accepted the risk: the old validator no longer applies, the seam checks still run
                 self.engine.refresh_apply(id, &c.url, c.creds).map_err(|e| e.code())?;
                 lock(&self.engine.store).clear_validator(id)?;
@@ -120,17 +110,5 @@ impl App {
             "cancel" => Ok(id.to_string()),
             _ => Err("not-allowed".into()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn sites() {
-        assert_eq!(super::site("dl.example.com"), "example.com");
-        assert_eq!(super::site("www.aba.com.kh"), "aba.com.kh");
-        assert_eq!(super::site("a.b.co.uk"), "b.co.uk");
-        assert_eq!(super::site("127.0.0.1"), "127.0.0.1");
-        assert_eq!(super::site("localhost"), "localhost");
     }
 }
