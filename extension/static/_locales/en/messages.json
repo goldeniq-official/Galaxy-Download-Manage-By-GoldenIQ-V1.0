@@ -1,0 +1,14 @@
+{
+  "name": { "message": "Galaxy Download Manager" },
+  "desc": { "message": "Hands downloads to Galaxy Download Manager on this PC. Sends only the link, name and that site's cookie; nothing leaves your computer." },
+  "menuLink": { "message": "Download with GDM" },
+  "menuAll": { "message": "Download all links with GDM" },
+  "connected": { "message": "Connected to GDM" },
+  "offline": { "message": "GDM is not connected" },
+  "offlineHelp": { "message": "Install or open Galaxy Download Manager. Until then your browser downloads normally." },
+  "catching": { "message": "Catch downloads" },
+  "thisSite": { "message": "Don't catch on this site" },
+  "siteSkipped": { "message": "Not caught on this site" },
+  "recent": { "message": "Recent" },
+  "keys": { "message": "Ctrl + click = GDM · Alt + click = browser" }
+}

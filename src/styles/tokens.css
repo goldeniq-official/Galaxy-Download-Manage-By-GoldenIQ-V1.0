@@ -1,0 +1,130 @@
+/* GDM design tokens (§06). Dark is the default; light via [data-theme="light"] or the OS setting.
+   Owner rule 8 / D6: no glow, no outline, border, ring or keyline anywhere. State = fill, colour, brightness.
+   Depth shadows are black only. */
+
+@font-face { font-family: "GDM Khmer"; src: url("/fonts/kantumruy-pro-khmer-400-normal.woff2") format("woff2"); font-weight: 400; font-display: block; size-adjust: 108%; unicode-range: U+1780-17FF, U+19E0-19FF, U+200B-200D, U+25CC; }
+@font-face { font-family: "GDM Khmer"; src: url("/fonts/kantumruy-pro-khmer-500-normal.woff2") format("woff2"); font-weight: 500; font-display: block; size-adjust: 108%; unicode-range: U+1780-17FF, U+19E0-19FF, U+200B-200D, U+25CC; }
+@font-face { font-family: "GDM Khmer"; src: url("/fonts/kantumruy-pro-khmer-600-normal.woff2") format("woff2"); font-weight: 600; font-display: block; size-adjust: 108%; unicode-range: U+1780-17FF, U+19E0-19FF, U+200B-200D, U+25CC; }
+@font-face { font-family: "GDM Khmer"; src: url("/fonts/kantumruy-pro-khmer-700-normal.woff2") format("woff2"); font-weight: 700 900; font-display: block; size-adjust: 108%; unicode-range: U+1780-17FF, U+19E0-19FF, U+200B-200D, U+25CC; }
+@font-face { font-family: "Outfit"; src: url("/fonts/outfit-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "Outfit"; src: url("/fonts/outfit-latin-500-normal.woff2") format("woff2"); font-weight: 500; font-display: block; }
+@font-face { font-family: "Outfit"; src: url("/fonts/outfit-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: block; }
+@font-face { font-family: "Outfit"; src: url("/fonts/outfit-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: block; }
+@font-face { font-family: "Outfit"; src: url("/fonts/outfit-latin-800-normal.woff2") format("woff2"); font-weight: 800 900; font-display: block; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/jetbrains-mono-latin-500-normal.woff2") format("woff2"); font-weight: 500 700; font-display: block; }
+
+:root {
+  color-scheme: dark;
+  /* surfaces */
+  --bg: #04060c; --shell: #0f1322; --sunk: #060912;
+  --card-a: #0c1020; --card-b: #080b16;
+  --chip: rgba(255,255,255,.08); --chip-hover: rgba(255,255,255,.16); --chip-press: rgba(255,255,255,.22);
+  --row: rgba(255,255,255,.04); --row-hover: rgba(255,255,255,.08);
+  --field: rgba(255,255,255,.04); --field-focus: rgba(255,255,255,.10);
+  --track: rgba(255,255,255,.10); --seg-idle: rgba(255,255,255,.06);
+  --pool-1: rgba(61,155,255,.10); --pool-2: rgba(139,92,246,.09); --pool-3: rgba(56,189,248,.06);
+
+  /* keyboard focus (D6): fill only */
+  --focus-plate: rgba(255,255,255,.40); --on-focus: #ffffff;
+  --focus-strong: #ffffff; --on-focus-strong: #060912;   /* for gradient-filled controls: primary button, selected tab, toggle */
+
+  /* accent: galaxy blue, 135deg three-stop; white text >= 4.76:1 on every stop */
+  --accent-grad: linear-gradient(135deg, #1f6fe0 0%, #1660d0 45%, #0b3a9c 100%);
+  --accent-grad-hover: linear-gradient(135deg, #1f6fe0 0%, #1f6fe0 45%, #1048b0 100%);
+  --accent: #3d9bff; --accent-wash: rgba(61,155,255,.18);
+  --done: #b5e61d;                       /* logo lime: "complete" only */
+
+  --ok-grad: linear-gradient(135deg, #b5e61d 0%, #7cc414 45%, #3f7a0b 100%);
+  --info-grad: linear-gradient(135deg, #38bdf8 0%, #0284c7 45%, #0c4a6e 100%);
+  --warn-grad: linear-gradient(135deg, #f59e0b 0%, #d97706 45%, #92400e 100%);
+  --err-grad: linear-gradient(135deg, #fb7185 0%, #e11d48 45%, #881337 100%);
+  --warn: #f5a524; --err: #f87171; --err-wash: rgba(248,113,113,.14);
+
+  --tx-1: #ffffff; --tx-2: #e4e7f0; --tx-3: #c6cbd9; --tx-muted: #8a91a6; --tx-ph: rgba(255,255,255,.35);
+
+  --glass-card: linear-gradient(160deg, rgba(28,34,56,.55), rgba(10,12,22,.68));
+  --glass-pop: linear-gradient(180deg, rgba(34,40,62,.64), rgba(16,20,34,.74));
+  --blur-card: blur(28px) saturate(180%); --blur-chip: blur(24px) saturate(200%);
+  --scrim: rgba(2,4,10,.6);
+  --scroll-thumb: #27304a;
+
+  --shadow-card: 0 18px 44px rgba(0,0,0,.5); --shadow-modal: 0 30px 80px rgba(0,0,0,.55);
+  --shadow-sunk: inset 0 12px 30px rgba(0,0,0,.45);
+
+  --space-1: 6px; --space-2: 10px; --space-3: 14px; --space-4: 18px; --space-5: 22px;
+  --r-sm: 9px; --r-md: 12px; --r-lg: 14px; --r-xl: 20px; --r-shell: 24px; --r-pill: 999px;
+  --motion-press: 90ms; --motion-hover: 150ms; --motion-quick: 180ms; --motion-base: 220ms; --motion-slow: 320ms;
+  --ease-out: cubic-bezier(.16,1,.3,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-in-out: cubic-bezier(.45,0,.35,1);
+  --z-sticky: 10; --z-toast: 60; --z-modal: 100; --z-menu: 200; --z-titlebar: 300; --z-tooltip: 400;
+
+  --f-latin: "Outfit"; --f-khmer: "GDM Khmer"; --f-mono: "JetBrains Mono";
+}
+
+/* light theme: measured pairs in docs/p0/design-check.md */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e6eaf2; --shell: #eef1f7; --sunk: #f9fafc;
+  --card-a: #ffffff; --card-b: #f3f5fa;
+  --chip: rgba(16,28,64,.06); --chip-hover: rgba(16,28,64,.11); --chip-press: rgba(16,28,64,.16);
+  --row: rgba(16,28,64,.035); --row-hover: rgba(16,28,64,.07);
+  --field: rgba(16,28,64,.05); --field-focus: rgba(16,28,64,.10);
+  --track: rgba(16,28,64,.10); --seg-idle: rgba(16,28,64,.07);
+  --pool-1: rgba(31,111,224,.08); --pool-2: rgba(139,92,246,.06); --pool-3: rgba(56,189,248,.05);
+  --focus-plate: #26324d; --on-focus: #ffffff;
+  --focus-strong: #0b1020; --on-focus-strong: #ffffff;
+  --accent: #0a58a8; --accent-wash: rgba(11,111,214,.13); /* G6: darker than P0 #0b6fd6, axe needs 4.5:1 on row/wash fills */
+  --done: #3a6806;                       /* lime is 1.4:1 on white; darker lime keeps 3:1 for the bar */
+  --warn: #a35a00; --err: #c81e3a; --err-wash: rgba(200,30,58,.10);
+  --tx-1: #0b1020; --tx-2: #1f2738; --tx-3: #3a4458; --tx-muted: #5b6478; --tx-ph: rgba(11,16,32,.42);
+  --glass-card: linear-gradient(160deg, rgba(255,255,255,.86), rgba(243,245,250,.92));
+  --glass-pop: linear-gradient(180deg, rgba(255,255,255,.92), rgba(243,245,250,.96));
+  --scrim: rgba(20,28,48,.32);
+  --scroll-thumb: #c3cad8;
+  --shadow-card: 0 14px 36px rgba(0,0,0,.10); --shadow-modal: 0 26px 70px rgba(0,0,0,.18);
+  --shadow-sunk: inset 0 10px 24px rgba(0,0,0,.05);
+}
+
+html { font-family: var(--f-latin), var(--f-khmer), system-ui, sans-serif; font-size: 13px; font-weight: 500; line-height: 1.45; color: var(--tx-2); font-variant-numeric: tabular-nums; }
+html:lang(km) { line-height: 1.6; letter-spacing: normal !important; }
+html:lang(km) * { letter-spacing: normal !important; text-transform: none !important; }
+body { margin: 0; background: radial-gradient(circle at 12% 18%, var(--pool-1), transparent 32%), radial-gradient(circle at 86% 12%, var(--pool-2), transparent 30%), radial-gradient(circle at 72% 92%, var(--pool-3), transparent 34%), var(--bg); }
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; border: 0; outline: none; }
+:focus, :focus-visible { outline: none; }
+.mono { font-family: var(--f-mono), var(--f-khmer), monospace; font-size: 12px; }
+
+/* keyboard focus = fill (D6). :focus-visible is the native keyboard-only signal. */
+.fx:focus-visible { background: var(--focus-plate); color: var(--on-focus); }
+.fx:focus-visible * { color: var(--on-focus); }
+/* gradient-filled controls already sit near the plate's luminance, so they invert instead */
+/* fields (owner Q2, 2026-11-09): the plate under the typed text, for mouse and keyboard alike */
+.in:focus-within, .search:focus-within { background: var(--focus-plate); color: var(--on-focus); }
+.in:focus-within input, .in:focus-within .mono, .search:focus-within input { color: var(--on-focus); }
+.in:focus-within input::placeholder, .search:focus-within input::placeholder { color: var(--on-focus); opacity: .7; }
+.fx.fx-strong:focus-visible, .fx.is-selected:focus-visible, .fx[aria-selected="true"]:focus-visible { background: var(--focus-strong); color: var(--on-focus-strong); }
+.fx.fx-strong:focus-visible *, .fx.is-selected:focus-visible *, .fx[aria-selected="true"]:focus-visible * { color: var(--on-focus-strong); }
+
+@media (forced-colors: active) {
+  .is-selected, [aria-selected="true"] { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
+  .is-selected *, [aria-selected="true"] * { forced-color-adjust: none; color: HighlightText !important; }
+  .bar > i, .seg > i.on, .seg > i.got, .toggle[aria-checked="true"] { forced-color-adjust: none; background: Highlight !important; }
+  .fx:focus-visible { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
+  .fx:focus-visible * { forced-color-adjust: none; color: HighlightText !important; fill: currentColor; }
+  /* already Highlight at rest: focus swaps the system pair (Windows guarantees its contrast) */
+  .fx.is-selected:focus-visible, .fx[aria-selected="true"]:focus-visible, .fx.toggle[aria-checked="true"]:focus-visible { background: HighlightText !important; color: Highlight !important; }
+  .fx.is-selected:focus-visible *, .fx[aria-selected="true"]:focus-visible * { color: Highlight !important; }
+  /* owner Q1 (2026-11-09): in high contrast only, controls get the system border so users can find their edges */
+  .btn, .chip, .mini, .sel, .pill, .act, .in, .search, .toggle, .tabs, .check i { border: 1px solid ButtonText; }
+  /* fields: the wrapper fills with Highlight while typing */
+  .in:focus-within, .search:focus-within { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
+  .in:focus-within *, .search:focus-within * { forced-color-adjust: none; color: HighlightText !important; caret-color: HighlightText; }
+  /* toggles: off = faint track near Canvas + CanvasText thumb; on = Highlight + HighlightText thumb.
+     Focus swaps to the other system pair, so the change never depends on GrayText vs Highlight. */
+  .toggle { forced-color-adjust: none; background: color-mix(in srgb, CanvasText 18%, Canvas) !important; }
+  .toggle::after { forced-color-adjust: none; background: CanvasText !important; }
+  .toggle[aria-checked="true"]::after, .fx.toggle:focus-visible::after { background: HighlightText !important; }
+  .fx.toggle[aria-checked="true"]:focus-visible::after { background: Highlight !important; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition-duration: 0ms !important; animation: none !important; } }

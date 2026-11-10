@@ -31,6 +31,20 @@ const MIGRATIONS: &[&str] = &[
     // 2: finalisation intent (council G5): the name the file is being published under, recorded with its
     //    hash before the rename, so a crash between rename and "complete" is reconciled, never re-downloaded
     "ALTER TABLE jobs ADD COLUMN target TEXT;",
+    // 3: G6 UI: description (Properties, P1 #26) and full-text search over name/url/description (D-03).
+    //    trigram: Khmer has no spaces between words, so word tokenizers cannot find a substring
+    r#"
+    ALTER TABLE jobs ADD COLUMN description TEXT;
+    CREATE VIRTUAL TABLE jobs_fts USING fts5(name, url, description, content='jobs', content_rowid='rowid', tokenize='trigram');
+    INSERT INTO jobs_fts(rowid, name, url, description) SELECT rowid, name, url, description FROM jobs;
+    CREATE TRIGGER jobs_fts_ai AFTER INSERT ON jobs BEGIN
+        INSERT INTO jobs_fts(rowid, name, url, description) VALUES (new.rowid, new.name, new.url, new.description); END;
+    CREATE TRIGGER jobs_fts_ad AFTER DELETE ON jobs BEGIN
+        INSERT INTO jobs_fts(jobs_fts, rowid, name, url, description) VALUES ('delete', old.rowid, old.name, old.url, old.description); END;
+    CREATE TRIGGER jobs_fts_au AFTER UPDATE OF name, url, description ON jobs BEGIN
+        INSERT INTO jobs_fts(jobs_fts, rowid, name, url, description) VALUES ('delete', old.rowid, old.name, old.url, old.description);
+        INSERT INTO jobs_fts(rowid, name, url, description) VALUES (new.rowid, new.name, new.url, new.description); END;
+    "#,
 ];
 pub const SCHEMA: i64 = MIGRATIONS.len() as i64;
 
@@ -56,6 +70,25 @@ pub struct Job {
     pub file_id: Option<String>,
     pub allow_private: Option<String>,
     pub target: Option<String>,
+}
+
+/// one row of the main list (the UI never sees file ids, intents or validators)
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Row {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    pub dir: String,
+    pub state: String,
+    pub size: Option<u64>,
+    pub done: u64,
+    pub unverified: bool,
+    pub protection: Option<String>,
+    pub error_code: Option<String>,
+    pub sha256: Option<String>,
+    pub description: Option<String>,
+    pub created_at: i64,
+    pub finished_at: Option<i64>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -355,6 +388,61 @@ impl Store {
         let tx = self.conn.transaction().map_err(err)?;
         tx.execute("DELETE FROM segments WHERE job_id = ?1", params![id]).map_err(err)?;
         tx.execute("UPDATE jobs SET done = 0, epoch = ?2 WHERE id = ?1", params![id, epoch as i64]).map_err(err)?;
+        tx.commit().map_err(err)
+    }
+
+    /// the list, newest first (IDM's default order is "added"). `q` searches name/url/description (FTS5
+    /// trigram; under 3 characters a LIKE scan, still indexed by nothing but bounded by the row count)
+    pub fn list(&self, q: Option<&str>, limit: usize) -> Result<Vec<Row>, String> {
+        const COLS: &str = "j.id, j.name, j.url, d.path, j.state, j.size, j.done, j.unverified, j.protection, j.error_code, j.sha256, j.description, j.created_at, j.finished_at";
+        let map = |r: &rusqlite::Row| {
+            Ok(Row {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                url: r.get(2)?,
+                dir: r.get(3)?,
+                state: r.get(4)?,
+                size: r.get::<_, Option<i64>>(5)?.map(|v| v as u64),
+                done: r.get::<_, i64>(6)? as u64,
+                unverified: r.get(7)?,
+                protection: r.get(8)?,
+                error_code: r.get(9)?,
+                sha256: r.get(10)?,
+                description: r.get(11)?,
+                created_at: r.get(12)?,
+                finished_at: r.get(13)?,
+            })
+        };
+        let q = q.map(str::trim).filter(|q| !q.is_empty());
+        let lim = limit as i64;
+        let base = format!("SELECT {COLS} FROM jobs j JOIN dirs d ON d.id = j.dir_id");
+        let order = "ORDER BY j.created_at DESC, j.rowid DESC";
+        let (sql, arg) = match q {
+            None => (format!("{base} WHERE ?1 IS NULL {order} LIMIT ?2"), None),
+            Some(q) if q.chars().count() >= 3 => (
+                format!("SELECT {COLS} FROM jobs_fts f JOIN jobs j ON j.rowid = f.rowid JOIN dirs d ON d.id = j.dir_id WHERE jobs_fts MATCH ?1 {order} LIMIT ?2"),
+                Some(format!("\"{}\"", q.replace('"', "\"\""))),
+            ),
+            Some(q) => (
+                format!("{base} WHERE j.name LIKE ?1 ESCAPE '!' OR j.url LIKE ?1 ESCAPE '!' OR j.description LIKE ?1 ESCAPE '!' {order} LIMIT ?2"),
+                Some(format!("%{}%", q.replace('!', "!!").replace('%', "!%").replace('_', "!_"))),
+            ),
+        };
+        let mut st = self.conn.prepare_cached(&sql).map_err(err)?;
+        let v = st.query_map(params![arg, lim], map).map_err(err)?.collect::<Result<Vec<_>, _>>().map_err(err)?;
+        Ok(v)
+    }
+
+    pub fn set_description(&self, id: &str, text: Option<&str>) -> Result<(), String> {
+        self.conn.execute("UPDATE jobs SET description = ?2 WHERE id = ?1", params![id, text]).map(|_| ()).map_err(err)
+    }
+
+    /// forget a job: rows, segments (cascade), its name reservation and history
+    pub fn delete_job(&mut self, id: &str) -> Result<(), String> {
+        let tx = self.conn.transaction().map_err(err)?;
+        tx.execute("DELETE FROM names WHERE job_id = ?1", params![id]).map_err(err)?;
+        tx.execute("DELETE FROM history WHERE job_id = ?1", params![id]).map_err(err)?;
+        tx.execute("DELETE FROM jobs WHERE id = ?1", params![id]).map_err(err)?;
         tx.commit().map_err(err)
     }
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: RPL-1.5
-# GDM download core (G5). Actions pinned by commit SHA; read-only token.
+# GDM download core (G5) + bridge. The Tauri app, UI and extension are in app.yml. Actions pinned by SHA; read-only token.
 name: core
 on:
   push:
@@ -27,9 +27,9 @@ jobs:
         shell: bash
         run: "! grep -rn --include=*.rs -e danger_accept_invalid -e NoCertificateVerification -e webpki_roots crates fixtures src-tauri"
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy --workspace --exclude galaxy-download-manager --all-targets --locked -- -D warnings
       - name: cargo-deny (licences, advisories, sources)
-        run: cargo install cargo-deny --version 0.20.2 --locked; cargo deny --config deny.toml check
+        run: cargo install cargo-deny --version 0.20.2 --locked; cargo deny --config deny.toml check; cargo install cargo-audit --version 0.22.2 --locked; cargo audit
       - name: exFAT volume + SMB share for the N-09 matrix (hosted runners are admin)
         shell: pwsh
         run: |
@@ -43,7 +43,7 @@ jobs:
           "GDM_TEST_FAT_DIR=X:\dl" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "GDM_TEST_SMB_DIR=\localhost\gdmtest" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: tests (cards E-01..E-04, N-01..N-05, N-09, W-01..W-03, D-01, L-01; hostile fixture wire tests)
-        run: cargo test --workspace --locked -- --nocapture
+        run: cargo test --workspace --exclude galaxy-download-manager --locked -- --nocapture
         env:
           GDM_NET_TESTS: "1"
 

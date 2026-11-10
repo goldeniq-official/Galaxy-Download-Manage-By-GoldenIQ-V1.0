@@ -302,6 +302,24 @@ pub fn zone_identifier(dir: &Dir, leaf: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&v).into_owned())
 }
 
+/// move a file to the Recycle Bin (P1 #28, UX rule 2: deleting a download is undoable)
+pub fn recycle(path: &Path) -> Result<(), FsError> {
+    use windows::Win32::UI::Shell::{SHFileOperationW, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FO_DELETE, SHFILEOPSTRUCTW};
+    let mut from: Vec<u16> = path.as_os_str().encode_wide().collect();
+    from.extend([0, 0]); // double-NUL terminated list of one path
+    let mut op = SHFILEOPSTRUCTW {
+        wFunc: FO_DELETE,
+        pFrom: PCWSTR(from.as_ptr()),
+        fFlags: (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI).0 as u16,
+        ..Default::default()
+    };
+    let r = unsafe { SHFileOperationW(&mut op) };
+    if r != 0 || op.fAnyOperationsAborted.as_bool() {
+        return Err(FsError::Io(format!("recycle {}: {r:#x}", path.display())));
+    }
+    Ok(())
+}
+
 pub const GDM_CLIENT: GUID = GUID::from_u128(0x6a1c_2f0e_9b7d_4c3a_8e51_0d47_c2f9_a3b6);
 
 /// IAttachmentExecute::Save in its own STA thread (MOTW + AV, N-05). `local` is the full path of the .part,

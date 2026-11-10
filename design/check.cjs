@@ -5,7 +5,6 @@
 // Limits (see docs/p0/exit.md): deviceScaleFactor emulates DPI, not Windows scaling in WebView2; forced-colors is
 // Chromium's emulation, not a real Windows contrast theme; the field focus number is a project heuristic, not a WCAG verdict.
 const http = require("http"), fs = require("fs"), path = require("path");
-const { chromium } = require("playwright-core");
 
 const ROOT = path.resolve(__dirname, "..");
 const SHOTS = path.join(__dirname, "mockups", "shots");
@@ -218,7 +217,9 @@ async function selfTest(browser, base) {
   return { expect, rules, clips, focus: focus.map(f => ({ label: f.label, ok: f.ok, px3: f.px3, need: f.need })) };
 }
 
-(async () => {
+module.exports = { rulesProbe, layoutProbe, clipRun, fontRun, focusRun };
+if (require.main === module) (async () => {
+  const { chromium } = require("playwright-core");
   await new Promise(r => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${server.address().port}/design/mockups/index.html`;
   const browser = await chromium.launch({ executablePath: process.argv[2] || undefined });

@@ -1,0 +1,84 @@
+/* SPDX-License-Identifier: RPL-1.5 */
+/* GDM app layer over the mockup CSS: native title bar (§06 fallback), responsive forms, banners, toasts.
+   Owner rule 8 / D6: no border, outline, ring or glow; states use fill and colour only. */
+textarea { font: inherit; color: inherit; border: 0; outline: none; resize: vertical; background: transparent; width: 100%; line-height: 1.6; padding: 7px 0; caret-color: var(--accent); }
+#root { height: 100%; }
+.win { grid-template-rows: 1fr; padding-top: 8px; }
+.rail .sp { flex: 1; }
+.main { grid-template-rows: 1fr; grid-template-columns: minmax(0, 1fr); }
+.main.split { grid-template-columns: minmax(0, 1fr) 340px; }
+.col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.col .list { flex: 1; }
+.set .main { display: flex; flex-direction: column; }
+.set .sbody { flex: 1; }
+.empty { padding: 40px 12px; text-align: center; color: var(--tx-muted); }
+.ext.danger { background: var(--err-wash); color: var(--err); }
+.danger { color: var(--err); }
+.btn-g.danger:hover { background: var(--err-wash); }
+[aria-disabled="true"] { opacity: .6; cursor: default; }
+select.sel { appearance: none; -webkit-appearance: none; }
+select.sel option { background: var(--shell); color: var(--tx-1); }
+.modal.wide { width: 640px; }
+.modal { max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; }
+.batch { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto; margin-top: 8px; }
+.batch .check { margin-top: 0; width: 100%; }
+.batch .check .clip1 { flex: 1; min-width: 0; }
+.why { color: var(--tx-2); margin: 12px 0 0; line-height: 1.7; }
+.warn-t { color: var(--warn); font-size: 12px; margin: 8px 16px; }
+.err-t { color: var(--err); font-size: 12px; margin: 8px 0 0; }
+.logo { border-radius: var(--r-md); flex: none; }
+.num-in { width: 140px; }
+.num-in input { font-family: var(--f-mono), var(--f-khmer), monospace; }
+.col-opt { flex-direction: column; align-items: stretch; }
+.wide-fld { margin-top: 4px; }
+.cat-row { margin-top: 6px; }
+.big-st { margin-top: 10px; }
+.big-st .tx2 { font-size: 12.5px; }
+.st.warn .tx2 { color: var(--warn); } .st.err .tx2 { color: var(--err); } .st.done .tx2 { color: var(--done); } .st.info .tx2 { color: var(--accent); }
+.pane .card { position: relative; }
+.close-d { position: absolute; top: 10px; inset-inline-end: 10px; }
+.pane.drawer { position: absolute; top: 0; bottom: 0; inset-inline-end: 0; width: min(360px, 100%); z-index: var(--z-menu); background: var(--sunk); box-shadow: var(--shadow-modal); padding: 12px; }
+.pane .fld .in input { min-width: 0; }
+
+.banner { display: flex; align-items: center; gap: 10px; margin: 0 18px 10px; padding: 8px 12px; border-radius: var(--r-md); background: var(--accent-wash); color: var(--tx-2); font-size: 12.5px; }
+.banner .ico { color: var(--accent); }
+.banner.warn { background: rgba(245,165,36,.14); } .banner.warn .ico { color: var(--warn); }
+.banner.sec { background: rgba(245,165,36,.18); }
+.banner > span { flex: 1; min-width: 0; }
+
+.toasts { position: fixed; inset-inline-end: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: var(--z-toast); width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: var(--r-lg); background: var(--glass-pop); backdrop-filter: var(--blur-chip); box-shadow: var(--shadow-card); }
+.toast > .ico { color: var(--done); }
+.toast.blocked > .ico, .toast.failed > .ico { color: var(--err); }
+.toast.unprotected > .ico { color: var(--warn); }
+.toast .tt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.toast .tt b { color: var(--tx-1); font-weight: 600; }
+.toast .tt span { font-size: 12px; color: var(--tx-3); }
+
+/* compact 480-759: name + status, details as a drawer (§06) */
+@media (max-width: 759px) {
+  .cols, .row { grid-template-columns: 30px minmax(0, 1fr) minmax(120px, .9fr) !important; }
+  .cols > :nth-child(3), .row > :nth-child(3), .cols > :nth-child(n+5), .row > :nth-child(n+5) { display: none; }
+  .search { width: auto; flex: 1; min-width: 0; }
+  .top h1 { display: none; }
+}
+/* mini 360-479 (IDM progress-dialog replacement): list only */
+@media (max-width: 479px) {
+  .rail, .foot, .top .search, .cols { display: none; }
+  .cols, .row { grid-template-columns: minmax(0, 1fr) minmax(100px, .9fr) !important; }
+  .row > :first-child { display: none; }
+  .main { border-start-start-radius: 0; }
+  .list { padding: 0 6px 6px; }
+}
+@media (max-height: 260px) {
+  .top, .foot, .banner { display: none; }
+}
+span.bar { display: block; }
+/* radio tabs: the checked one carries the accent (aria-checked; aria-selected is not allowed on role=radio) */
+.tab[aria-checked="true"] { background: var(--accent-grad); color: #fff; }
+.fx.tab[aria-checked="true"]:focus-visible { background: var(--focus-strong); color: var(--on-focus-strong); }
+@media (forced-colors: active) { .tab[aria-checked="true"] { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; } }
+:root[data-theme="light"] .ext.danger { color: #9b1029; }
+/* an off toggle's track is near the rest fill: focus inverts it like the other gradient controls (D6) */
+.fx.toggle:focus-visible { background: var(--focus-strong); }
+.nav.is-selected .n { color: var(--accent); }

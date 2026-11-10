@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-info-cancel"
+description = "Enables the info_cancel command without any pre-configured scope."
+commands.allow = ["info_cancel"]
+
+[[permission]]
+identifier = "deny-info-cancel"
+description = "Denies the info_cancel command without any pre-configured scope."
+commands.deny = ["info_cancel"]

@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: RPL-1.5
+# Release (§15): the owner pushes a tag vX.Y.Z; this builds the per-user NSIS installer, signs the updater
+# artifacts with minisign (secret only in the "release" environment, reviewer = owner), writes a SIGNED
+# latest.json (U-01: version, channel, expires; GDM verifies it before Tauri's updater runs), attests build
+# provenance, and creates a DRAFT GitHub release. The owner reviews and publishes. Authenticode via SignPath is
+# added when SignPath accepts the project (D8); until then the installer is unsigned (sha256 + attestation).
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions: read-all
+env:
+  RUST_VERSION: "1.97.1"
+jobs:
+  build:
+    runs-on: windows-2025
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 11.15.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - run: rustup toolchain install $env:RUST_VERSION --profile minimal; rustup default $env:RUST_VERSION
+      - name: version in the tag == version in the app
+        shell: bash
+        run: test "v$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$GITHUB_REF_NAME"
+      - name: build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cargo build -p gdm-bridge --release --locked
+          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
+          Copy-Item target/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe
+          node scripts/nsis-khmer.mjs
+          pnpm ext
+          pnpm tauri build
+      - name: signed latest.json (U-01) + sha256 sums
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $v = $env:GITHUB_REF_NAME.TrimStart('v')
+          $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $name = "GDM_${v}_x64-setup.exe"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $setup.FullName "out/$name"; Copy-Item "$($setup.FullName).sig" "out/$name.sig"
+          Compress-Archive extension/dist/chrome out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox out/gdm-extension-firefox-$v.zip
+          $notes = Get-Content docs/release/notes-$v.json -Raw | ConvertFrom-Json
+          $m = [ordered]@{ version = $v; channel = $(if ($v -match '-') { 'beta' } else { 'stable' }); expires = [int][double]::Parse((Get-Date).AddDays(90).ToUniversalTime().Subtract([datetime]'1970-01-01').TotalSeconds); security = [bool]$notes.security; notes_km = $notes.km; notes_en = $notes.en; notes = $notes.en; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = @{ 'windows-x86_64' = @{ signature = (Get-Content "out/$name.sig" -Raw).Trim(); url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$name" } } }
+          $m | ConvertTo-Json -Depth 5 -Compress | Set-Content -NoNewline -Encoding utf8NoBOM out/latest.json
+          pnpm tauri signer sign out/latest.json
+          Get-ChildItem out -File | Where-Object Name -notmatch '\.sig$' | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content out/SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: out/*
+      - name: draft release (the owner publishes)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME out/* --draft --title "Galaxy Download Manager $env:GITHUB_REF_NAME" --notes-file docs/release/notes-$($env:GITHUB_REF_NAME.TrimStart('v')).md

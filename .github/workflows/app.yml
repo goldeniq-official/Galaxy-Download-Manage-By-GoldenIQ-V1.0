@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: RPL-1.5
+# GDM app (G6, §15): UI lint/types/audit, Playwright UI in Khmer + English (rule 8, clipping, axe, XSS),
+# Tauri app clippy/tests (updater U-01, bridge B-01..B-03), Store-build compile check, NSIS installer with the
+# Khmer language, installed-build E2E (bridge -> pipe -> gdm.exe), real Chromium + extension smoke, the real
+# WebView2 UI (rule 8, axe, CSP).
+# Actions pinned by commit SHA; read-only token; no secrets (the release workflow signs, this one never does).
+name: app
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions: read-all
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  ui:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 11.15.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: npm audit (all dependencies)
+        run: pnpm audit
+      - name: ESLint (react/no-danger, no eval, no innerHTML) + types
+        run: pnpm lint; pnpm exec tsc --noEmit; pnpm exec tsc -p extension/tsconfig.json
+      - run: pnpm build
+      - name: Playwright UI (km/en x dark/light, axe 0 serious, rule 8, Khmer clipping, XSS, C-03)
+        run: pnpm exec playwright install chromium; pnpm test:ui
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ui-screenshots
+          path: docs/evidence/g6-shots
+
+  app:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 11.15.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: rustup toolchain install $env:RUST_VERSION --profile minimal -c clippy,rustfmt; rustup default $env:RUST_VERSION
+      - name: no TLS bypass and no shell/fs/http/opener plugin (W-03, X-02)
+        shell: bash
+        run: |
+          ! grep -rn --include=*.rs -e danger_accept_invalid -e NoCertificateVerification crates src-tauri fixtures
+          ! grep -n -e tauri-plugin-shell -e tauri-plugin-fs -e tauri-plugin-http -e tauri-plugin-opener src-tauri/Cargo.toml
+          ! grep -rn -e withGlobalTauri.*true src-tauri/tauri.conf.json
+      - name: frontend + bridge sidecar for the Tauri build script
+        run: |
+          pnpm build
+          cargo build -p gdm-bridge -p gdm-fixture --release --locked
+          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
+          Copy-Item target/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe
+      - run: cargo clippy -p galaxy-download-manager --all-targets --locked -- -D warnings
+      - name: app tests (U-01 manifest, C-01 glob) + bridge (B-01, B-02, B-03)
+        run: cargo test -p galaxy-download-manager -p gdm-bridge --locked
+      - name: Store (MSIX) build compiles without the updater (§07)
+        run: cargo check -p galaxy-download-manager --features store --locked
+      - name: extension builds (Chrome/Edge + Firefox)
+        run: pnpm ext
+      - name: NSIS installer (per-user, Khmer first), unsigned
+        run: |
+          node scripts/nsis-khmer.mjs
+          pnpm tauri build --config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'
+      - name: install, E2E through the installed bridge, uninstall (B-01..B-05, W-02, C-05, M-07, T-03)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $env:GDM_DATA = "$env:RUNNER_TEMP\gdm-data"; New-Item -ItemType Directory -Force $env:GDM_DATA, "$env:RUNNER_TEMP\gdm-dl" | Out-Null
+          '{ "download_dir": "' + ("$env:RUNNER_TEMP\gdm-dl" -replace '\\','/') + '", "onboarded": true }' | Set-Content "$env:GDM_DATA\settings.json"
+          $fx = Start-Process target/release/gdm-fixture.exe -ArgumentList 8791 -PassThru
+          node tests/e2e/bridge.mjs "$env:LOCALAPPDATA\Galaxy Download Manager" $env:GDM_DATA "$env:RUNNER_TEMP\gdm-dl" http://127.0.0.1:8791
+          if ($LASTEXITCODE) { exit 1 }
+          pnpm exec playwright install chromium
+          $chrome = Get-ChildItem "$env:LOCALAPPDATA\ms-playwright\chromium-*\chrome-win64\chrome.exe" | Select-Object -First 1
+          node tests/e2e/extension.mjs $chrome.FullName
+          if ($LASTEXITCODE) { exit 1 }
+          Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force
+          node tests/e2e/webview2.mjs "$env:LOCALAPPDATA\Galaxy Download Manager" $env:GDM_DATA docs/evidence/g6-shots
+          if ($LASTEXITCODE) { exit 1 }
+          Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force; Stop-Process $fx -Force
+          Start-Process "$env:LOCALAPPDATA\Galaxy Download Manager\uninstall.exe" -ArgumentList "/S" -Wait
+          Start-Sleep 3
+          if (Test-Path "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.goldeniq.gdm") { throw "T-03: host key left behind" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gdm-unsigned-installer
+          path: target/release/bundle/nsis/*-setup.exe

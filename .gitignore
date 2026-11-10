@@ -29,3 +29,11 @@ __pycache__/
 
 # Rust build output (cargo / rust-analyzer); real builds use %LOCALAPPDATA%\gdm-t*
 /target/
+
+# staged sidecar (built from crates/gdm-bridge)
+/src-tauri/binaries/
+/src-tauri/gen/
+/extension/dist/
+/test-results/
+/playwright-report/
+/.playwright-mcp/
