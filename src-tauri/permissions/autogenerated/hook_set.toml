@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-hook-set"
+description = "Enables the hook_set command without any pre-configured scope."
+commands.allow = ["hook_set"]
+
+[[permission]]
+identifier = "deny-hook-set"
+description = "Denies the hook_set command without any pre-configured scope."
+commands.deny = ["hook_set"]

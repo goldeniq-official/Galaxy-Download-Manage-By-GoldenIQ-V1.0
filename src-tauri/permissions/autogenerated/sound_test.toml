@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sound-test"
+description = "Enables the sound_test command without any pre-configured scope."
+commands.allow = ["sound_test"]
+
+[[permission]]
+identifier = "deny-sound-test"
+description = "Denies the sound_test command without any pre-configured scope."
+commands.deny = ["sound_test"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sound-pick"
+description = "Enables the sound_pick command without any pre-configured scope."
+commands.allow = ["sound_pick"]
+
+[[permission]]
+identifier = "deny-sound-pick"
+description = "Denies the sound_pick command without any pre-configured scope."
+commands.deny = ["sound_pick"]

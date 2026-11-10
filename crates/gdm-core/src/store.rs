@@ -45,6 +45,17 @@ const MIGRATIONS: &[&str] = &[
         INSERT INTO jobs_fts(jobs_fts, rowid, name, url, description) VALUES ('delete', old.rowid, old.name, old.url, old.description);
         INSERT INTO jobs_fts(rowid, name, url, description) VALUES (new.rowid, new.name, new.url, new.description); END;
     "#,
+    // 4: G7 queues (F08). queue = queue id (NULL = not in a queue), qpos = order inside it; replaces = file id
+    //    of the published file a sync re-download may replace (only that file object); queue_claims = one row
+    //    per scheduled occurrence that was started (Q-03: a key runs once, claimed in the same database)
+    r#"
+    ALTER TABLE jobs ADD COLUMN queue TEXT;
+    ALTER TABLE jobs ADD COLUMN qpos INTEGER;
+    ALTER TABLE jobs ADD COLUMN replaces TEXT;
+    ALTER TABLE jobs ADD COLUMN retries INTEGER NOT NULL DEFAULT 0;
+    CREATE INDEX jobs_queue ON jobs(queue, qpos);
+    CREATE TABLE queue_claims(queue TEXT NOT NULL, key TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(queue, key));
+    "#,
 ];
 pub const SCHEMA: i64 = MIGRATIONS.len() as i64;
 
@@ -70,6 +81,7 @@ pub struct Job {
     pub file_id: Option<String>,
     pub allow_private: Option<String>,
     pub target: Option<String>,
+    pub replaces: Option<String>,
 }
 
 /// one row of the main list (the UI never sees file ids, intents or validators)
@@ -89,6 +101,9 @@ pub struct Row {
     pub description: Option<String>,
     pub created_at: i64,
     pub finished_at: Option<i64>,
+    pub queue: Option<String>,
+    pub qpos: Option<i64>,
+    pub retries: u32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -291,7 +306,7 @@ impl Store {
     pub fn job(&self, id: &str) -> Result<Option<Job>, String> {
         self.conn.query_row(
             "SELECT j.id, j.url, j.final_url, j.referrer, j.name, d.path, j.dir_id, j.state, j.size, j.done, j.validator, j.sha256_expected, j.sha256,
-                    j.epoch, j.unverified, j.protection, j.error_code, j.file_id, j.allow_private, j.target
+                    j.epoch, j.unverified, j.protection, j.error_code, j.file_id, j.allow_private, j.target, j.replaces
              FROM jobs j JOIN dirs d ON d.id = j.dir_id WHERE j.id = ?1",
             params![id],
             |r| Ok(Job {
@@ -299,7 +314,7 @@ impl Store {
                 dir: PathBuf::from(r.get::<_, String>(5)?), dir_id: r.get(6)?, state: r.get(7)?,
                 size: r.get::<_, Option<i64>>(8)?.map(|v| v as u64), done: r.get::<_, i64>(9)? as u64, validator: r.get(10)?,
                 sha256_expected: r.get(11)?, sha256: r.get(12)?, epoch: r.get::<_, i64>(13)? as u64, unverified: r.get(14)?,
-                protection: r.get(15)?, error_code: r.get(16)?, file_id: r.get(17)?, allow_private: r.get(18)?, target: r.get(19)?,
+                protection: r.get(15)?, error_code: r.get(16)?, file_id: r.get(17)?, allow_private: r.get(18)?, target: r.get(19)?, replaces: r.get(20)?,
             }),
         ).optional().map_err(err)
     }
@@ -394,7 +409,7 @@ impl Store {
     /// the list, newest first (IDM's default order is "added"). `q` searches name/url/description (FTS5
     /// trigram; under 3 characters a LIKE scan, still indexed by nothing but bounded by the row count)
     pub fn list(&self, q: Option<&str>, limit: usize) -> Result<Vec<Row>, String> {
-        const COLS: &str = "j.id, j.name, j.url, d.path, j.state, j.size, j.done, j.unverified, j.protection, j.error_code, j.sha256, j.description, j.created_at, j.finished_at";
+        const COLS: &str = "j.id, j.name, j.url, d.path, j.state, j.size, j.done, j.unverified, j.protection, j.error_code, j.sha256, j.description, j.created_at, j.finished_at, j.queue, j.qpos, j.retries";
         let map = |r: &rusqlite::Row| {
             Ok(Row {
                 id: r.get(0)?,
@@ -411,6 +426,9 @@ impl Store {
                 description: r.get(11)?,
                 created_at: r.get(12)?,
                 finished_at: r.get(13)?,
+                queue: r.get(14)?,
+                qpos: r.get(15)?,
+                retries: r.get::<_, i64>(16)? as u32,
             })
         };
         let q = q.map(str::trim).filter(|q| !q.is_empty());
@@ -450,6 +468,69 @@ impl Store {
         let mut q = self.conn.prepare("SELECT event, detail FROM history WHERE job_id = ?1 ORDER BY id").map_err(err)?;
         let v = q.query_map(params![id], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?.flatten().collect();
         Ok(v)
+    }
+}
+
+impl Store {
+    /// put jobs at the end of a queue (None = take them out of every queue), in the given order
+    pub fn set_queue(&mut self, ids: &[String], queue: Option<&str>) -> Result<(), String> {
+        let tx = self.conn.transaction().map_err(err)?;
+        let base: i64 = tx.query_row("SELECT COALESCE(MAX(qpos), 0) FROM jobs WHERE queue IS ?1", params![queue], |r| r.get(0)).map_err(err)?;
+        for (i, id) in ids.iter().enumerate() {
+            let pos = base + 1 + i as i64;
+            tx.execute("UPDATE jobs SET queue = ?2, qpos = ?3, retries = 0 WHERE id = ?1", params![id, queue, queue.map(|_| pos)]).map_err(err)?;
+        }
+        tx.commit().map_err(err)
+    }
+
+    pub fn queue_of(&self, id: &str) -> Option<String> {
+        self.conn.query_row("SELECT queue FROM jobs WHERE id = ?1", params![id], |r| r.get(0)).ok().flatten()
+    }
+
+    /// queue order: ids by qpos
+    pub fn queue_jobs(&self, queue: &str) -> Result<Vec<String>, String> {
+        let mut q = self.conn.prepare_cached("SELECT id FROM jobs WHERE queue = ?1 ORDER BY qpos, rowid").map_err(err)?;
+        let v = q.query_map(params![queue], |r| r.get(0)).map_err(err)?.flatten().collect();
+        Ok(v)
+    }
+
+    /// a failed job moves to the end of its queue with one more retry counted (IDM, §22)
+    pub fn requeue_failed(&mut self, id: &str) -> Result<u32, String> {
+        let tx = self.conn.transaction().map_err(err)?;
+        tx.execute(
+            "UPDATE jobs SET retries = retries + 1, qpos = (SELECT COALESCE(MAX(qpos), 0) + 1 FROM jobs WHERE queue = (SELECT queue FROM jobs WHERE id = ?1)) WHERE id = ?1",
+            params![id],
+        )
+        .map_err(err)?;
+        let n: i64 = tx.query_row("SELECT retries FROM jobs WHERE id = ?1", params![id], |r| r.get(0)).map_err(err)?;
+        tx.commit().map_err(err)?;
+        Ok(n as u32)
+    }
+
+    /// Q-03: claim a scheduled occurrence once; false = it was already claimed (started before)
+    pub fn claim(&self, queue: &str, key: &str) -> Result<bool, String> {
+        let n =
+            self.conn.execute("INSERT OR IGNORE INTO queue_claims(queue, key, at) VALUES (?1, ?2, ?3)", params![queue, key, now()]).map_err(err)?;
+        Ok(n == 1)
+    }
+
+    pub fn last_claim(&self, queue: &str) -> Result<Option<String>, String> {
+        self.conn.query_row("SELECT MAX(key) FROM queue_claims WHERE queue = ?1", params![queue], |r| r.get(0)).map_err(err)
+    }
+
+    /// sync queue: the finished job downloads again; the new file may replace only the published file object
+    /// recorded here (its file id), never another file that took the name meanwhile
+    pub fn prepare_resync(&mut self, id: &str) -> Result<(), String> {
+        let tx = self.conn.transaction().map_err(err)?;
+        tx.execute(
+            "UPDATE jobs SET replaces = file_id, state = 'queued', target = NULL, sha256 = NULL, file_id = NULL, done = 0, epoch = epoch + 1,
+                    protection = NULL, error_code = NULL, finished_at = NULL WHERE id = ?1 AND state IN ('complete', 'unprotected')",
+            params![id],
+        )
+        .map_err(err)?;
+        tx.execute("DELETE FROM segments WHERE job_id = ?1", params![id]).map_err(err)?;
+        tx.execute("INSERT INTO history(job_id, at, event) VALUES (?1, ?2, 'sync-changed')", params![id, now()]).map_err(err)?;
+        tx.commit().map_err(err)
     }
 }
 

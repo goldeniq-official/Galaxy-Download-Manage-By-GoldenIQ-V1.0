@@ -11,6 +11,7 @@ pub mod http;
 pub mod limiter;
 pub mod name;
 pub mod net;
+pub mod sched;
 pub mod seg;
 pub mod sidecar;
 pub mod store;
@@ -199,6 +200,7 @@ impl Engine {
                     file_id: Some(sc.fid.clone()),
                     allow_private: None,
                     target: None,
+                    replaces: None,
                 };
                 // the recovered job keeps exactly its own name (its .part is on disk): no counter
                 let name = st.insert_job(&j, &|_| false).map_err(Fail::Io)?;
@@ -256,6 +258,7 @@ impl Engine {
             file_id: None,
             allow_private: nj.typed.then(|| url.host_str().unwrap_or("").to_string()),
             target: None,
+            replaces: None,
         };
         let taken = |n: &str| dirh.exists(n) || dirh.exists(&format!("{n}.part")) || dirh.exists(&sidecar::leaf(n));
         st.insert_job(&j, &taken).map_err(Fail::Io)?;
@@ -467,12 +470,12 @@ impl Engine {
         failpoint::hit("before_finalizing");
         self.st().set_state(id, "finalizing", None).map_err(Fail::Io)?;
         let fin = {
-            let (dir, part, name, exp, url, refr) =
-                (&dir, part.clone(), job.name.clone(), job.sha256_expected.clone(), job.url.clone(), job.referrer.clone());
+            let (dir, part, name, exp, url, refr, repl) =
+                (&dir, part.clone(), job.name.clone(), job.sha256_expected.clone(), job.url.clone(), job.referrer.clone(), job.replaces.clone());
             let total = done.total;
             let mut intent = |target: &str, sha: &str| self.st().set_intent(id, target, sha).map_err(Fail::Io);
             tokio::task::block_in_place(|| {
-                finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid), &mut intent)
+                finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid), repl.as_deref(), &mut intent)
             })?
         };
         let (state, prot) = match &fin.protection {
@@ -493,6 +496,55 @@ impl Engine {
             unverified: done.validator.is_none(),
             transfer: done,
         })
+    }
+
+    /// sync queue check (Q-05): one conditional GET (If-None-Match with a strong ETag, else If-Modified-Since,
+    /// plus Range 0-0 so a changed file costs a few bytes). 304 => unchanged, nothing read. 2xx => changed:
+    /// the job is prepared to download again and replace only its own published file. No validator at all =>
+    /// compare the total size (a weaker signal, recorded in history).
+    pub async fn sync_check(&self, id: &str) -> Result<bool, Fail> {
+        let job = self.job(id)?;
+        if job.state != "complete" && job.state != "unprotected" {
+            return Ok(false);
+        }
+        let url = url::Url::parse(job.final_url.as_deref().unwrap_or(&job.url)).map_err(s)?;
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&url).map_err(|e| Fail::Forbidden(e.0))?;
+        let c = net::client(policy, true, std::time::Duration::from_secs(30)).map_err(Fail::Io)?;
+        let mut rq = c.get(url.clone()).header("Range", "bytes=0-0");
+        match job.validator.as_deref() {
+            Some(v) if v.starts_with('"') => rq = rq.header("If-None-Match", v),
+            Some(v) => rq = rq.header("If-Modified-Since", v),
+            None => {}
+        }
+        let creds = self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).cloned().unwrap_or_default();
+        for (k, v) in creds.for_url(&url) {
+            rq = rq.header(k.as_str(), v.as_str());
+        }
+        let r = rq.send().await.map_err(|e| Fail::Io(e.to_string()))?;
+        let st = r.status().as_u16();
+        let changed = match st {
+            304 => false,
+            200..=299 => match job.validator {
+                Some(_) => true,
+                None => http::content_range(r.headers()).and_then(|c| c.2).or(r.content_length()) != job.size,
+            },
+            401 | 403 => return Err(Fail::Auth),
+            404 | 410 => return Err(Fail::Gone),
+            _ => return Err(Fail::Http(st)),
+        };
+        drop(r); // never read a body here
+        let mut stg = self.st();
+        stg.conn
+            .execute(
+                "INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, 'sync-check', ?3)",
+                rusqlite::params![id, store::now(), st.to_string()],
+            )
+            .map_err(s)?;
+        if changed {
+            stg.prepare_resync(id).map_err(Fail::Io)?;
+        }
+        Ok(changed)
     }
 
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)

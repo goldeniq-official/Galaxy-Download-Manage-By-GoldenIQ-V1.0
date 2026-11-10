@@ -101,6 +101,7 @@ pub fn finalize(
     source: &str,
     referrer: Option<&str>,
     id: Option<(u32, u64)>,
+    replaces: Option<&str>,
     intent: &mut dyn FnMut(&str, &str) -> Result<(), Fail>,
 ) -> Result<Finished, Fail> {
     if !dir.exists(part) {
@@ -144,7 +145,13 @@ pub fn finalize(
     loop {
         // persisted BEFORE the rename: a crash right after it is reconciled against this target + hash
         intent(&fin, &sha)?;
-        match fsx::rename(&f, dir, &fin, false) {
+        // sync queue (Q-05): replace the old copy only when the file under the name is still the very file
+        // object this job published (file id); anything else that took the name keeps it (counter name)
+        let own = n == 0
+            && replaces.is_some_and(|want| {
+                dir.open_locked(&fin).ok().and_then(|o| fsx::file_id(&o).ok()).map(|i| format!("{:08x}:{:016x}", i.0, i.1)).as_deref() == Some(want)
+            });
+        match fsx::rename(&f, dir, &fin, own) {
             Ok(()) => {
                 failpoint::hit("after_rename");
                 break;

@@ -79,6 +79,11 @@ pub struct Settings {
     pub highest_seen: String,
     pub last_check: i64,
     pub update_failures: u32,
+    pub queues: Vec<crate::queue::Queue>,
+    /// "run a program when done" per queue id: written ONLY by the `hook_set` command (Q-01)
+    pub hooks: HashMap<String, crate::hook::Hook>,
+    /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
+    pub sounds: HashMap<String, String>,
 }
 
 impl Default for Settings {
@@ -109,6 +114,9 @@ impl Default for Settings {
             highest_seen: env!("CARGO_PKG_VERSION").into(),
             last_check: 0,
             update_failures: 0,
+            queues: crate::queue::default_queues(),
+            hooks: HashMap::new(),
+            sounds: HashMap::new(),
         }
     }
 }
@@ -181,6 +189,14 @@ pub struct App {
     pub handoff_jobs: Mutex<HashMap<String, (String, Instant)>>,
     pub banner: Mutex<Option<String>>,
     pub notify: Mutex<Option<Notify>>,
+    pub qstate: Mutex<HashMap<String, crate::queue::QState>>,
+    /// a finish action is being carried out: nothing new starts (Q-02)
+    pub finishing: std::sync::atomic::AtomicBool,
+    pub power: Mutex<crate::queue::Power>,
+    /// Q-02 countdown before a power action (60 s; tests shorten it)
+    pub countdown_ms: AtomicU64,
+    /// queue speed buckets (queue id -> bucket)
+    pub qbuckets: Mutex<HashMap<String, Arc<limiter::Bucket>>>,
 }
 
 pub type Notify = Box<dyn Fn(&Toast) + Send + Sync>;
@@ -221,6 +237,11 @@ impl App {
             handoff_jobs: Default::default(),
             banner: Mutex::new(banner),
             notify: Mutex::new(None),
+            qstate: Default::default(),
+            finishing: Default::default(),
+            power: Mutex::new(crate::queue::real_power()),
+            countdown_ms: AtomicU64::new(crate::queue::COUNTDOWN.as_millis() as u64),
+            qbuckets: Default::default(),
         });
         app.apply_limit();
         Ok(app)
@@ -233,9 +254,72 @@ impl App {
         std::fs::rename(&tmp, self.data.join("settings.json")).map_err(|e| e.to_string())
     }
 
+    /// settings_set: merge a partial settings object into a validated copy (not applied yet). Paths, hooks
+    /// (Q-01) and updater state are never taken from the patch.
+    pub fn merge_settings(&self, patch: serde_json::Value) -> Result<Settings, String> {
+        let serde_json::Value::Object(p) = patch else { return Err("bad".into()) };
+        let mut cur = serde_json::to_value(&*lock(&self.settings)).map_err(|e| e.to_string())?;
+        for (k, v) in p {
+            // paths, hooks (Q-01) and updater state are never set through this command
+            if matches!(k.as_str(), "download_dir" | "highest_seen" | "last_check" | "update_failures" | "hooks") {
+                continue;
+            }
+            cur[k] = v;
+        }
+        let mut s: Settings = serde_json::from_value(cur).map_err(|e| e.to_string())?;
+        for c in &mut s.categories {
+            c.sub = gdm_core::name::sanitize(&c.sub).replace(['\\', '/'], "");
+            if c.sub == "_" {
+                c.sub.clear();
+            }
+            c.exts =
+                c.exts.iter().map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase()).filter(|e| !e.is_empty() && e.len() <= 16).collect();
+        }
+        s.max_conns = s.max_conns.clamp(1, 32);
+        {
+            let old = lock(&self.settings);
+            s.hooks = old.hooks.clone();
+            // a sound is off, a built-in one, or the WAV already picked in the file dialog (never a path from the UI)
+            for (ev, v) in s.sounds.iter_mut() {
+                let keep = v.is_empty() || v.strip_prefix("system:").is_some_and(|a| crate::os::SYSTEM_SOUNDS.contains(&a));
+                if !keep && old.sounds.get(ev) != Some(v) {
+                    *v = old.sounds.get(ev).cloned().unwrap_or_default();
+                }
+            }
+            s.sounds.retain(|k, _| matches!(k.as_str(), "complete" | "failed" | "queue"));
+            // queues: the two built-in ones always exist; ids are kept; user queues get q-<n>
+            let mut seen = std::collections::HashSet::new();
+            s.queues.retain(|q| seen.insert(q.id.clone()) && (q.id == "main" || q.id == "sync" || q.id.starts_with("q-")));
+            for d in crate::queue::default_queues() {
+                if !s.queues.iter().any(|q| q.id == d.id) {
+                    s.queues.push(d);
+                }
+            }
+            for q in &mut s.queues {
+                q.max_active = q.max_active.clamp(1, 32);
+                q.retries = q.retries.min(1000);
+                q.name = q.name.chars().filter(|c| !c.is_control()).take(64).collect();
+                if q.id == "main" {
+                    q.sync = false;
+                }
+                if q.id == "sync" {
+                    q.sync = true;
+                }
+                if !matches!(q.on_done.as_str(), "none" | "exit" | "sleep" | "hibernate" | "shutdown") {
+                    q.on_done = "none".into();
+                }
+            }
+        }
+        Ok(s)
+    }
+
     pub fn apply_limit(&self) {
         let s = lock(&self.settings);
         self.engine.global.set_rate(if s.limit_on { s.limit_kbps * 1024 } else { 0 });
+        let mut b = lock(&self.qbuckets);
+        for q in &s.queues {
+            b.entry(q.id.clone()).or_insert_with(|| limiter::Bucket::new(0)).set_rate(q.speed_kbps * 1024);
+        }
     }
 
     pub fn bump(&self) {
@@ -303,13 +387,18 @@ impl App {
     }
 
     pub fn start(self: &Arc<Self>, id: &str, decision: Unverified) {
+        if self.finishing.load(Ordering::SeqCst) {
+            return; // Q-02: a shutdown/sleep is being carried out
+        }
+        let queue = lock(&self.engine.store).queue_of(id);
+        let qb = queue.and_then(|q| lock(&self.qbuckets).get(&q).cloned());
         let mut runs = lock(&self.runs);
         if runs.contains_key(id) {
             return;
         }
         let live = Arc::new(Live::default());
         let job_limit = limiter::Bucket::new(0);
-        let limit = Arc::new(limiter::JobLimit { job: job_limit.clone(), queue: None, global: self.engine.global.clone() });
+        let limit = Arc::new(limiter::JobLimit { job: job_limit.clone(), queue: qb, global: self.engine.global.clone() });
         let (me, id2, l2) = (self.clone(), id.to_string(), live.clone());
         let handle = tauri::async_runtime::spawn(async move {
             let r = me.engine.run_live(&id2, decision, Some(limit), Some(l2)).await;
@@ -323,6 +412,30 @@ impl App {
 
     fn finished(&self, id: &str, r: Result<gdm_core::Outcome, Fail>) {
         self.bump();
+        let queue = lock(&self.engine.store).queue_of(id);
+        if let Some(q) = queue {
+            let sync = self.queue_defs().iter().any(|d| d.id == q && d.sync);
+            match &r {
+                Ok(o) => {
+                    lock(&self.qstate).entry(q.clone()).or_default().last_file = Some(o.path.clone());
+                    if !sync {
+                        let _ = lock(&self.engine.store).set_queue(&[id.to_string()], None);
+                        // main queue: done files leave
+                    }
+                }
+                Err(_) => {
+                    let failed = self.engine.job(id).map(|j| j.state == "failed").unwrap_or(false);
+                    if failed {
+                        let _ = lock(&self.engine.store).requeue_failed(id);
+                    }
+                }
+            }
+        }
+        match &r {
+            Ok(_) => self.play("complete"),
+            Err(Fail::Io(m)) if m.contains("already running") => {}
+            Err(_) => self.play("failed"),
+        }
         let toast = match &r {
             Ok(o) => Some((if o.protection == gdm_core::finalize::Protection::Protected { "complete" } else { "unprotected" }, o.name.clone())),
             Err(Fail::Blocked(_)) => self.engine.job(id).ok().map(|j| ("blocked", j.name)),
@@ -355,6 +468,11 @@ impl App {
         while q.len() > 20 {
             q.pop_front();
         }
+    }
+
+    pub fn play(&self, event: &str) {
+        let snd = lock(&self.settings).sounds.get(event).cloned().unwrap_or_default();
+        crate::os::play(&snd);
     }
 
     pub fn toasts_after(&self, n: u64) -> Vec<Toast> {
@@ -540,6 +658,18 @@ mod tests {
         let again = App::open(&d).unwrap();
         let s2 = lock(&again.settings).clone();
         assert_eq!((s2.lang.as_str(), s2.limit_kbps), ("en", 321));
+        // Q-01: settings_set never sets a hook, a download path or a sound path
+        let p = serde_json::json!({"hooks": {"main": {"program": r"C:\Windows\System32\cmd.exe", "args": ["/c", "calc"]}},
+            "download_dir": r"C:\Windows", "sounds": {"complete": r"C:\x\evil.wav", "failed": "system:SystemHand", "queue": "system:SystemAsterisk"},
+            "queues": [{"id": "../x", "on_done": "format c:"}, {"id": "main", "on_done": "rm"}]});
+        let m = again.merge_settings(p).unwrap();
+        assert!(m.hooks.is_empty());
+        assert_ne!(m.download_dir, r"C:\Windows");
+        assert_eq!(m.sounds.get("complete").map(String::as_str), Some(""), "a WAV path from the UI is dropped");
+        assert_eq!(m.sounds.get("failed").map(String::as_str), Some(""), "only the 3 built-in sounds");
+        assert_eq!(m.sounds.get("queue").map(String::as_str), Some("system:SystemAsterisk"));
+        assert_eq!(m.queues.iter().map(|q| q.id.as_str()).collect::<Vec<_>>(), vec!["main", "sync"]);
+        assert_eq!(m.queues[0].on_done, "none");
         drop(again);
         let _ = std::fs::remove_dir_all(&d);
     }

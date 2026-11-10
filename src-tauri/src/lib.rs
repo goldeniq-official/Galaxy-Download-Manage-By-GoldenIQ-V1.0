@@ -3,8 +3,10 @@
 //! notification, autostart, window-state only; no shell/fs/http/opener (X-02). Every command takes job IDs or
 //! plain values, never paths, URLs to open or command lines (X-01).
 pub mod app;
+pub mod hook;
 pub mod os;
 pub mod pipe;
+pub mod queue;
 pub mod update;
 
 use app::{lock, App, RowView, Settings};
@@ -85,27 +87,13 @@ fn settings_get(app: A) -> Settings {
 /// merge a partial settings object; fields that hold paths or updater state cannot be set from the UI
 #[tauri::command]
 fn settings_set(app: A, patch: Value) -> R<Settings> {
-    let Value::Object(p) = patch else { return Err("bad".into()) };
-    let mut cur = serde_json::to_value(&*lock(&app.settings)).map_err(|e| e.to_string())?;
-    for (k, v) in p {
-        if matches!(k.as_str(), "download_dir" | "highest_seen" | "last_check" | "update_failures") {
-            continue;
-        }
-        cur[k] = v;
-    }
-    let mut s: Settings = serde_json::from_value(cur).map_err(|e| e.to_string())?;
-    for c in &mut s.categories {
-        c.sub = gdm_core::name::sanitize(&c.sub).replace(['\\', '/'], "");
-        if c.sub == "_" {
-            c.sub.clear();
-        }
-        c.exts = c.exts.iter().map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase()).filter(|e| !e.is_empty() && e.len() <= 16).collect();
-    }
-    s.max_conns = s.max_conns.clamp(1, 32);
+    let s = app.merge_settings(patch)?;
+    let wake: Vec<queue::Queue> = s.queues.clone();
     let autostart = s.autostart;
     *lock(&app.settings) = s.clone();
     app.save_settings()?;
     app.apply_limit();
+    os::sync_wake_tasks(&wake);
     if let Some(h) = HANDLE.get() {
         use tauri_plugin_autostart::ManagerExt;
         let al = h.autolaunch();
@@ -113,6 +101,100 @@ fn settings_set(app: A, patch: Value) -> R<Settings> {
         let _ = rebuild_tray(h, &app);
     }
     Ok(s)
+}
+
+#[derive(Serialize)]
+struct QueueView {
+    def: queue::Queue,
+    state: queue::QState,
+    jobs: Vec<String>,
+    hook: Option<hook::Hook>,
+}
+
+#[tauri::command]
+fn queue_list(app: A) -> Vec<QueueView> {
+    let st = app.queue_states();
+    let hooks = lock(&app.settings).hooks.clone();
+    app.queue_defs()
+        .into_iter()
+        .map(|d| QueueView {
+            jobs: lock(&app.engine.store).queue_jobs(&d.id).unwrap_or_default(),
+            state: st.get(&d.id).cloned().unwrap_or_default(),
+            hook: hooks.get(&d.id).cloned(),
+            def: d,
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn queue_put(app: A, ids: Vec<String>, queue: Option<String>) -> R<()> {
+    if ids.len() > 100_000 {
+        return Err("too-many".into());
+    }
+    app.queue_put(&ids, queue.as_deref())
+}
+
+#[tauri::command]
+fn queue_start(app: A, id: String) -> R<()> {
+    app.inner().queue_start(&id, None)
+}
+
+#[tauri::command]
+async fn queue_stop(app: A<'_>, id: String) -> R<()> {
+    app.inner().clone().queue_stop(&id).await;
+    Ok(())
+}
+
+#[tauri::command]
+fn queue_cancel_action(app: A, id: String) {
+    app.queue_cancel_action(&id);
+}
+
+/// Q-01: the ONLY way a hook is set. The program comes from the native file dialog (never a path string from
+/// the WebView); the arguments are a list. `pick: false` keeps the program and changes the arguments only.
+#[tauri::command]
+fn hook_set(app: A, queue: String, pick: bool, args: Vec<String>, clear: bool) -> R<Option<hook::Hook>> {
+    if !app.queue_defs().iter().any(|q| q.id == queue) {
+        return Err("no-queue".into());
+    }
+    if clear {
+        lock(&app.settings).hooks.remove(&queue);
+        app.save_settings()?;
+        return Ok(None);
+    }
+    let program = if pick {
+        let start = std::env::var_os("ProgramFiles").map(std::path::PathBuf::from).unwrap_or_default();
+        match os::pick_file(&start, "Program", "*.exe;*.bat;*.cmd") {
+            Some(p) => p.display().to_string(),
+            None => return Ok(lock(&app.settings).hooks.get(&queue).cloned()),
+        }
+    } else {
+        lock(&app.settings).hooks.get(&queue).map(|h| h.program.clone()).ok_or("no-program")?
+    };
+    let h = hook::Hook { program, args };
+    hook::validate(&h)?;
+    lock(&app.settings).hooks.insert(queue, h.clone());
+    app.save_settings()?;
+    Ok(Some(h))
+}
+
+/// a custom WAV for an event, from the native file dialog only
+#[tauri::command]
+fn sound_pick(app: A, event: String) -> R<Option<String>> {
+    if !matches!(event.as_str(), "complete" | "failed" | "queue") {
+        return Err("bad-event".into());
+    }
+    let start = std::env::var_os("SystemRoot").map(|p| std::path::PathBuf::from(p).join("Media")).unwrap_or_default();
+    let Some(p) = os::pick_file(&start, "WAV", "*.wav") else { return Ok(None) };
+    let p = p.display().to_string();
+    lock(&app.settings).sounds.insert(event, p.clone());
+    app.save_settings()?;
+    Ok(Some(p))
+}
+
+#[tauri::command]
+fn sound_test(app: A, event: String) {
+    app.play(&event);
 }
 
 #[tauri::command]
@@ -474,6 +556,15 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// "exit GDM when the queue is done" and the CLI /q
+pub fn request_quit() {
+    if let Some(h) = HANDLE.get() {
+        if let Some(a) = h.try_state::<Arc<App>>() {
+            quit(h, a.inner().clone());
+        }
+    }
+}
+
 fn quit(h: &AppHandle, app: Arc<App>) {
     let h = h.clone();
     tauri::async_runtime::spawn(async move {
@@ -555,7 +646,15 @@ pub fn run() {
             open_link,
             browsers,
             update_check,
-            update_restart
+            update_restart,
+            queue_list,
+            queue_put,
+            queue_start,
+            queue_stop,
+            queue_cancel_action,
+            hook_set,
+            sound_pick,
+            sound_test
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();
@@ -606,6 +705,17 @@ pub fn run() {
                 });
             }
             app.resume_interrupted();
+            // queue scheduler: every second (schedules use wall time, countdowns use Instant)
+            let aq = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last = chrono::Utc::now() - chrono::Duration::seconds(90);
+                loop {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    let now = chrono::Utc::now();
+                    aq.queue_tick(now, last).await;
+                    last = now;
+                }
+            });
             // backups + updater timer (§07: daily, at start after a minute, never more often than 6 h)
             let a3 = app.clone();
             tauri::async_runtime::spawn(async move {

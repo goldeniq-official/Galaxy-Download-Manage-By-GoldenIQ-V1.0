@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-queue-start"
+description = "Enables the queue_start command without any pre-configured scope."
+commands.allow = ["queue_start"]
+
+[[permission]]
+identifier = "deny-queue-start"
+description = "Denies the queue_start command without any pre-configured scope."
+commands.deny = ["queue_start"]
