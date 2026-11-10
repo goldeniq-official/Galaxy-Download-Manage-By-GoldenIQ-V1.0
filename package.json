@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint src extension/src tests",
+    "lint": "eslint src tests extension",
     "ext": "node extension/build.mjs",
     "test:ui": "playwright test",
     "tauri": "tauri"

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// minisign public key (Tauri format: base64 of the .pub file). The private key is the owner's (offline +
 /// GitHub Environment "release"); see docs/evidence/G6.md "Updater key".
 pub const PUBKEY: &str = include_str!("../updater.pub.b64");
-pub const MANIFEST_URL: &str = "https://github.com/goldeniq-official/galaxy-download-manager/releases/latest/download/latest.json";
+pub const MANIFEST_URL: &str = "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases/latest/download/latest.json";
 
 #[derive(Serialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -118,6 +118,12 @@ pub fn verify_manifest(body: &[u8], sig_b64: &str, pubkey_b64: &str, now: i64, c
     Ok(m)
 }
 
+/// U-02 / §07: a staged update installs by itself only in Automatic mode, after fewer than 2 failed installs,
+/// when no job has run for 2 minutes (a running download, finalise or hash keeps it waiting)
+pub fn may_install(state: &State, mode: &str, failures: u32, running: usize, idle_for: Option<std::time::Duration>) -> bool {
+    *state == State::Ready && mode == "auto" && failures < 2 && running == 0 && idle_for.is_some_and(|d| d >= std::time::Duration::from_secs(120))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,6 +148,18 @@ mod tests {
         assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "1.0.0"), Err(Reject::NotNewer), "downgrade below highest seen");
         assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, 2_000_000_000, "stable", "0.9.0"), Err(Reject::Expired));
         assert!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "beta", "0.9.0").is_ok(), "beta takes stable");
+    }
+    #[test]
+    fn u02_installs_only_when_idle() {
+        use std::time::Duration;
+        let idle = Some(Duration::from_secs(121));
+        assert!(may_install(&State::Ready, "auto", 0, 0, idle));
+        assert!(!may_install(&State::Ready, "auto", 0, 1, idle), "a running job blocks the install");
+        assert!(!may_install(&State::Ready, "auto", 0, 0, Some(Duration::from_secs(60))), "idle < 2 min");
+        assert!(!may_install(&State::Ready, "auto", 0, 0, None));
+        assert!(!may_install(&State::Ready, "notify", 0, 0, idle), "notify mode never installs by itself");
+        assert!(!may_install(&State::Ready, "auto", 2, 0, idle), "after 2 failed installs the user decides");
+        assert!(!may_install(&State::Downloading, "auto", 0, 0, idle));
     }
     #[test]
     fn versions_order() {

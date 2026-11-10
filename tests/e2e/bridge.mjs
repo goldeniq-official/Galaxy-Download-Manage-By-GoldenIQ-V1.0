@@ -7,7 +7,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const [inst, data, dl, fx] = process.argv.slice(2);
+const [inst, , dl, fx] = process.argv.slice(2);
 const bridge = path.join(inst, "gdm-bridge.exe");
 const ORIGIN = "chrome-extension://khgpllebdmknoollimkfkggepiembabi/";
 let fails = 0;

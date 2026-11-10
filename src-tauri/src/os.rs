@@ -12,10 +12,10 @@ pub fn link(key: &str) -> Option<&'static str> {
         "store-chrome" => "https://chromewebstore.google.com/search/Galaxy%20Download%20Manager",
         "store-edge" => "https://microsoftedge.microsoft.com/addons/search/Galaxy%20Download%20Manager",
         "store-firefox" => "https://addons.mozilla.org/firefox/search/?q=Galaxy%20Download%20Manager",
-        "github" => "https://github.com/goldeniq-official/galaxy-download-manager",
-        "releases" => "https://github.com/goldeniq-official/galaxy-download-manager/releases",
-        "license" => "https://github.com/goldeniq-official/galaxy-download-manager/blob/main/LICENSE",
-        "privacy" => "https://github.com/goldeniq-official/galaxy-download-manager/blob/main/PRIVACY.md",
+        "github" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
+        "releases" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases",
+        "license" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/blob/main/LICENSE",
+        "privacy" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/blob/main/PRIVACY.md",
         "windows-security" => "windowsdefender://threat/",
         _ => return None,
     })
@@ -112,4 +112,21 @@ pub fn pick_folder(start: &Path) -> Option<PathBuf> {
     .join()
     .ok()
     .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// X-02: nothing the WebView sends becomes a file:, UNC, smb: or custom-scheme launch
+    #[test]
+    fn x02_only_fixed_links_and_http_pages() {
+        assert!(link("store-chrome").is_some());
+        assert!(link("file:///C:/Windows/System32/calc.exe").is_none());
+        assert!(link("evil").is_none());
+        for bad in ["file:///C:/Windows/System32/calc.exe", r"\\server\share\x.exe", "smb://server/share", "ms-msdt:/id", "javascript:alert(1)"] {
+            assert!(open_web(bad).is_err(), "{bad}");
+        }
+        assert_eq!(open_file(Path::new("C:/Windows/System32/calc.exe"), "calc.exe"), Err("dangerous".into()), "dangerous types never open directly");
+        assert_eq!(open_file(Path::new("C:/definitely/missing.pdf"), "missing.pdf"), Err("missing".into()));
+    }
 }

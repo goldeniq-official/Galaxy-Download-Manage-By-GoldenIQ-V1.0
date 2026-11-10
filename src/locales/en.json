@@ -1,12 +1,31 @@
 {
   "app": "Galaxy Download Manager",
-  "nav": { "all": "All", "active": "Downloading", "unfinished": "Unfinished", "done": "Complete", "cats": "Categories", "settings": "Settings" },
-  "title": { "all": "All downloads", "active": "Downloading", "unfinished": "Unfinished", "done": "Complete" },
+  "nav": {
+    "all": "All",
+    "active": "Downloading",
+    "unfinished": "Unfinished",
+    "done": "Complete",
+    "cats": "Categories",
+    "settings": "Settings"
+  },
+  "title": {
+    "all": "All downloads",
+    "active": "Downloading",
+    "unfinished": "Unfinished",
+    "done": "Complete"
+  },
   "search": "Search name or link",
   "add": "Add",
   "pauseAll": "Pause all",
   "resumeAll": "Resume all",
-  "cols": { "name": "Name", "size": "Size", "status": "Status", "speed": "Speed", "eta": "Time left", "added": "Added" },
+  "cols": {
+    "name": "Name",
+    "size": "Size",
+    "status": "Status",
+    "speed": "Speed",
+    "eta": "Time left",
+    "added": "Added"
+  },
   "empty": "Drop a link here or press “Add”",
   "noMatch": "Nothing found",
   "st": {
@@ -92,8 +111,19 @@
     "later": "Download later",
     "cancel": "Cancel"
   },
-  "addDlg": { "title": "Add a download", "url": "Link (http or https)", "go": "Next", "bad": "Not a valid link" },
-  "toast": { "complete": "Downloaded", "unprotected": "Downloaded (unprotected folder)", "blocked": "Blocked by antivirus", "failed": "Verification failed", "close": "Close" },
+  "addDlg": {
+    "title": "Add a download",
+    "url": "Link (http or https)",
+    "go": "Next",
+    "bad": "Not a valid link"
+  },
+  "toast": {
+    "complete": "Downloaded",
+    "unprotected": "Downloaded (unprotected folder)",
+    "blocked": "Blocked by antivirus",
+    "failed": "Verification failed",
+    "close": "Close"
+  },
   "banner": {
     "restored": "The list was restored from backup {{name}} · downloads found on disk were recovered",
     "readonly": "This list comes from a newer GDM · opened read-only",
@@ -108,7 +138,13 @@
     "updGithub": "Get it from GitHub",
     "close": "Close"
   },
-  "foot": { "speed": "Total speed", "limitOn": "Speed limit: {{v}}", "limitOff": "Speed limit: off", "browsers": "{{n}} browsers connected", "items": "{{n}} items" },
+  "foot": {
+    "speed": "Total speed",
+    "limitOn": "Speed limit: {{v}}",
+    "limitOff": "Speed limit: off",
+    "browsers": "{{n}} browsers connected",
+    "items": "{{n}} items"
+  },
   "set": {
     "general": "General",
     "downloads": "Downloads",
@@ -171,7 +207,7 @@
     "privacyLink": "Privacy policy",
     "version": "Version {{v}}",
     "license": "Licence RPL-1.5",
-    "attribution": "Galaxy Download Manager · made by GoldenIQ · source on GitHub under RPL-1.5",
+    "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
     "share": "Copy the GDM link",
     "copied": "Copied",
     "github": "GitHub"

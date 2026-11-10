@@ -499,3 +499,29 @@ impl App {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// X-02: a made-up id resolves to nothing (commands look paths up by id, never take them from the UI)
+    #[test]
+    fn x02_fake_job_id_refused_and_settings_survive_damage() {
+        let d = std::env::temp_dir().join(format!("gdm-app-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("settings.json"), b"{ not json").unwrap();
+        let app = App::open(&d).unwrap();
+        assert!(app.engine.job("../../Windows/System32/calc.exe").is_err());
+        assert!(app.engine.remove("fake-id", true).is_err());
+        assert_eq!(lock(&app.settings).lang, "km", "defaults: Khmer first");
+        assert!(
+            std::fs::read_dir(&d).unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with("settings.json.bad-")),
+            "damaged settings kept"
+        );
+        assert_eq!(app.category_for("setup.EXE").id, "programs");
+        assert_eq!(app.category_for("a.tar.gz").id, "compressed");
+        assert_eq!(app.category_for("noext").id, "general");
+        drop(app);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+}

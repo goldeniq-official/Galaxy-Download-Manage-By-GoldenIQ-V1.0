@@ -7,6 +7,7 @@ const keyOf = (e: MouseEvent) => (e.altKey ? "alt" : e.ctrlKey ? "ctrl" : e.shif
 document.addEventListener(
   "click",
   (e) => {
+    if (!e.isTrusted) return; // a page script cannot fake a Ctrl/Alt click to steer the catch policy
     const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
     if (!a || !/^https?:/i.test(a.href)) return;
     void chrome.runtime.sendMessage({ t: "click", url: a.href, key: keyOf(e) }).catch(() => {});

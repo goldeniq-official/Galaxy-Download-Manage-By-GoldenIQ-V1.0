@@ -1,12 +1,31 @@
 {
   "app": "Galaxy Download Manager",
-  "nav": { "all": "ទាំងអស់", "active": "កំពុងទាញ", "unfinished": "មិនទាន់បញ្ចប់", "done": "បានបញ្ចប់", "cats": "ប្រភេទ", "settings": "ការកំណត់" },
-  "title": { "all": "ការទាញយកទាំងអស់", "active": "កំពុងទាញ", "unfinished": "មិនទាន់បញ្ចប់", "done": "បានបញ្ចប់" },
+  "nav": {
+    "all": "ទាំងអស់",
+    "active": "កំពុងទាញ",
+    "unfinished": "មិនទាន់បញ្ចប់",
+    "done": "បានបញ្ចប់",
+    "cats": "ប្រភេទ",
+    "settings": "ការកំណត់"
+  },
+  "title": {
+    "all": "ការទាញយកទាំងអស់",
+    "active": "កំពុងទាញ",
+    "unfinished": "មិនទាន់បញ្ចប់",
+    "done": "បានបញ្ចប់"
+  },
   "search": "ស្វែងរកឈ្មោះ ឬ link",
   "add": "បន្ថែម",
   "pauseAll": "ផ្អាកទាំងអស់",
   "resumeAll": "បន្តទាំងអស់",
-  "cols": { "name": "ឈ្មោះ", "size": "ទំហំ", "status": "ស្ថានភាព", "speed": "ល្បឿន", "eta": "នៅសល់", "added": "បានបន្ថែម" },
+  "cols": {
+    "name": "ឈ្មោះ",
+    "size": "ទំហំ",
+    "status": "ស្ថានភាព",
+    "speed": "ល្បឿន",
+    "eta": "នៅសល់",
+    "added": "បានបន្ថែម"
+  },
   "empty": "អូស link មកទីនេះ ឬចុច «បន្ថែម»",
   "noMatch": "រកមិនឃើញ",
   "st": {
@@ -92,8 +111,19 @@
     "later": "ទាញពេលក្រោយ",
     "cancel": "បោះបង់"
   },
-  "addDlg": { "title": "បន្ថែមការទាញយក", "url": "Link (http ឬ https)", "go": "បន្ទាប់", "bad": "Link មិនត្រឹមត្រូវ" },
-  "toast": { "complete": "បានទាញ", "unprotected": "បានទាញ (ថតមិនការពារ)", "blocked": "ត្រូវ antivirus រារាំង", "failed": "ផ្ទៀងផ្ទាត់មិនត្រូវ", "close": "បិទ" },
+  "addDlg": {
+    "title": "បន្ថែមការទាញយក",
+    "url": "Link (http ឬ https)",
+    "go": "បន្ទាប់",
+    "bad": "Link មិនត្រឹមត្រូវ"
+  },
+  "toast": {
+    "complete": "បានទាញ",
+    "unprotected": "បានទាញ (ថតមិនការពារ)",
+    "blocked": "ត្រូវ antivirus រារាំង",
+    "failed": "ផ្ទៀងផ្ទាត់មិនត្រូវ",
+    "close": "បិទ"
+  },
   "banner": {
     "restored": "បានស្ដារបញ្ជីពី backup {{name}} · ការទាញដែលមាននៅលើ disk ត្រូវបានរកឃើញឡើងវិញ",
     "readonly": "បញ្ជីនេះមកពី GDM កំណែថ្មីជាង · បើកសម្រាប់មើលតែប៉ុណ្ណោះ",
@@ -108,7 +138,13 @@
     "updGithub": "ទាញពី GitHub",
     "close": "បិទ"
   },
-  "foot": { "speed": "ល្បឿនសរុប", "limitOn": "កំណត់ល្បឿន: {{v}}", "limitOff": "កំណត់ល្បឿន: បិទ", "browsers": "Browser បានភ្ជាប់ {{n}}", "items": "{{n}} ធាតុ" },
+  "foot": {
+    "speed": "ល្បឿនសរុប",
+    "limitOn": "កំណត់ល្បឿន: {{v}}",
+    "limitOff": "កំណត់ល្បឿន: បិទ",
+    "browsers": "Browser បានភ្ជាប់ {{n}}",
+    "items": "{{n}} ធាតុ"
+  },
   "set": {
     "general": "ទូទៅ",
     "downloads": "ការទាញយក",
@@ -171,7 +207,7 @@
     "privacyLink": "គោលការណ៍ឯកជនភាព",
     "version": "កំណែ {{v}}",
     "license": "អាជ្ញាប័ណ្ណ RPL-1.5",
-    "attribution": "Galaxy Download Manager · បង្កើតដោយ GoldenIQ · កូដប្រភពនៅលើ GitHub ក្រោម RPL-1.5",
+    "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
     "share": "ចម្លង link ទៅ GDM",
     "copied": "បានចម្លង",
     "github": "GitHub"

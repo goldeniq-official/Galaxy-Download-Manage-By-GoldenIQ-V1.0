@@ -275,7 +275,7 @@ export function SettingsView() {
                 type="button"
                 className="fx btn btn-s"
                 onClick={async () => {
-                  await navigator.clipboard?.writeText("https://github.com/goldeniq-official/galaxy-download-manager");
+                  await navigator.clipboard?.writeText("https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0");
                   setCopied(true);
                 }}
               >

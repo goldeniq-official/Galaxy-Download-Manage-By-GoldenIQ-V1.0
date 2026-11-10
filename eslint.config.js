@@ -10,6 +10,11 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // node test/build scripts
+    files: ["**/*.mjs"],
+    languageOptions: { globals: { process: "readonly", console: "readonly", Buffer: "readonly", setTimeout: "readonly", setInterval: "readonly", clearInterval: "readonly", URL: "readonly", fetch: "readonly", chrome: "readonly" } },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     plugins: { react, "react-hooks": hooks },
     settings: { react: { version: "19" } },

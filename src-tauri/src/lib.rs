@@ -598,7 +598,8 @@ pub fn run() {
                         idle_since = if a3.running() == 0 { idle_since.or(Some(Instant::now())) } else { None };
                         let ready = lock(&UPDATE).state == update::State::Ready;
                         let failures = lock(&a3.settings).update_failures;
-                        if ready && mode == "auto" && failures < 2 && idle_since.is_some_and(|t| t.elapsed() > Duration::from_secs(120)) {
+                        let state = if ready { update::State::Ready } else { update::State::Idle };
+                        if update::may_install(&state, &mode, failures, a3.running(), idle_since.map(|t| t.elapsed())) {
                             install_update(&a3).await;
                         }
                     }
