@@ -9,3 +9,16 @@ license = "RPL-1.5"
 description = "Galaxy Download Manager HTTP authentication: Digest (RFC 7616) and Windows SSPI NTLM/Negotiate tokens"
 
 [dependencies]
+md-5 = "0.10"
+sha2 = "0.10"
+base64 = "0.23"
+getrandom = "0.3"
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.61"
+features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authentication_Identity",
+  "Win32_Security_Credentials",
+]

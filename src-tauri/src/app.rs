@@ -516,7 +516,15 @@ impl App {
     /// Manager, held in memory for this run only)
     pub fn apply_login(&self, id: &str) {
         let Ok(j) = self.engine.job(id) else { return };
-        let url = j.final_url.clone().unwrap_or(j.url.clone());
+        // the job's own address decides; a final URL on another origin (redirect) gets no login (W-01)
+        let url = j.url.clone();
+        let same = |a: &str, b: &str| match (url::Url::parse(a), url::Url::parse(b)) {
+            (Ok(x), Ok(y)) => gdm_core::net::origin(&x) == gdm_core::net::origin(&y),
+            _ => false,
+        };
+        if j.final_url.as_deref().is_some_and(|f| !same(f, &url)) {
+            return;
+        }
         let l = crate::creds::matching(&lock(&self.settings).site_logins, &url).cloned();
         if let Some(l) = l {
             if let Some((user, pass)) = crate::creds::load(&l.id) {
@@ -734,7 +742,8 @@ impl App {
             let c = category.and_then(|c| cats.iter().find(|x| x.id == c).cloned()).unwrap_or_else(|| self.category_for(&new_name));
             let dir = self.category_dir(&c);
             std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
-            let creds = self.engine.creds_of(&id); // the browser's cookie follows the renamed job
+            // the browser's cookie follows the renamed job; a login is applied again by `start` (never copied)
+            let creds: Vec<(String, String)> = self.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie")).collect();
             self.remove(&id, false).await?;
             id = self
                 .engine
