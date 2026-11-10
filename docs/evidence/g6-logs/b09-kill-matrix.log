@@ -1,4 +1,4 @@
-PASS trial 0 kill engine @0 ms (around the reply): ack=true gdm=complete file complete
+﻿PASS trial 0 kill engine @0 ms (around the reply): ack=true gdm=complete file complete
 PASS trial 1 kill engine @5 ms (around the reply): ack=true gdm=complete file complete
 PASS trial 2 kill engine @20 ms (around the reply): ack=true gdm=complete file complete
 PASS trial 3 kill engine @60 ms (around the reply): ack=true gdm=complete file complete
@@ -6,9 +6,18 @@ PASS trial 4 kill engine @150 ms (around the reply): ack=true gdm=complete file 
 PASS trial 5 kill bridge @0 ms (bridge dies mid-exchange): ack=false gdm=no job
 PASS trial 6 kill bridge @5 ms (bridge dies mid-exchange): ack=false gdm=no job
 PASS trial 7 kill bridge @20 ms (bridge dies mid-exchange): ack=true gdm=complete file complete
-PASS trial 8 kill engine-later @1500 ms (mid-download): ack=true gdm=complete file complete
-PASS trial 9 kill engine-later @3000 ms (mid-download): ack=true gdm=complete file complete
-PASS trial 10 kill engine @300 ms (job created, reply not sent): ack=false gdm=complete file complete
-PASS trial 11 kill engine @1000 ms (job created, reply not sent): ack=false gdm=complete file complete
-never-lost violations: 0; visible duplicates (no ack, GDM also has it): 2
+PASS trial 8 kill bridge @60 ms (bridge dies mid-exchange): ack=true gdm=complete file complete
+PASS trial 9 kill bridge @150 ms (bridge dies mid-exchange): ack=true gdm=complete file complete
+PASS trial 10 kill ext @0 ms (extension worker dies mid-exchange): ack=false gdm=complete file complete
+PASS trial 11 kill ext @5 ms (extension worker dies mid-exchange): ack=false gdm=complete file complete
+PASS trial 12 kill ext @20 ms (extension worker dies mid-exchange): ack=true gdm=complete file complete
+PASS trial 13 kill ext @60 ms (extension worker dies mid-exchange): ack=true gdm=complete file complete
+PASS trial 14 kill ext @150 ms (extension worker dies mid-exchange): ack=true gdm=complete file complete
+PASS trial 15 kill engine-later @1500 ms (mid-download): ack=true gdm=complete file complete
+PASS trial 16 kill engine-later @3000 ms (mid-download): ack=true gdm=complete file complete
+PASS trial 17 kill engine @300 ms (job created, reply not sent): ack=false gdm=complete file complete
+PASS trial 18 kill engine @1000 ms (job created, reply not sent): ack=false gdm=complete file complete
+PASS trial 19 kill ext @300 ms (extension dies, job created, reply not sent): ack=false gdm=complete file complete
+PASS trial 20 kill ext @1000 ms (extension dies, job created, reply not sent): ack=false gdm=complete file complete
+never-lost violations: 0; visible duplicates (no ack, GDM also has it): 6
 B-09 PASS

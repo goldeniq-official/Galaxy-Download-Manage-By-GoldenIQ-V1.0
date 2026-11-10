@@ -24,13 +24,17 @@ function frame(o) {
   return Buffer.concat([h, b]);
 }
 
-// one handoff; `kill` = { who: "engine" | "bridge", afterMs } fires while the exchange is in flight
+// one handoff; `kill` = { who: "engine" | "bridge" | "ext", afterMs } fires while the exchange is in flight.
+// "ext" = the extension's service worker dies: its end of the native port closes, and whatever reply has not
+// arrived by then is never seen (so it cannot cancel the browser's own download).
 function handoff(i, kill) {
   return new Promise((resolve) => {
     const p = spawn(bridge, [ORIGIN], { stdio: ["pipe", "pipe", "ignore"], env: { ...process.env, GDM_DATA: data } });
     let buf = Buffer.alloc(0);
     let reply = null;
+    let dead = false;
     p.stdout.on("data", (d) => {
+      if (dead) return;
       buf = Buffer.concat([buf, d]);
       if (buf.length >= 4 && buf.length >= 4 + buf.readUInt32LE(0)) {
         reply = JSON.parse(buf.subarray(4, 4 + buf.readUInt32LE(0)).toString());
@@ -39,16 +43,25 @@ function handoff(i, kill) {
     });
     p.on("exit", () => resolve(reply));
     p.stdin.write(frame({ t: "handoff", hid: `b09-${i}-${Date.now()}`, url, referrer: null, name: `b09-${i}.zip`, size: null, mime: "application/zip", cookie: null }));
-    if (kill) setTimeout(() => (kill.who === "engine" ? (() => { try { killGdm(); } catch { /* not running */ } })() : p.kill()), kill.afterMs);
+    const extDies = () => {
+      dead = true;
+      const seen = reply;
+      p.stdin.destroy();
+      p.stdout.destroy();
+      resolve(seen); // the extension knows only what it had received before it died
+    };
+    if (kill) setTimeout(() => (kill.who === "engine" ? (() => { try { killGdm(); } catch { /* not running */ } })() : kill.who === "ext" ? extDies() : p.kill()), kill.afterMs);
   });
 }
 
 const plan = [];
 for (const ms of [0, 5, 20, 60, 150]) plan.push({ who: "engine", afterMs: ms, phase: "around the reply" });
-for (const ms of [0, 5, 20]) plan.push({ who: "bridge", afterMs: ms, phase: "bridge dies mid-exchange" });
+for (const ms of [0, 5, 20, 60, 150]) plan.push({ who: "bridge", afterMs: ms, phase: "bridge dies mid-exchange" });
+for (const ms of [0, 5, 20, 60, 150]) plan.push({ who: "ext", afterMs: ms, phase: "extension worker dies mid-exchange" });
 for (const ms of [1500, 3000]) plan.push({ who: "engine-later", afterMs: ms, phase: "mid-download" });
 // deterministic pre-ack window: GDM holds its reply 2 s after creating the job (test hook), the engine dies inside it
 for (const ms of [300, 1000]) plan.push({ who: "engine", afterMs: ms, phase: "job created, reply not sent", delay: 2000 });
+for (const ms of [300, 1000]) plan.push({ who: "ext", afterMs: ms, phase: "extension dies, job created, reply not sent", delay: 2000 });
 
 startGdm();
 await sleep(3000);
