@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-paste"
+description = "Enables the refresh_paste command without any pre-configured scope."
+commands.allow = ["refresh_paste"]
+
+[[permission]]
+identifier = "deny-refresh-paste"
+description = "Denies the refresh_paste command without any pre-configured scope."
+commands.deny = ["refresh_paste"]

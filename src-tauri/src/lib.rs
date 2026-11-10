@@ -11,6 +11,7 @@ pub mod os;
 pub mod pipe;
 pub mod queue;
 pub mod quota;
+pub mod refresh;
 pub mod update;
 
 use app::{lock, App, RowView, Settings};
@@ -284,6 +285,29 @@ fn batch_add(app: A, b: import::Batch, confirmed: bool, queue: Option<String>) -
     }
     let items: Vec<import::Item> = b.urls(n as usize)?.into_iter().map(|url| import::Item { url, ..Default::default() }).collect();
     Ok(app.add_items(&items, queue.as_deref())?.len())
+}
+
+#[tauri::command]
+fn refresh_start(app: A, id: String) -> R<()> {
+    app.refresh_start(&id)
+}
+
+#[tauri::command]
+fn refresh_paste(app: A, id: String, url: String) -> R<()> {
+    if url.len() > gdm_bridge::MAX_URL {
+        return Err("bad-url".into());
+    }
+    app.refresh_paste(&id, &url)
+}
+
+#[tauri::command]
+async fn refresh_candidate(app: A<'_>, id: String) -> R<Option<refresh::Candidate>> {
+    app.inner().clone().refresh_candidate(&id).await
+}
+
+#[tauri::command]
+async fn refresh_decide(app: A<'_>, id: String, choice: String) -> R<String> {
+    app.inner().clone().refresh_decide(&id, &choice).await
 }
 
 #[tauri::command]
@@ -760,7 +784,11 @@ pub fn run() {
             import_commit,
             export_pick,
             batch_preview,
-            batch_add
+            batch_add,
+            refresh_start,
+            refresh_paste,
+            refresh_candidate,
+            refresh_decide
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();

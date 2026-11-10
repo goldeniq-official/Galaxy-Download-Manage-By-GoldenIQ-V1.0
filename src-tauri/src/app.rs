@@ -220,6 +220,8 @@ pub struct App {
     /// CLI /q: exit GDM after these downloads succeed
     pub quit_after: Mutex<std::collections::HashSet<String>>,
     pub quota: Mutex<crate::quota::QuotaState>,
+    /// refresh candidates waiting for the user's confirmation (F06)
+    pub refresh: Mutex<HashMap<String, crate::refresh::Candidate>>,
 }
 
 pub type ImportPending = (Vec<crate::import::Item>, Option<serde_json::Value>);
@@ -270,6 +272,7 @@ impl App {
             import_pending: Default::default(),
             quit_after: Default::default(),
             quota: Default::default(),
+            refresh: Default::default(),
         });
         app.apply_limit();
         Ok(app)

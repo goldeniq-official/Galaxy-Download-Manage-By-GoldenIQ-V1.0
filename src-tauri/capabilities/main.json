@@ -44,6 +44,10 @@
     "allow-import-commit",
     "allow-export-pick",
     "allow-batch-preview",
-    "allow-batch-add"
+    "allow-batch-add",
+    "allow-refresh-start",
+    "allow-refresh-paste",
+    "allow-refresh-candidate",
+    "allow-refresh-decide"
   ]
 }

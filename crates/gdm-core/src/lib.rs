@@ -83,6 +83,17 @@ pub enum Unverified {
     Restart,
 }
 
+/// result of probing a refreshed link (R-01)
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct RefreshCheck {
+    pub size: Option<u64>,
+    pub same_size: bool,
+    /// same strong validator and size: resume is safe
+    pub strong: bool,
+    /// None = nothing committed to compare; Some(true) = 3 spots match (a hint, not proof)
+    pub seam: Option<bool>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct NewJob {
     pub url: String,
@@ -632,6 +643,106 @@ impl Engine {
             stg.prepare_resync(id).map_err(Fail::Io)?;
         }
         Ok(changed)
+    }
+
+    /// R-01: is the new link the same file? One probe (Range 0-0) for size + validator; if the strong validator
+    /// matches the job's and the size too => `same`, resume. Otherwise a 3-point seam check against the bytes on
+    /// disk (start, middle, end of what was committed) is only a HINT ("probably the same, not verified"); the
+    /// UI defaults to [start over] in a new job and keeps the old .part.
+    pub async fn refresh_check(&self, id: &str, new_url: &str, creds: &[(String, String)]) -> Result<RefreshCheck, Fail> {
+        let job = self.job(id)?;
+        let url = url::Url::parse(new_url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&url).map_err(|e| Fail::Forbidden(e.0))?;
+        let c = net::client(policy, true, std::time::Duration::from_secs(30)).map_err(Fail::Io)?;
+        let origin = net::origin(&url);
+        let hdrs = |mut rq: reqwest::RequestBuilder| {
+            for (k, v) in creds {
+                if net::origin(&url) == origin {
+                    rq = rq.header(k.as_str(), v.as_str());
+                }
+            }
+            rq.header("Accept-Encoding", "identity")
+        };
+        let r = hdrs(c.get(url.clone()).header("Range", "bytes=0-0")).send().await.map_err(|e| Fail::Io(e.to_string()))?;
+        let st = r.status().as_u16();
+        if !(200..300).contains(&st) {
+            return Err(match st {
+                401 | 403 => Fail::Auth,
+                404 | 410 => Fail::Gone,
+                c => Fail::Http(c),
+            });
+        }
+        if http::content_type(r.headers()).starts_with("text/html") {
+            return Err(Fail::Html); // R-03: a login page, not the file
+        }
+        let size = http::content_range(r.headers()).and_then(|c| c.2).or(r.content_length().filter(|_| st == 200));
+        let validator = http::validator(r.headers());
+        drop(r);
+        let same_size = size.is_some() && size == job.size;
+        let strong = same_size && validator.is_some() && validator == job.validator && validator.as_deref().is_some_and(|v| v.starts_with('"'));
+        // seam: up to 3 committed spots, 4 KiB each
+        let segs = self.st().segments(id).map_err(Fail::Io)?;
+        let committed: Vec<(u64, u64)> = segs.iter().filter(|s| s[2] > s[0]).map(|s| (s[0], s[2])).collect();
+        let mut spots = vec![];
+        if let (Some(f), Some(l)) = (committed.first(), committed.last()) {
+            spots.push(f.0);
+            let mid = committed[committed.len() / 2];
+            spots.push(mid.0 + (mid.1 - mid.0) / 2);
+            spots.push(l.1.saturating_sub(4096).max(l.0));
+        }
+        let mut seam = None;
+        if same_size && !spots.is_empty() {
+            let dir = fsx::Dir::open(&job.dir).map_err(|e| Fail::Reparse(e.to_string()))?;
+            let leaf = format!("{}.part", job.name);
+            let mut opened = dir.open_locked(&leaf);
+            for _ in 0..50 {
+                // a cancelled run's writer thread may still be closing its handle
+                if !matches!(opened, Err(fsx::FsError::Busy)) {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                opened = dir.open_locked(&leaf);
+            }
+            let part = opened.map_err(|e| Fail::Io(e.to_string()))?;
+            let mut ok = true;
+            for a in spots {
+                let in_seg = committed.iter().find(|(s, e)| a >= *s && a < *e).map(|(_, e)| *e).unwrap_or(a);
+                let b = (a + 4096).min(in_seg);
+                if b <= a {
+                    continue;
+                }
+                let r = hdrs(c.get(url.clone()).header("Range", format!("bytes={a}-{}", b - 1))).send().await.map_err(|e| Fail::Io(e.to_string()))?;
+                if r.status().as_u16() != 206 {
+                    ok = false;
+                    break;
+                }
+                let body = r.bytes().await.map_err(|e| Fail::Io(e.to_string()))?;
+                let mut disk = vec![0u8; (b - a) as usize];
+                use std::os::windows::fs::FileExt;
+                if body.len() != disk.len() || part.seek_read(&mut disk, a).ok() != Some(disk.len()) || body[..] != disk[..] {
+                    ok = false;
+                    break;
+                }
+            }
+            seam = Some(ok);
+        }
+        Ok(RefreshCheck { size, same_size, strong, seam })
+    }
+
+    /// the user confirmed the refreshed link for this job (credentials replace the old ones, same origin only)
+    pub fn refresh_apply(&self, id: &str, new_url: &str, creds: Vec<(String, String)>) -> Result<(), Fail> {
+        let url = url::Url::parse(new_url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        if !matches!(url.scheme(), "http" | "https") || !url.username().is_empty() {
+            return Err(Fail::Forbidden("bad URL".into()));
+        }
+        self.st().set_url(id, url.as_str()).map_err(Fail::Io)?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        c.remove(id);
+        if !creds.is_empty() {
+            c.insert(id.to_string(), net::Creds { origin: Some(net::origin(&url)), headers: creds });
+        }
+        Ok(())
     }
 
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)

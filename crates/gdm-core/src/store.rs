@@ -56,6 +56,11 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX jobs_queue ON jobs(queue, qpos);
     CREATE TABLE queue_claims(queue TEXT NOT NULL, key TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(queue, key));
     "#,
+    // 5: G7 refresh address (F06, R-01/R-02): a ticket per job, 10 minutes, bound to the browser that will
+    //    see the new link and to the page's site; it lives here (not in the extension's worker, R-02)
+    r#"
+    CREATE TABLE refresh_tickets(job_id TEXT PRIMARY KEY, browser TEXT NOT NULL, site TEXT NOT NULL, expires INTEGER NOT NULL);
+    "#,
 ];
 pub const SCHEMA: i64 = MIGRATIONS.len() as i64;
 
@@ -547,6 +552,46 @@ impl Store {
         tx.execute("DELETE FROM segments WHERE job_id = ?1", params![id]).map_err(err)?;
         tx.execute("INSERT INTO history(job_id, at, event) VALUES (?1, ?2, 'sync-changed')", params![id, now()]).map_err(err)?;
         tx.commit().map_err(err)
+    }
+}
+
+impl Store {
+    pub fn ticket_put(&self, job: &str, browser: &str, site: &str, expires: i64) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO refresh_tickets(job_id, browser, site, expires) VALUES (?1, ?2, ?3, ?4)",
+                params![job, browser, site, expires],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    /// the newest live ticket for this browser and site (expired ones are deleted first)
+    pub fn ticket_match(&self, browser: &str, site: &str, now: i64) -> Result<Option<String>, String> {
+        self.conn.execute("DELETE FROM refresh_tickets WHERE expires <= ?1", params![now]).map_err(err)?;
+        self.conn
+            .query_row(
+                "SELECT job_id FROM refresh_tickets WHERE (browser = ?1 OR browser = '*') AND site = ?2 ORDER BY expires DESC LIMIT 1",
+                params![browser, site],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    pub fn ticket_drop(&self, job: &str) -> Result<(), String> {
+        self.conn.execute("DELETE FROM refresh_tickets WHERE job_id = ?1", params![job]).map(|_| ()).map_err(err)
+    }
+
+    pub fn clear_validator(&self, id: &str) -> Result<(), String> {
+        self.conn.execute("UPDATE jobs SET validator = NULL, unverified = 1 WHERE id = ?1", params![id]).map(|_| ()).map_err(err)
+    }
+
+    /// the job downloads from a new address from now on (refresh confirmed)
+    pub fn set_url(&self, id: &str, url: &str) -> Result<(), String> {
+        self.conn.execute("UPDATE jobs SET url = ?2, final_url = ?2, error_code = NULL WHERE id = ?1", params![id, url]).map_err(err)?;
+        self.conn.execute("INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, 'refreshed', NULL)", params![id, now()]).map_err(err)?;
+        Ok(())
     }
 }
 

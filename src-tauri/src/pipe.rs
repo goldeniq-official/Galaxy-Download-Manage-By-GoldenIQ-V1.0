@@ -141,6 +141,12 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
             json!({"ok": true, "running": app.running(), "recent": recent})
         }
         Msg::Handoff { hid, url, referrer, name, cookie, .. } => {
+            // F06: the new link a refresh ticket waits for (checked before the catch rules: the user asked for it)
+            let creds: Vec<(String, String)> = cookie.clone().filter(|c| !c.is_empty()).map(|c| vec![("Cookie".to_string(), c)]).unwrap_or_default();
+            if let Some(job) = app.refresh_take(&url, referrer.as_deref(), creds) {
+                crate::show_main(app, true);
+                return json!({"ok": true, "id": job, "started": false, "refresh": true});
+            }
             let s = lock(&app.settings).clone();
             // the engine applies its own policy too (B-04): catching off or an excepted site => browser keeps it
             if !s.catch_enabled || s.catch_skip.iter().any(|p| glob(p, url.split("://").nth(1).unwrap_or(""))) {

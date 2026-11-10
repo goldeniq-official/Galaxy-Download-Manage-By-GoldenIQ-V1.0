@@ -40,6 +40,10 @@ const COMMANDS: &[&str] = &[
     "export_pick",
     "batch_preview",
     "batch_add",
+    "refresh_start",
+    "refresh_paste",
+    "refresh_candidate",
+    "refresh_decide",
 ];
 
 fn main() {
