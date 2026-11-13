@@ -208,7 +208,8 @@ impl ConnPolicy {
     }
 
     /// the job's config: cap = min(job cap, profile, learned); slots = total + this host's
-    pub fn for_host(&mut self, host: &str, mut cfg: seg::Config) -> seg::Config {
+    /// UA: a per-site setting > the browser's UA (caught downloads) > the global setting > GDM's own
+    pub fn for_host(&mut self, host: &str, mut cfg: seg::Config, browser_ua: Option<&str>) -> seg::Config {
         let prof = self.profiles.iter().find(|(p, _)| host_match(p, host)).map(|(_, n)| (*n).clamp(1, seg::MAX_CONNS));
         let (sem, learned) = self
             .hosts
@@ -225,6 +226,7 @@ impl ConnPolicy {
             .iter()
             .find(|(p, _)| host_match(p, host))
             .map(|(_, ua)| ua.clone())
+            .or_else(|| browser_ua.map(str::to_string))
             .or_else(|| (!self.user_agent.is_empty()).then(|| self.user_agent.clone()));
         cfg.learned = Some(learned);
         cfg
@@ -358,8 +360,9 @@ impl Engine {
             }
             for (k, v) in &nj.creds {
                 // W-01: only the two credential headers reqwest also strips on a cross-host redirect; any other
-                // header would follow a redirect to another origin. W-04: CR/LF/NUL refused before anything is kept.
-                if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") {
+                // header would follow a redirect to another origin. The browser's User-Agent is no secret: it becomes
+                // the job's UA (Creds::new), never a header. W-04: CR/LF/NUL refused before anything is kept.
+                if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") && !k.eq_ignore_ascii_case("user-agent") {
                     return Err(Fail::Forbidden(format!("credential header {k} not allowed")));
                 }
                 reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
@@ -373,7 +376,7 @@ impl Engine {
             let id = new_id();
             let dir_id = self.st().dir_id(&dirh.path).map_err(Fail::Io)?;
             if !nj.creds.is_empty() {
-                creds.push((id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds, digest: None }));
+                creds.push((id.clone(), net::Creds::new(net::origin(&url), nj.creds)));
             }
             jobs.push(store::Job {
                 id,
@@ -611,7 +614,8 @@ impl Engine {
         };
         let file = Arc::new(file);
         let rq = seg::Request { url, creds, policy, file: file.clone(), free, resume, limit, checkpoint: &mut cp, live };
-        let cfg = self.conns.lock().unwrap_or_else(|p| p.into_inner()).for_host(rq.url.host_str().unwrap_or(""), self.cfg.clone());
+        let cfg =
+            self.conns.lock().unwrap_or_else(|p| p.into_inner()).for_host(rq.url.host_str().unwrap_or(""), self.cfg.clone(), rq.creds.ua.as_deref());
         let done = seg::download(rq, cfg).await?;
         drop(file); // the writer thread has exited: this was the last handle
         failpoint::hit("before_finalizing");
@@ -785,11 +789,14 @@ impl Engine {
         if !matches!(url.scheme(), "http" | "https") || !url.username().is_empty() {
             return Err(Fail::Forbidden("bad URL".into()));
         }
+        for (_, v) in &creds {
+            reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+        }
         self.st().set_url(id, url.as_str()).map_err(Fail::Io)?;
         let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
         c.remove(id);
         if !creds.is_empty() {
-            c.insert(id.to_string(), net::Creds { origin: Some(net::origin(&url)), headers: creds, digest: None });
+            c.insert(id.to_string(), net::Creds::new(net::origin(&url), creds));
         }
         Ok(())
     }
@@ -903,7 +910,9 @@ impl Engine {
 
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)
     pub fn creds_of(&self, id: &str) -> Vec<(String, String)> {
-        self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).map(|c| c.headers.clone()).unwrap_or_default()
+        let c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        let Some(c) = c.get(id) else { return vec![] };
+        c.headers.iter().cloned().chain(c.ua.clone().map(|u| ("User-Agent".to_string(), u))).collect()
     }
 
     pub fn is_running(&self, id: &str) -> bool {

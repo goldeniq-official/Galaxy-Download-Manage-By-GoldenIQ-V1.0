@@ -536,7 +536,8 @@ async fn job_move(app: A<'_>, id: String) -> R<Option<String>> {
         return Err("has-progress".into());
     }
     let Some(dir) = os::pick_folder(&j.dir) else { return Ok(None) };
-    let creds: Vec<(String, String)> = app.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie")).collect();
+    let creds: Vec<(String, String)> =
+        app.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie") || k.eq_ignore_ascii_case("user-agent")).collect();
     app.inner().clone().remove(&id, false).await?;
     let nid = app
         .engine

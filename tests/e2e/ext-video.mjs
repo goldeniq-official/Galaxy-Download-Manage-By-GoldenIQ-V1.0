@@ -2,7 +2,7 @@
 // G7 D5 page video button in real Chromium with the real extension (no GDM needed: the native port is stubbed
 // inside the service worker, so nothing reaches the user's GDM):
 //  - off by default: a page with <video> shows no badge;
-//  - turned on for this site: the badge shows the number of <video> elements with an http(s) source;
+//  - turned on for this site: the badge shows the number of <video> players with an http(s) or blob: (MSE) source;
 //  - "Download a video from this page" sends {t:"video", page} for an ordinary page, never for YouTube (M-07);
 //  - the Chrome build's content script never runs on youtube.com (manifest).
 // node tests/e2e/ext-video.mjs <chrome.exe>
@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const srv = http.createServer((q, r) => {
   r.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-  r.end(`<!doctype html><title>v</title><video src="/a.mp4"></video><video><source src="/b.webm"></video><video src="blob:x"></video>`);
+  r.end(`<!doctype html><title>v</title><video src="/a.mp4"></video><video><source src="/b.webm"></video><video src="blob:x"></video><video></video>`);
 });
 await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
 const base = `http://127.0.0.1:${srv.address().port}`;
@@ -51,7 +51,7 @@ try {
   await sw.evaluate((h) => chrome.storage.local.set({ videoSites: [h] }), host);
   await page.reload();
   await sleep(3500);
-  check((await badge()) === "2", `turned on for ${host}: badge counts the 2 http(s) videos (got "${await badge()}")`);
+  check((await badge()) === "3", `turned on for ${host}: badge counts the 3 players (2 http(s) + 1 MSE blob:, not the empty one) (got "${await badge()}")`);
   const popup = await ctx.newPage();
   await popup.goto(sw.url().replace("background.js", "popup.html"));
   await popup.evaluate(() => chrome.runtime.sendMessage({ t: "video", page: "https://www.youtube.com/watch?v=abc" }));

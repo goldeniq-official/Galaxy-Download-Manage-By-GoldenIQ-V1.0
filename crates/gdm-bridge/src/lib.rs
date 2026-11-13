@@ -16,6 +16,7 @@ pub const MAX_URL: usize = 8 * 1024;
 pub const MAX_NAME: usize = 1024;
 pub const MAX_COOKIE: usize = 32 * 1024;
 pub const MAX_LINKS: usize = 500;
+pub const MAX_UA: usize = 512;
 
 /// Chrome Web Store / Edge Add-ons / unpacked (key in extension/manifest) ids, and the Firefox id (B-01).
 /// The store ids are added here when the owner publishes the extension (release notes).
@@ -36,11 +37,15 @@ pub enum Msg {
         size: Option<u64>,
         mime: Option<String>,
         cookie: Option<String>,
+        /// the browser's User-Agent (IDM parity: a cookie such as Cloudflare's cf_clearance only works with it)
+        ua: Option<String>,
     },
     /// the browser had already finished this download when we tried to cancel it: drop GDM's copy
     Dup { hid: String },
     /// context menu "download all links" (P1 #15): shown for selection, nothing starts by itself
-    Links { urls: Vec<String>, referrer: Option<String> },
+    /// `cookie` (the browser's, like a handoff) belongs to the origin of `urls[0]`: GDM gives it only to the
+    /// links of that same origin, never to another site's links
+    Links { urls: Vec<String>, referrer: Option<String>, cookie: Option<String>, ua: Option<String> },
     /// popup: recent downloads
     Status {},
     /// popup "download a video from this page" (D5, opt-in per site): GDM asks in its own window (D10)
@@ -81,17 +86,23 @@ impl Msg {
         let short = |s: &str, n: usize| s.len() <= n && !s.chars().any(|c| c.is_control());
         let ok = match self {
             Msg::Hello { browser, ver } => short(browser, 32) && short(ver, 32),
-            Msg::Handoff { hid, url, referrer, name, mime, cookie, .. } => {
+            Msg::Handoff { hid, url, referrer, name, mime, cookie, ua, .. } => {
                 short(hid, 64)
                     && http_url(url)
                     && referrer.as_deref().is_none_or(http_url)
                     && name.as_deref().is_none_or(|s| short(s, MAX_NAME))
                     && mime.as_deref().is_none_or(|s| short(s, 256))
                     && cookie.as_deref().is_none_or(|s| short(s, MAX_COOKIE))
+                    && ua.as_deref().is_none_or(|s| short(s, MAX_UA))
             }
             Msg::Dup { hid } => short(hid, 64),
-            Msg::Links { urls, referrer } => {
-                !urls.is_empty() && urls.len() <= MAX_LINKS && urls.iter().all(|u| http_url(u)) && referrer.as_deref().is_none_or(http_url)
+            Msg::Links { urls, referrer, cookie, ua } => {
+                !urls.is_empty()
+                    && urls.len() <= MAX_LINKS
+                    && urls.iter().all(|u| http_url(u))
+                    && referrer.as_deref().is_none_or(http_url)
+                    && cookie.as_deref().is_none_or(|s| short(s, MAX_COOKIE))
+                    && ua.as_deref().is_none_or(|s| short(s, MAX_UA))
             }
             Msg::Status {} => true,
             Msg::Video { page } => http_url(page),
@@ -252,6 +263,10 @@ mod tests {
         assert!(parse(br#"{"t":"video","page":"https://e.com/watch"}"#).is_ok(), "D5 page video message");
         assert!(parse(br#"{"t":"video","page":"file:///C:/x"}"#).is_err() && parse(br#"{"t":"video","page":"https://e.com/","auto":true}"#).is_err());
         assert!(parse(br#"{"t":"handoff","hid":"1","url":"https://e.com/a.zip","name":"a.zip","size":5}"#).is_ok());
+        assert!(parse(br#"{"t":"handoff","hid":"1","url":"https://e.com/a.zip","ua":"Mozilla/5.0"}"#).is_ok(), "browser UA");
+        assert!(parse(br#"{"t":"handoff","hid":"1","url":"https://e.com/a.zip","ua":"x\r\nCookie: y"}"#).is_err(), "UA header injection");
+        assert!(parse(br#"{"t":"links","urls":["https://e.com/a"],"cookie":"s=1","ua":"Mozilla/5.0"}"#).is_ok(), "link menu cookie");
+        assert!(parse(br#"{"t":"links","urls":["https://e.com/a"],"referrer":null}"#).is_ok(), "old extensions (no cookie/ua) still work");
     }
     #[test]
     fn b03_limits_and_depth() {

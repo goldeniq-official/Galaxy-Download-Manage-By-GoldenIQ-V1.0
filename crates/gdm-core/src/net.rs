@@ -187,6 +187,9 @@ pub fn redirect_ok(previous: &[Url], next: &Url, p: &Policy) -> Result<(), Forbi
 pub struct Creds {
     pub origin: Option<Origin>,
     pub headers: Vec<(String, String)>,
+    /// the browser's User-Agent for a download caught from it (IDM parity: a Cloudflare `cf_clearance` cookie
+    /// is only valid with the UA it was issued to); used for every request of the job, memory only
+    pub ua: Option<String>,
     /// a site login answered with Digest (RFC 7616): a fresh Authorization per request (nonce count + 1)
     pub digest: Option<Arc<Digest>>,
 }
@@ -201,6 +204,12 @@ pub struct Digest {
 }
 
 impl Creds {
+    /// split a "User-Agent" pair out of credential headers (the browser handoff carries it with the cookie)
+    pub fn new(origin: Origin, headers: Vec<(String, String)>) -> Creds {
+        let (ua, headers): (Vec<_>, Vec<_>) = headers.into_iter().partition(|(k, _)| k.eq_ignore_ascii_case("user-agent"));
+        Creds { origin: Some(origin), headers, ua: ua.into_iter().next().map(|(_, v)| v), digest: None }
+    }
+
     /// every header for a GET of `u` (nothing for another origin)
     pub fn headers_for(&self, u: &Url) -> Vec<(String, String)> {
         let mut v = self.for_url(u).to_vec();

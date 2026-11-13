@@ -33,9 +33,9 @@ async fn per_server_profile_caps_one_job() {
 async fn learns_cap_from_429() {
     let fx = gdm_fixture::Fixture::start("127.0.0.1:0").await;
     let t = Arc::new(engine("learn", quick()));
-    let before = t.engine.conns.lock().unwrap().for_host("127.0.0.1", gdm_core::seg::Config::default()).cap;
+    let before = t.engine.conns.lock().unwrap().for_host("127.0.0.1", gdm_core::seg::Config::default(), None).cap;
     assert_eq!(before, 8);
     run_all(&t, vec![fx.url(&format!("/429?size={}&seed=5&rate=3000000", 16 * MIB))]).await;
-    let after = t.engine.conns.lock().unwrap().for_host("127.0.0.1", gdm_core::seg::Config::default()).cap;
+    let after = t.engine.conns.lock().unwrap().for_host("127.0.0.1", gdm_core::seg::Config::default(), None).cap;
     assert!(after < before, "learned cap {after} after a 429");
 }

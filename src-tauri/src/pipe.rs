@@ -125,6 +125,27 @@ pub fn glob(pat: &str, s: &str) -> bool {
     p.ends_with('*') || pos == s.len()
 }
 
+/// the browser's session for one job: its Cookie, plus its User-Agent (becomes the job's UA, never a header)
+fn browser_creds(cookie: Option<String>, ua: Option<String>) -> Vec<(String, String)> {
+    let mut v: Vec<(String, String)> = cookie.filter(|c| !c.is_empty()).map(|c| ("Cookie".to_string(), c)).into_iter().collect();
+    v.extend(ua.filter(|u| !u.trim().is_empty()).map(|u| ("User-Agent".to_string(), u)));
+    v
+}
+
+/// "download with GDM" links: each link with its credentials; the browser's cookie belongs to the origin of
+/// `urls[0]` and only links of that same origin get it (the UA is no secret: every link gets it)
+fn link_creds(urls: Vec<String>, cookie: Option<String>, ua: Option<String>) -> Vec<(String, Vec<(String, String)>)> {
+    let origin_of = |u: &str| url::Url::parse(u).ok().map(|u| u.origin());
+    let home = urls.first().and_then(|u| origin_of(u));
+    let (with, ua_only) = (browser_creds(cookie, ua.clone()), browser_creds(None, ua));
+    urls.into_iter()
+        .map(|u| {
+            let c = if home.is_some() && origin_of(&u) == home { with.clone() } else { ua_only.clone() };
+            (u, c)
+        })
+        .collect()
+}
+
 pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
     match m {
         Msg::Hello { browser, .. } => {
@@ -140,10 +161,10 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
                 rows.iter().take(5).map(|r| json!({"name": r.row.name, "state": r.row.state, "done": r.row.done, "size": r.row.size})).collect();
             json!({"ok": true, "running": app.running(), "recent": recent})
         }
-        Msg::Handoff { hid, url, referrer, name, cookie, .. } => {
+        Msg::Handoff { hid, url, referrer, name, cookie, ua, .. } => {
+            let creds = browser_creds(cookie, ua);
             // F06: the new link a refresh ticket waits for (checked before the catch rules: the user asked for it)
-            let creds: Vec<(String, String)> = cookie.clone().filter(|c| !c.is_empty()).map(|c| vec![("Cookie".to_string(), c)]).unwrap_or_default();
-            if let Some(job) = app.refresh_take(&url, referrer.as_deref(), creds) {
+            if let Some(job) = app.refresh_take(&url, referrer.as_deref(), creds.clone()) {
                 crate::show_main(app, true);
                 return json!({"ok": true, "id": job, "started": false, "refresh": true});
             }
@@ -161,7 +182,6 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
                 }
             }
             let start = app.handoff_allowed();
-            let creds = cookie.filter(|c| !c.is_empty()).map(|c| vec![("Cookie".to_string(), c)]).unwrap_or_default();
             match app.add_and_start(&url, name, referrer, creds, false, start) {
                 Ok(id) => {
                     lock(&app.handoff_jobs).insert(hid, (id.clone(), std::time::Instant::now()));
@@ -190,13 +210,13 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
             crate::show_main(app, true);
             json!({"ok": true})
         }
-        Msg::Links { urls, referrer } => {
+        Msg::Links { urls, referrer, cookie, ua } => {
             if lock(&app.pending).len() + urls.len() > 600 {
                 return json!({"ok": false, "error": "busy"});
             }
             let mut ids = vec![];
-            for u in urls {
-                if let Ok(id) = app.add_and_start(&u, None, referrer.clone(), vec![], false, false) {
+            for (u, creds) in link_creds(urls, cookie, ua) {
+                if let Ok(id) = app.add_and_start(&u, None, referrer.clone(), creds, false, false) {
                     ids.push(id);
                 }
             }
@@ -209,7 +229,27 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::glob;
+    use super::*;
+
+    /// IDM parity: link-menu links carry the browser session, but the cookie only reaches links of its own origin;
+    /// every link (and a caught download) keeps the browser's UA
+    #[test]
+    fn links_cookie_stays_with_its_origin() {
+        let urls = [
+            "https://site.example/a.zip",
+            "https://cdn.other.example/b.zip",
+            "http://site.example/c.zip",
+            "https://site.example:8443/d",
+            "https://site.example/e",
+        ];
+        let got = link_creds(urls.iter().map(|s| s.to_string()).collect(), Some("sid=SECRET".into()), Some("Mozilla/5.0 test".into()));
+        let has = |i: usize, k: &str| got[i].1.iter().any(|(kk, _)| kk == k);
+        assert_eq!((0..5).filter(|&i| has(i, "Cookie")).collect::<Vec<_>>(), vec![0, 4], "same scheme+host+port only: {got:?}");
+        assert!((0..5).all(|i| has(i, "User-Agent")));
+        assert_eq!(browser_creds(Some(String::new()), Some(" ".into())), vec![], "empty values are dropped");
+        assert_eq!(link_creds(vec!["not a url".into(), "https://x.example/".into()], Some("c=1".into()), None)[1].1, vec![], "no origin, no cookie");
+    }
+
     #[test]
     fn c01_exception_glob() {
         assert!(glob("*.reddit.com/compression-dictionary*", "www.reddit.com/compression-dictionary.dat?x=1"));

@@ -52,7 +52,7 @@ async fn w01_same_origin_segments_keep_credentials() {
 
 #[test]
 fn w01_creds_scoped_to_scheme_host_port() {
-    let c = Creds { origin: Some(net::origin(&Url::parse("https://drive.example.com/a").unwrap())), headers: creds(), digest: None };
+    let c = Creds { origin: Some(net::origin(&Url::parse("https://drive.example.com/a").unwrap())), headers: creds(), ..Default::default() };
     assert_eq!(c.for_url(&Url::parse("https://drive.example.com/other?x").unwrap()).len(), 2);
     for other in ["https://cdn.attacker.net/a", "http://drive.example.com/a", "https://drive.example.com:8443/a", "https://sub.drive.example.com/a"] {
         assert!(c.for_url(&Url::parse(other).unwrap()).is_empty(), "{other}");
@@ -127,6 +127,30 @@ fn w02_redirect_rules() {
     assert!(net::redirect_ok(&[u("http://a.example/")], &u("http://user:pw@b.example/"), &pol).is_err(), "userinfo");
     let ten: Vec<Url> = (0..10).map(|i| u(&format!("https://h{i}.example/"))).collect();
     assert!(net::redirect_ok(&ten, &u("https://h10.example/"), &pol).is_err(), "more than 10 hops");
+}
+
+/// a download caught from the browser keeps the browser's User-Agent on every request, also after a redirect to a
+/// CDN (IDM parity: Cloudflare's cf_clearance cookie is bound to the UA); the UA is never sent as a credential
+#[tokio::test(flavor = "multi_thread")]
+async fn w01_browser_user_agent_follows_the_job() {
+    let (a, b) = (fx().await, fx().await);
+    let t = engine("w01ua", quick());
+    let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0 Safari/537.36";
+    let target = b.url(&format!("/file?size={}&seed=7", 2 * MIB));
+    let mut c = creds();
+    c.push(("User-Agent".into(), ua.into()));
+    let id = t.engine.add(NewJob { creds: c, ..t.job(&a.url(&format!("/redirect?to={}", pct_encode(&target)))) }).unwrap();
+    assert!(t.engine.creds_of(&id).iter().any(|(k, v)| k == "User-Agent" && v == ua), "a renamed/moved job carries the UA");
+    t.engine.run(&id, Unverified::Ask, None).await.unwrap();
+    for f in [&a, &b] {
+        let log = f.log();
+        assert!(
+            !log.is_empty() && log.iter().all(|q| q.headers.iter().any(|(k, v)| k == "user-agent" && v == ua)),
+            "{:?}",
+            log.iter().map(|q| &q.headers).collect::<Vec<_>>()
+        );
+    }
+    assert!(!saw_secret(&b), "the CDN still never sees the cookie");
 }
 
 #[test]

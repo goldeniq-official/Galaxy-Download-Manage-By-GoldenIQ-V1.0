@@ -948,7 +948,7 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
         Duration::from_secs(30),
         Some(&format!("GalaxyDownloadManager/{} (site grabber)", env!("CARGO_PKG_VERSION"))),
     )?;
-    let creds = Creds { origin: Some(net::origin(&start)), headers: c.creds.clone(), digest: None };
+    let creds = Creds::new(net::origin(&start), c.creds.clone());
     let avoid = list(&c.avoid);
     let start_dir = {
         let p = start.path();

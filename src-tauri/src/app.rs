@@ -881,7 +881,12 @@ impl App {
             let dir = self.category_dir(&c);
             std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
             // the browser's cookie follows the renamed job; a login is applied again by `start` (never copied)
-            let creds: Vec<(String, String)> = self.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie")).collect();
+            let creds: Vec<(String, String)> = self
+                .engine
+                .creds_of(&id)
+                .into_iter()
+                .filter(|(k, _)| k.eq_ignore_ascii_case("cookie") || k.eq_ignore_ascii_case("user-agent"))
+                .collect();
             self.remove(&id, false).await?;
             id = self
                 .engine
