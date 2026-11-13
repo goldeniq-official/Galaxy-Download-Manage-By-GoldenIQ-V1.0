@@ -8,6 +8,7 @@ import { api, errText, type Batch, type BatchPreview, type Candidate, type Impor
 import { useStore } from "./store";
 import { bytes } from "./status";
 import { Icon, Modal } from "./ui";
+import { GrabberDialog } from "./Grabber";
 
 /** the two built-in queues are named in the user's language; user queues keep their own name */
 export const qName = (t: TFunction, q: Queue | undefined) => (!q ? "" : q.id === "main" ? t("q.main") : q.id === "sync" ? t("q.sync") : q.name || q.id);
@@ -60,6 +61,7 @@ export function G7Dialogs() {
   if (dlg.k === "import") return <ImportDialog pv={dlg.pv} />;
   if (dlg.k === "refresh") return <RefreshDialog id={dlg.id} />;
   if (dlg.k === "url") return <UrlDialog id={dlg.id} />;
+  if (dlg.k === "grab") return <GrabberDialog />;
   return <VideoDialog initial={dlg.url} />;
 }
 

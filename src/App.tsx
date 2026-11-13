@@ -287,6 +287,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
             { label: t("tasks.scheduler"), onClick: () => s.openSettings("queues") },
           ],
         },
+        { items: [{ label: t("tasks.grab"), onClick: () => s.setDlg({ k: "grab" }) }] },
       ],
     });
   };

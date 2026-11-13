@@ -56,6 +56,14 @@ export type SoundEvent = "complete" | "failed" | "queue";
 export interface ImportItem { url: string; name: string; referrer: string; description: string }
 export interface ImportPreview { count: number; sample: ImportItem[]; has_settings: boolean }
 export interface Batch { pattern: string; from: string; to: string; width: number }
+// F09 site grabber (G9)
+export interface GrabConfig {
+  start: string; avoid: string; depth: number; other_depth: number; domains: string; subdomains: boolean; no_parent: boolean;
+  include: string; exclude: string; robots: boolean; js: boolean; delay_ms: number; types: string;
+}
+export interface GrabFound { url: string; referrer: string; name: string; size: number | null; dup: boolean }
+export interface GrabReport { files: GrabFound[]; pages: number; requests: number; bytes: number; stop: string; skipped: { url: string; reason: string }[] }
+export interface GrabProgress { pages: number; requests: number; files: number; bytes: number; url: string }
 export interface BatchPreview { count: number; first: string[]; needs_confirm: boolean }
 export interface RefreshCheck { size: number | null; same_size: boolean; strong: boolean; seam: boolean | null }
 export interface Candidate { url: string; check: RefreshCheck | null; error: string | null }
@@ -119,6 +127,11 @@ export const api = {
   exportPick: () => call<string | null>("export_pick"),
   batchPreview: (b: Batch) => call<BatchPreview>("batch_preview", { b }),
   batchAdd: (b: Batch, confirmed: boolean, queue: string | null) => call<number>("batch_add", { b, confirmed, queue }),
+  grabRun: (cfg: GrabConfig, user: string | null, password: string | null) => call<GrabReport>("grab_run", { cfg, user, password }),
+  grabProgress: () => call<GrabProgress | null>("grab_progress"),
+  grabCancel: () => call<void>("grab_cancel"),
+  grabPickDir: (pick: boolean) => call<string>("grab_pick_dir", { pick }),
+  grabAdd: (files: GrabFound[], startUrl: string, keep: boolean, start: boolean) => call<number>("grab_add", { files, startUrl, keep, start }),
   refreshStart: (id: string) => call<void>("refresh_start", { id }),
   refreshPaste: (id: string, url: string) => call<void>("refresh_paste", { id, url }),
   refreshCandidate: (id: string) => call<Candidate | null>("refresh_candidate", { id }),

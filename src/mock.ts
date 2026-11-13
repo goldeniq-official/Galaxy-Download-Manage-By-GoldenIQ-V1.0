@@ -271,6 +271,25 @@ export async function mock(cmd: string, args: Record<string, unknown>): Promise<
     }
     case "export_pick":
       return "C:\\Users\\user\\Downloads\\gdm-export.json";
+    case "grab_pick_dir":
+      return "C:\\Users\\user\\Downloads\\Grabber";
+    case "grab_progress":
+      return { pages: 3, requests: 4, files: 2, bytes: 20480, url: "https://example.com/gallery/page2.html" };
+    case "grab_cancel":
+      return null;
+    case "grab_run": {
+      const start = String((args.cfg as { start: string }).start);
+      if (!/^https?:\/\//.test(start)) return fail("bad-url");
+      await new Promise((r) => setTimeout(r, 600));
+      const f = (name: string, dup = false) => ({ url: new URL(name, start).href, referrer: start, name: name.split("/").pop()!, size: null, dup });
+      return { files: [f("photo-1.jpg"), f("photo-2.jpg"), f("sub/photo-1.jpg", true), f("album.zip")], pages: 3, requests: 4, bytes: 20480, stop: "done", skipped: [{ url: start + "logout", reason: "avoid" }] };
+    }
+    case "grab_add": {
+      const files = args.files as { url: string; name: string }[];
+      for (const x of files) jobs.push(row(x.name, args.start ? "queued" : "paused", null, 0, { url: x.url }));
+      rev++;
+      return files.length;
+    }
     case "batch_preview":
     case "batch_add": {
       const b = args.b as B;

@@ -7,7 +7,7 @@ import i18n from "./i18n";
 
 export type Nav = "all" | "active" | "unfinished" | "done" | `cat:${string}` | `q:${string}` | "settings";
 /** the one G7 dialog open at a time */
-export type Dlg = { k: "batch" } | { k: "video"; url?: string } | { k: "import"; pv: ImportPreview } | { k: "refresh"; id: string } | { k: "url"; id: string };
+export type Dlg = { k: "batch" } | { k: "video"; url?: string } | { k: "import"; pv: ImportPreview } | { k: "refresh"; id: string } | { k: "url"; id: string } | { k: "grab" };
 
 interface S {
   settings: Settings | null;

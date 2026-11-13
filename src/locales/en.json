@@ -147,7 +147,8 @@
     },
     "chooseQuality": "Choose quality",
     "dismiss": "Dismiss",
-    "video-link": "Download this video?"
+    "video-link": "Download this video?",
+    "grabbed": "Added from the site grabber"
   },
   "banner": {
     "restored": "The list was restored from backup {{name}} · downloads found on disk were recovered",
@@ -307,7 +308,8 @@
     "import": "Import",
     "export": "Export",
     "basket": "Show drop target",
-    "scheduler": "Scheduler"
+    "scheduler": "Scheduler",
+    "grab": "Run site grabber"
   },
   "batch": {
     "title": "Add batch download",
@@ -501,6 +503,77 @@
     "e": {
       "has-progress": "Only a download that has not started can move to another folder",
       "bad-url": "This address cannot be used now (stop the download first)"
+    }
+  },
+  "grab": {
+    "title": "Site grabber",
+    "step": "Step {{n}} of 4: {{name}}",
+    "s1": "Start page",
+    "s2": "Save to",
+    "s3": "Explore",
+    "s4": "File types",
+    "start": "Start page address",
+    "template": "Template",
+    "tpl": {
+      "all": "All files",
+      "images": "All images",
+      "video": "All video",
+      "audio": "All audio",
+      "docs": "Documents",
+      "archives": "Archives"
+    },
+    "user": "Login name (optional)",
+    "pass": "Password (optional)",
+    "avoid": "Pages to avoid (comma separated, * allowed)",
+    "avoidS": "Links with logout, sign out, delete, remove or unsubscribe are never opened, whatever you type here. The grabber only reads pages (GET); it never fills or sends forms.",
+    "dir": "Folder",
+    "change": "Change…",
+    "keep": "Keep the site's folder structure",
+    "keepS": "Files go into sub-folders named after the site and its folders",
+    "startNow": "Start downloading right away",
+    "startNowS": "Otherwise the files are added paused, so you can start them when you like",
+    "depth": "Depth on this site",
+    "otherDepth": "Depth on other sites",
+    "delay": "Seconds between pages (per site)",
+    "domains": "Other sites allowed (comma separated, * allowed)",
+    "subdomains": "Explore all subdomains of the main domain",
+    "noParent": "Do not explore parent folders",
+    "include": "Only these paths",
+    "exclude": "Never these paths",
+    "robots": "Respect robots.txt",
+    "robotsS": "Pages the site asks robots not to open are skipped",
+    "js": "Look for links in JavaScript (use with caution)",
+    "jsS": "Only plain addresses written in the script text; nothing is run",
+    "types": "File types to find (comma separated, * allowed)",
+    "hideDup": "Hide duplicates",
+    "hideDupS": "Files with the same name as one found earlier",
+    "limits": "Limits: at most 1 000 pages (5 000 maximum), 100 MB of pages, 15 minutes; one page per second per site by default.",
+    "next": "Next",
+    "back": "Back",
+    "run": "Start",
+    "stopBtn": "Stop",
+    "running": "Exploring: {{pages}} pages, {{files}} files found",
+    "summary": "{{files}} files found on {{pages}} pages ({{requests}} requests)",
+    "found": "Files found",
+    "all": "Select all",
+    "none": "Select none",
+    "more": "and {{n}} more (they are added too when selected)",
+    "nothing": "No file matched the file types",
+    "add": "Add {{n}} files",
+    "stop": {
+      "done": "Finished: every page in range was explored",
+      "pages": "Stopped at the page limit",
+      "requests": "Stopped at the request limit",
+      "bytes": "Stopped at the data limit",
+      "time": "Stopped at the time limit",
+      "urls": "Stopped at the address limit",
+      "cancel": "Stopped by you"
+    },
+    "e": {
+      "bad-url": "Type an http or https address",
+      "busy": "The grabber is already running",
+      "bad-login": "The login name cannot contain : or control characters",
+      "too-many": "Too many files at once (100 000 maximum)"
     }
   }
 }
