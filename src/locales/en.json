@@ -6,7 +6,8 @@
     "unfinished": "Unfinished",
     "done": "Complete",
     "cats": "Categories",
-    "settings": "Settings"
+    "settings": "Settings",
+    "queues": "Queues"
   },
   "title": {
     "all": "All downloads",
@@ -24,7 +25,12 @@
     "status": "Status",
     "speed": "Speed",
     "eta": "Time left",
-    "added": "Added"
+    "added": "Added",
+    "type": "Type",
+    "menu": "Columns",
+    "left": "Move “{{c}}” left",
+    "right": "Move “{{c}}” right",
+    "hint": "Click to sort · right-click for columns"
   },
   "empty": "Drop a link here or press “Add”",
   "noMatch": "Nothing found",
@@ -96,7 +102,8 @@
     "desc": "Note",
     "limit": "Speed limit for this file (KB/s, 0 = none)",
     "none": "Select a download",
-    "close": "Close"
+    "close": "Close",
+    "queue": "Queue"
   },
   "info": {
     "title": "Download file info",
@@ -109,7 +116,10 @@
     "url": "Link",
     "start": "Start download",
     "later": "Download later",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "queue": "Queue for “Download later”",
+    "remember": "Remember a folder for {{c}}",
+    "forget": "Forget the folder"
   },
   "addDlg": {
     "title": "Add a download",
@@ -122,7 +132,22 @@
     "unprotected": "Downloaded (unprotected folder)",
     "blocked": "Blocked by antivirus",
     "failed": "Verification failed",
-    "close": "Close"
+    "close": "Close",
+    "queue-done": "Queue finished",
+    "refresh": "New download address found",
+    "choose": "Choose",
+    "exported": "Export saved",
+    "imported": "Imported",
+    "error": "Could not finish",
+    "videoStarted": "Video download started",
+    "infoMsg": {
+      "sync-metered": "Synchronization waits: the connection is metered",
+      "quota-reached": "Download quota reached: downloads are paused until the period ends",
+      "action-skipped": "The shutdown or sleep was cancelled because downloads are still running"
+    },
+    "chooseQuality": "Choose quality",
+    "dismiss": "Dismiss",
+    "video-link": "Download this video?"
   },
   "banner": {
     "restored": "The list was restored from backup {{name}} · downloads found on disk were recovered",
@@ -203,14 +228,41 @@
     "store": "Updates come from the Microsoft Store",
     "privacyText": "GDM has no telemetry, no account and no user ID. The only request GDM makes by itself is the update check (GET latest.json from GitHub), and you can turn it off.",
     "clipboard": "Watch the clipboard",
-    "clipboardS": "Off by default · arrives in P2",
+    "clipboardS": "Off by default. Reads only links with a file type GDM catches, and skips content marked “exclude from clipboard history” (passwords)",
     "privacyLink": "Privacy policy",
     "version": "Version {{v}}",
     "license": "Licence RPL-1.5",
     "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
     "share": "Copy the GDM link",
     "copied": "Copied",
-    "github": "GitHub"
+    "github": "GitHub",
+    "connection": "Connection",
+    "total": "Connections for all downloads",
+    "totalS": "Default 48",
+    "hosts": "Limits per server",
+    "hostsS": "For servers that refuse many connections (* = any part, e.g. *.example.com)",
+    "host": "Server",
+    "hostConns": "Connections",
+    "connsN": "{{n}} connections",
+    "addRow": "Add",
+    "removeX": "Remove {{x}}",
+    "quota": "Download quota",
+    "quotaS": "At most this many MB in each period, then downloads pause until it ends (0 = off)",
+    "hours": "hours",
+    "queues": "Queues and scheduler",
+    "proxy": "Proxy",
+    "logins": "Site logins",
+    "sounds": "Sounds",
+    "videoSec": "Video",
+    "sites": "Sites that always go here (*.example.com)",
+    "catDir": "Remember a folder",
+    "sidecar": "Check the .sha256 file published next to a download",
+    "sidecarS": "From the same site; a wrong hash means the file is never marked complete",
+    "scan": "Scan each finished file with my antivirus program",
+    "scanS": "Optional: GDM runs it with {file} after each download (Windows Security already checks every file)",
+    "ua": "User-Agent (empty = GDM's own)",
+    "uaDefault": "GDM's own User-Agent",
+    "uaSites": "Per site (for servers that need a browser's User-Agent)"
   },
   "ob": {
     "step": "Step {{n}} of 3",
@@ -222,7 +274,7 @@
     "t3": "Choices that touch your privacy",
     "p3": "Each one can be changed later.",
     "videoS": "A small button over videos on web pages (arrives in P2)",
-    "clipS": "Catch links you copy (arrives in P2)",
+    "clipS": "Catch links you copy (only file types GDM catches; never passwords)",
     "updS": "Check daily and install when GDM is idle",
     "fsWarn": "This folder is not NTFS ({{fs}}) · Windows cannot warn when you open programs downloaded from the internet",
     "spaceWarn": "Little free space ({{free}})",
@@ -230,5 +282,221 @@
     "back": "Back",
     "next": "Next",
     "finish": "Done"
+  },
+  "q": {
+    "main": "Main download queue",
+    "sync": "Synchronization queue",
+    "none": "No queue",
+    "start": "Start queue",
+    "stop": "Stop queue",
+    "running": "Running",
+    "stopped": "Stopped",
+    "addTo": "Add to queue",
+    "removeFrom": "Remove from queue",
+    "refresh": "Refresh download address",
+    "menu": "Download actions"
+  },
+  "tasks": {
+    "menu": "Tasks",
+    "batch": "Add batch download",
+    "video": "Add video",
+    "import": "Import",
+    "export": "Export",
+    "basket": "Show drop target",
+    "scheduler": "Scheduler"
+  },
+  "batch": {
+    "title": "Add batch download",
+    "pattern": "Address with * where the number or letter changes",
+    "from": "From",
+    "to": "To",
+    "width": "Zero padding (digits)",
+    "count": "{{n}} addresses",
+    "confirm": "Yes, add {{n}} downloads",
+    "confirmS": "More than 10 000 at once needs your confirmation",
+    "add": "Add {{n}}",
+    "queue": "Put in queue",
+    "e": {
+      "bad-pattern": "Put exactly one * in an http or https address",
+      "bad-range": "From and To must be numbers or single letters, From first",
+      "too-many": "More than 100 000 addresses: make the range smaller",
+      "confirm": "Tick the confirmation first"
+    }
+  },
+  "imp": {
+    "title": "Import downloads",
+    "count": "{{n}} downloads found in the file. Nothing is added until you press “Add”.",
+    "first": "First {{n}}",
+    "settings": "Also restore settings from this file (safe ones only; queue actions stay off)",
+    "added": "{{n}} downloads added"
+  },
+  "ref": {
+    "title": "Refresh download address",
+    "wait": "GDM opened the download page in your browser. Click the download link there again and GDM catches the new address (it waits up to 10 minutes).",
+    "paste": "Or paste the new address",
+    "use": "Use this address",
+    "new": "New address",
+    "size": "Size: {{s}}",
+    "same": "same size as before",
+    "diff": "different size: probably a different file",
+    "risk": "Probably the same file, not verified: the server sent no strong validator",
+    "resume": "Resume",
+    "continue": "Continue (risk)",
+    "restart": "Start over",
+    "restartS": "Start over makes a new download; the old .part file is kept",
+    "html": "The server sent a web page instead of the file (login needed?)",
+    "err": "This address cannot be used: {{e}}"
+  },
+  "vid": {
+    "title": "Add video",
+    "page": "Address of the web page with the video",
+    "find": "Find video",
+    "busy": "Looking for the video on this page…",
+    "quality": "Quality",
+    "unknown": "size unknown",
+    "go": "Download",
+    "err": "Could not read this page: {{e}}",
+    "e": {
+      "drm": "This video is protected (DRM). GDM never downloads protected content.",
+      "live": "Live streams are not supported in this version.",
+      "no-formats": "No downloadable video was found on this page.",
+      "need-component": "Video download needs two free programs first.",
+      "bad-url": "Not a valid link"
+    },
+    "notice": "Video download uses the free yt-dlp and FFmpeg programs, downloaded once (~200 MB) from their official releases and checked against GDM's signed list. Only download what you have the right to. Protected (DRM) videos are never downloaded.",
+    "install": "Download components (~200 MB)",
+    "installing": "Downloading and checking…",
+    "installErr": "Download failed: {{e}}",
+    "ok": "Installed",
+    "missing": "Not installed"
+  },
+  "cd": {
+    "shutdown": "Shutting down in {{n}} s",
+    "sleep": "Going to sleep in {{n}} s",
+    "hibernate": "Hibernating in {{n}} s",
+    "exit": "GDM closes in {{n}} s",
+    "why": "{{q}} finished",
+    "cancel": "Cancel"
+  },
+  "px": {
+    "mode": "Proxy",
+    "none": "No proxy",
+    "system": "Windows settings",
+    "manual": "Manual",
+    "systemS": "Uses the Windows proxy settings: manual, PAC script or WPAD",
+    "http": "HTTP/HTTPS proxy (host:port)",
+    "socks": "SOCKS5 proxy (host:port)",
+    "bypass": "Do not use the proxy for (one per line, <local> = local addresses)",
+    "auth": "Proxy login",
+    "authNone": "None",
+    "authBasic": "User and password",
+    "authWin": "Windows sign-in",
+    "host": "Proxy this login is for (host:port)",
+    "user": "User name",
+    "pass": "Password",
+    "save": "Save login",
+    "useWin": "Use Windows sign-in",
+    "saved": "Login {{user}} saved for {{host}}",
+    "passS": "The password goes to Windows Credential Manager and is never shown again",
+    "winS": "GDM signs in with your Windows account (NTLM/Negotiate); nothing is stored"
+  },
+  "lg": {
+    "prefix": "Address (applies to everything under it)",
+    "empty": "No site logins yet",
+    "new": "New login",
+    "delete": "Delete login {{p}}",
+    "save": "Save login",
+    "e": {
+      "bad-login": "Check the address (http or https) and the user name"
+    }
+  },
+  "snd": {
+    "complete": "Download complete",
+    "failed": "Download failed",
+    "queue": "Queue finished",
+    "off": "Off",
+    "SystemAsterisk": "Windows: Asterisk",
+    "SystemExclamation": "Windows: Exclamation",
+    "SystemNotification": "Windows: Notification",
+    "pick": "Choose WAV",
+    "play": "Play"
+  },
+  "qs": {
+    "queue": "Queue",
+    "new": "New queue",
+    "delete": "Delete queue",
+    "name": "Name",
+    "type": "Type",
+    "tDownload": "Download",
+    "tSync": "Synchronization",
+    "typeS": "Synchronization keeps its files and downloads them again when they change on the server",
+    "create": "Create",
+    "tabSched": "Schedule",
+    "tabFiles": "Files in the queue ({{n}})",
+    "sched": "Start at a set time",
+    "schedS": "If you stop the queue yourself, the action when done does not run",
+    "start": "Start at (HH:MM)",
+    "stop": "Stop at (HH:MM, empty = never)",
+    "days": "Days",
+    "date": "Once on this date (no day chosen)",
+    "every": "Check again every (minutes, 0 = once)",
+    "maxActive": "Files at the same time",
+    "retries": "Retries for a failed file",
+    "retriesS": "A failed file moves to the end of the queue",
+    "speed": "Queue speed limit (0 = none)",
+    "quota": "Queue quota",
+    "onDone": "When the queue is done",
+    "onDoneS": "A 60-second countdown with Cancel comes first",
+    "force": "Force programs to close",
+    "forceS": "Unsaved work in other programs is lost",
+    "wake": "Wake the computer to start",
+    "wakeS": "Only when plugged in (Windows Task Scheduler)",
+    "metered": "Also on a metered connection",
+    "hook": "Run a program when done",
+    "hookNone": "No program chosen",
+    "args": "Arguments (one per line)",
+    "argsS": "{file} = the last file, {folder} = its folder",
+    "choose": "Choose program",
+    "hookRemove": "Remove program",
+    "empty": "No files in this queue. Right-click a download > Add to queue.",
+    "up": "Move up",
+    "down": "Move down",
+    "e": {
+      "program-not-found": "Program not found",
+      "program-type": "Only .exe, .bat or .cmd programs",
+      "program-interpreter": "Shells and script hosts (cmd, PowerShell, wscript…) cannot be chosen",
+      "batch-metachar": "An argument for a .bat cannot contain & | < > ^ %",
+      "bad-args": "Arguments are too long or contain control characters",
+      "no-program": "Choose a program first"
+    }
+  },
+  "od": {
+    "none": "Do nothing",
+    "exit": "Close GDM",
+    "sleep": "Sleep",
+    "hibernate": "Hibernate",
+    "shutdown": "Shut down the computer"
+  },
+  "day": {
+    "0": "Mon",
+    "1": "Tue",
+    "2": "Wed",
+    "3": "Thu",
+    "4": "Fri",
+    "5": "Sat",
+    "6": "Sun"
+  },
+  "basket": {
+    "label": "Drop links here",
+    "hide": "Hide drop target"
+  },
+  "prop": {
+    "url": "Change address…",
+    "urlS": "The file's validator is checked on the next run: a different file stops with “file changed”.",
+    "save": "Save",
+    "e": {
+      "has-progress": "Only a download that has not started can move to another folder",
+      "bad-url": "This address cannot be used now (stop the download first)"
+    }
   }
 }

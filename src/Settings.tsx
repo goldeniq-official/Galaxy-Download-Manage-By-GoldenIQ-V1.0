@@ -2,14 +2,16 @@
 // Settings (§06 screen 4) and first-run onboarding (J2: 3 steps, skippable; D5 video button off, asked here).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { api, type Browser, type FolderCheck, type Settings } from "./api";
+import { api, errText, fileName, type Browser, type FolderCheck, type HostLimit, type Settings, type SiteLogin, type SoundEvent } from "./api";
 import { useStore } from "./store";
 import { bytes } from "./status";
 import { Icon, Tabs, Toggle } from "./ui";
+import { Components, rememberDir } from "./Dialogs";
+import { QueuesSection } from "./Queues";
 
 const VERSION = "0.9.0";
 
-function Opt({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+export function Opt({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
     <div className="opt">
       <div className="t">
@@ -21,7 +23,7 @@ function Opt({ title, sub, children }: { title: string; sub?: string; children: 
   );
 }
 
-function Sec({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+export function Sec({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section className="sec" id={"set-" + id} aria-label={title}>
       <h3>{title}</h3>
@@ -84,23 +86,26 @@ export function SettingsView() {
   const save = useStore((x) => x.saveSettings);
   const tick = useStore((x) => x.tick);
   const list = useBrowsers();
-  const [sec, setSec] = useState("general");
+  const sec = useStore((x) => x.sec);
   const [copied, setCopied] = useState(false);
   const lang = i18n.language;
   const secs: [string, string, string][] = [
     ["general", "gear-six", t("set.general")],
     ["downloads", "download-simple", t("set.downloads")],
+    ["connection", "plugs-connected", t("set.connection")],
     ["speed", "gauge", t("set.speed")],
+    ["queues", "queue", t("set.queues")],
+    ["proxy", "globe", t("set.proxy")],
+    ["logins", "hash", t("set.logins")],
+    ["sounds", "play", t("set.sounds")],
+    ["video", "file-video", t("set.videoSec")],
     ["browsers", "browser", t("set.browsers")],
     ["update", "arrow-clockwise", t("set.update")],
     ["privacy", "shield-check", t("set.privacy")],
     ["about", "info", t("set.about")],
   ];
-  const go = (k: string) => {
-    setSec(k);
-    document.getElementById("set-" + k)?.scrollIntoView({ block: "start" });
-  };
-  const num = (v: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
+  // one section at a time (IDM Options tabs): the page stays short and every control is a few Tabs away
+  const go = (k: string) => useStore.setState({ sec: k });
   return (
     <div className="set">
       <nav className="rail" aria-label={t("nav.settings")}>
@@ -116,7 +121,7 @@ export function SettingsView() {
           <h1>{t("nav.settings")}</h1>
         </div>
         <div className="sbody">
-          <Sec id="general" title={t("set.look")}>
+          {sec === "general" && <Sec id="general" title={t("set.look")}>
             <Opt title={t("set.lang")} sub={t("set.langS")}>
               <Tabs value={s.lang} label={t("set.lang")} items={[["km", "ខ្មែរ"], ["en", "English"]]} onChange={(v) => void save({ lang: v })} />
             </Opt>
@@ -129,8 +134,8 @@ export function SettingsView() {
             <Opt title={t("set.silent")} sub={t("set.silentS")}>
               <Toggle on={s.silent} label={t("set.silent")} onChange={(v) => void save({ silent: v })} />
             </Opt>
-          </Sec>
-          <Sec id="downloads" title={t("set.downloads")}>
+          </Sec>}
+          {sec === "downloads" && <Sec id="downloads" title={t("set.downloads")}>
             <Opt title={t("set.folder")} sub={s.download_dir}>
               <button
                 type="button"
@@ -152,29 +157,48 @@ export function SettingsView() {
             <Opt title={t("set.info")} sub={t("set.infoS")}>
               <Toggle on={s.show_info} label={t("set.info")} onChange={(v) => void save({ show_info: v })} />
             </Opt>
+            <Opt title={t("set.sidecar")} sub={t("set.sidecarS")}>
+              <Toggle on={s.hash_sidecar} label={t("set.sidecar")} onChange={(v) => void save({ hash_sidecar: v })} />
+            </Opt>
+            <ScanRow />
             <div className="opt col-opt">
               <div className="t">
                 <b>{t("set.cats")}</b>
               </div>
-              {s.categories.map((c, i) => (
-                <label className="fld cat-row" key={c.id}>
-                  <span>{lang === "en" ? c.name_en : c.name_km}</span>
-                  <span className="in">
-                    <input
-                      aria-label={(lang === "en" ? c.name_en : c.name_km) + " · " + t("set.exts")}
-                      defaultValue={c.exts.join(" ")}
-                      placeholder={t("set.exts")}
-                      onBlur={(e) => {
-                        const cats = s.categories.map((x, j) => (j === i ? { ...x, exts: e.target.value.split(/\s+/).filter(Boolean) } : x));
-                        void save({ categories: cats });
-                      }}
-                    />
-                  </span>
-                </label>
-              ))}
+              {s.categories.map((c, i) => {
+                const nm = lang === "en" ? c.name_en : c.name_km;
+                const put = (k: "exts" | "sites", v: string) => void save({ categories: s.categories.map((x, j) => (j === i ? { ...x, [k]: v.split(/\s+/).filter(Boolean) } : x)) });
+                return (
+                  <div className="fld cat-row" key={c.id}>
+                    <span>{nm}</span>
+                    <div className="two even">
+                      <span className="in">
+                        <input aria-label={nm + " · " + t("set.exts")} defaultValue={c.exts.join(" ")} placeholder={t("set.exts")} onBlur={(e) => put("exts", e.target.value)} />
+                      </span>
+                      <span className="in">
+                        <input aria-label={nm + " · " + t("set.sites")} defaultValue={(c.sites ?? []).join(" ")} placeholder={t("set.sites")} onBlur={(e) => put("sites", e.target.value)} />
+                      </span>
+                    </div>
+                    <div className="row-btns tight">
+                      <button type="button" className="fx btn btn-s" aria-label={t("info.remember", { c: nm })} onClick={() => void rememberDir(c.id, false)}>
+                        <Icon n="folder-open" />
+                        <span className="clip1" title={c.dir || undefined}>
+                          {c.dir || t("set.catDir")}
+                        </span>
+                      </button>
+                      {c.dir && (
+                        <button type="button" className="fx btn btn-g" aria-label={t("info.forget") + " · " + nm} onClick={() => void rememberDir(c.id, true)}>
+                          {t("info.forget")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </Sec>
-          <Sec id="speed" title={t("set.speed")}>
+          </Sec>}
+          {sec === "connection" && <ConnectionSection />}
+          {sec === "speed" && <Sec id="speed" title={t("set.speed")}>
             <Opt title={t("set.limit")} sub={t("set.limitS")}>
               <span className="in short num-in">
                 <input type="number" min={1} aria-label={t("set.kbps")} defaultValue={s.limit_kbps || 512} onBlur={(e) => void save({ limit_kbps: num(e.target.value, 1, 10_000_000) })} />
@@ -182,8 +206,13 @@ export function SettingsView() {
               </span>
               <Toggle on={s.limit_on} label={t("set.limit")} onChange={(v) => void save({ limit_on: v, limit_kbps: s.limit_kbps || 512 })} />
             </Opt>
-          </Sec>
-          <Sec id="browsers" title={t("set.browsers")}>
+          </Sec>}
+          {sec === "queues" && <QueuesSection />}
+          {sec === "proxy" && <ProxySection />}
+          {sec === "logins" && <LoginsSection />}
+          {sec === "sounds" && <SoundsSection />}
+          {sec === "video" && <VideoSection />}
+          {sec === "browsers" && <Sec id="browsers" title={t("set.browsers")}>
             <Opt title={t("set.catch")} sub={t("set.catchS")}>
               <Toggle on={s.catch_enabled} label={t("set.catch")} onChange={(v) => void save({ catch_enabled: v })} />
             </Opt>
@@ -218,8 +247,8 @@ export function SettingsView() {
             <Opt title={t("set.video")} sub={t("set.videoS")}>
               <Toggle on={s.video_button} label={t("set.video")} onChange={(v) => void save({ video_button: v })} />
             </Opt>
-          </Sec>
-          <Sec id="update" title={t("set.update")}>
+          </Sec>}
+          {sec === "update" && <Sec id="update" title={t("set.update")}>
             {tick?.store_build ? (
               <Opt title={t("set.store")}>
                 <span />
@@ -240,8 +269,8 @@ export function SettingsView() {
                 </Opt>
               </>
             )}
-          </Sec>
-          <Sec id="privacy" title={t("set.privacy")}>
+          </Sec>}
+          {sec === "privacy" && <Sec id="privacy" title={t("set.privacy")}>
             <div className="opt">
               <p className="t why">{t("set.privacyText")}</p>
             </div>
@@ -254,8 +283,8 @@ export function SettingsView() {
                 {t("set.privacyLink")}
               </button>
             </Opt>
-          </Sec>
-          <Sec id="about" title={t("set.about")}>
+          </Sec>}
+          {sec === "about" && <Sec id="about" title={t("set.about")}>
             <div className="opt">
               <img className="logo" src="/gdm-icon-256.png" alt="" width={44} height={44} />
               <div className="t">
@@ -283,10 +312,414 @@ export function SettingsView() {
                 {copied ? t("set.copied") : t("set.share")}
               </button>
             </Opt>
-          </Sec>
+          </Sec>}
         </div>
       </main>
     </div>
+  );
+}
+
+export const num = (v: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
+
+/** a number field that saves on blur (same pattern as max_conns) */
+export function NumIn({ label, value, lo, hi, unit, onSave }: { label: string; value: number; lo: number; hi: number; unit?: string; onSave: (v: number) => void }) {
+  return (
+    <span className="in short num-in">
+      <input type="number" min={lo} max={hi} aria-label={label} defaultValue={value} key={value} onBlur={(e) => num(e.target.value, lo, hi) !== value && onSave(num(e.target.value, lo, hi))} />
+      {unit && <span className="meta">{unit}</span>}
+    </span>
+  );
+}
+
+function ConnectionSection() {
+  const { t } = useTranslation();
+  const s = useStore((x) => x.settings)!;
+  const save = useStore((x) => x.saveSettings);
+  const [host, setHost] = useState("");
+  const [conns, setConns] = useState(2);
+  const [uaHost, setUaHost] = useState("");
+  const [ua, setUa] = useState("");
+  const addUa = () => {
+    const h = uaHost.trim().toLowerCase();
+    if (!h || !ua.trim()) return;
+    void save({ site_agents: [...s.site_agents.filter((x) => x.host !== h), { host: h, ua: ua.trim() }] });
+    setUaHost("");
+    setUa("");
+  };
+  const add = () => {
+    const h = host.trim().toLowerCase();
+    if (!h || /\s/.test(h)) return;
+    const rows: HostLimit[] = [...s.host_limits.filter((x) => x.host !== h), { host: h, conns: num(String(conns), 1, 32) }];
+    void save({ host_limits: rows });
+    setHost("");
+  };
+  return (
+    <Sec id="connection" title={t("set.connection")}>
+      <Opt title={t("set.total")} sub={t("set.totalS")}>
+        <NumIn label={t("set.total")} value={s.total_conns} lo={1} hi={256} onSave={(v) => void save({ total_conns: v })} />
+      </Opt>
+      <div className="opt col-opt">
+        <div className="t">
+          <b>{t("set.hosts")}</b>
+          <small>{t("set.hostsS")}</small>
+        </div>
+        {s.host_limits.map((h) => (
+          <div className="hl-row" key={h.host}>
+            <span className="mono clip1" title={h.host}>
+              {h.host}
+            </span>
+            <span className="num">{t("set.connsN", { n: h.conns })}</span>
+            <button type="button" className="fx mini" aria-label={t("set.removeX", { x: h.host })} title={t("set.removeX", { x: h.host })} onClick={() => void save({ host_limits: s.host_limits.filter((x) => x.host !== h.host) })}>
+              <Icon n="trash" />
+            </button>
+          </div>
+        ))}
+        <div className="hl-add">
+          <label className="fld">
+            <span>{t("set.host")}</span>
+            <span className="in">
+              <input className="mono" value={host} placeholder="*.example.com" onChange={(e) => setHost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+            </span>
+          </label>
+          <label className="fld">
+            <span>{t("set.hostConns")}</span>
+            <span className="in">
+              <input className="mono" type="number" min={1} max={32} value={conns} onChange={(e) => setConns(Number(e.target.value))} />
+            </span>
+          </label>
+          <button type="button" className="fx btn btn-s" onClick={add}>
+            <Icon n="plus" />
+            {t("set.addRow")}
+          </button>
+        </div>
+      </div>
+      <div className="opt col-opt">
+        <label className="fld wide-fld">
+          <span>{t("set.ua")}</span>
+          <span className="in">
+            <input className="mono" key={s.user_agent} defaultValue={s.user_agent} maxLength={512} placeholder={t("set.uaDefault")} onBlur={(e) => e.target.value.trim() !== s.user_agent && void save({ user_agent: e.target.value.trim() })} />
+          </span>
+        </label>
+        <div className="t">
+          <small>{t("set.uaSites")}</small>
+        </div>
+        {s.site_agents.map((a) => (
+          <div className="hl-row" key={a.host}>
+            <span className="mono clip1" title={a.host}>
+              {a.host}
+            </span>
+            <span className="mono clip1" title={a.ua}>
+              {a.ua}
+            </span>
+            <button type="button" className="fx mini" aria-label={t("set.removeX", { x: a.host })} title={t("set.removeX", { x: a.host })} onClick={() => void save({ site_agents: s.site_agents.filter((x) => x.host !== a.host) })}>
+              <Icon n="trash" />
+            </button>
+          </div>
+        ))}
+        <div className="hl-add">
+          <label className="fld">
+            <span>{t("set.host")}</span>
+            <span className="in">
+              <input className="mono" value={uaHost} placeholder="*.example.com" onChange={(e) => setUaHost(e.target.value)} />
+            </span>
+          </label>
+          <label className="fld">
+            <span>User-Agent</span>
+            <span className="in">
+              <input className="mono" value={ua} onChange={(e) => setUa(e.target.value)} />
+            </span>
+          </label>
+          <button type="button" className="fx btn btn-s" onClick={addUa}>
+            <Icon n="plus" />
+            {t("set.addRow")}
+          </button>
+        </div>
+      </div>
+      <Opt title={t("set.quota")} sub={t("set.quotaS")}>
+        <NumIn label={t("set.quota") + " MB"} value={s.quota_mb} lo={0} hi={100_000_000} unit="MB" onSave={(v) => void save({ quota_mb: v })} />
+        <NumIn label={t("set.hours")} value={s.quota_hours} lo={1} hi={720} unit={t("set.hours")} onSave={(v) => void save({ quota_hours: v })} />
+      </Opt>
+    </Sec>
+  );
+}
+
+/** §04 "scan each finished file with my antivirus program" (IDM Virus checking): hook "scan", native picker only */
+function ScanRow() {
+  const { t } = useTranslation();
+  const h = useStore((x) => x.settings!.hooks?.scan);
+  const [err, setErr] = useState("");
+  const set = async (pick: boolean, args: string[], clear: boolean) => {
+    try {
+      await api.hookSet("scan", pick, args, clear);
+      setErr("");
+      useStore.setState({ settings: await api.settingsGet() });
+    } catch (e) {
+      setErr(errText(e));
+    }
+  };
+  return (
+    <div className="opt col-opt">
+      <div className="t">
+        <b>{t("set.scan")}</b>
+        <small>{h ? fileName(h.program) + " " + h.args.join(" ") : t("set.scanS")}</small>
+      </div>
+      {err && (
+        <p className="err-t" role="alert">
+          {t(`qs.e.${err}`, { defaultValue: err })}
+        </p>
+      )}
+      <div className="row-btns tight">
+        <button type="button" className="fx btn btn-s" onClick={() => void set(true, h?.args ?? ["{file}"], false)}>
+          <Icon n="shield-check" />
+          {t("qs.choose")}
+        </button>
+        {h && (
+          <button type="button" className="fx btn btn-g" onClick={() => void set(false, [], true)}>
+            {t("qs.hookRemove")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProxySection() {
+  const { t } = useTranslation();
+  const s = useStore((x) => x.settings)!;
+  const save = useStore((x) => x.saveSettings);
+  const p = s.proxy;
+  const [auth, setAuth] = useState(p.auth);
+  const [host, setHost] = useState(p.auth_host || p.http);
+  const [user, setUser] = useState(p.user);
+  const [pass, setPass] = useState("");
+  const [msg, setMsg] = useState("");
+  const setP = (q: Partial<typeof p>) => void save({ proxy: { ...useStore.getState().settings!.proxy, ...q } });
+  const login = async (windows: boolean) => {
+    try {
+      await api.proxyLoginSet(host.trim(), windows ? "" : user.trim(), windows ? "" : pass, windows);
+      setPass(""); // never kept after saving (P-01)
+      setMsg("");
+      useStore.setState({ settings: await api.settingsGet() });
+    } catch (e) {
+      setMsg(errText(e));
+    }
+  };
+  const fld = (k: "http" | "socks", label: string) => (
+    <label className="fld wide-fld">
+      <span>{label}</span>
+      <span className="in">
+        <input className="mono" defaultValue={p[k]} placeholder="127.0.0.1:8080" onBlur={(e) => e.target.value.trim() !== p[k] && setP({ [k]: e.target.value.trim() })} />
+      </span>
+    </label>
+  );
+  return (
+    <Sec id="proxy" title={t("set.proxy")}>
+      <Opt title={t("px.mode")} sub={p.mode === "system" ? t("px.systemS") : undefined}>
+        <Tabs value={p.mode} label={t("px.mode")} items={[["none", t("px.none")], ["system", t("px.system")], ["manual", t("px.manual")]]} onChange={(v) => setP({ mode: v })} />
+      </Opt>
+      {p.mode === "manual" && (
+        <div className="opt col-opt">
+          {fld("http", t("px.http"))}
+          {fld("socks", t("px.socks"))}
+          <label className="fld wide-fld">
+            <span>{t("px.bypass")}</span>
+            <span className="in">
+              <textarea rows={3} defaultValue={p.bypass.join("\n")} onBlur={(e) => setP({ bypass: e.target.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) })} />
+            </span>
+          </label>
+        </div>
+      )}
+      {p.mode !== "none" && (
+        <>
+          <Opt title={t("px.auth")} sub={p.auth !== "none" ? t("px.saved", { host: p.auth_host, user: p.auth === "windows" ? "Windows" : p.user }) : undefined}>
+            <Tabs
+              value={auth}
+              label={t("px.auth")}
+              items={[["none", t("px.authNone")], ["basic", t("px.authBasic")], ["windows", t("px.authWin")]]}
+              onChange={(v) => (setAuth(v), v === "none" && setP({ auth: "none", user: "" }))}
+            />
+          </Opt>
+          {auth !== "none" && (
+            <div className="opt col-opt">
+              <label className="fld wide-fld">
+                <span>{t("px.host")}</span>
+                <span className="in">
+                  <input className="mono" value={host} placeholder="proxy.example.org:8080" onChange={(e) => setHost(e.target.value)} />
+                </span>
+              </label>
+              {auth === "basic" && (
+                <div className="two even">
+                  <label className="fld">
+                    <span>{t("px.user")}</span>
+                    <span className="in">
+                      <input value={user} autoComplete="off" onChange={(e) => setUser(e.target.value)} />
+                    </span>
+                  </label>
+                  <label className="fld">
+                    <span>{t("px.pass")}</span>
+                    <span className="in">
+                      <input type="password" value={pass} autoComplete="new-password" onChange={(e) => setPass(e.target.value)} />
+                    </span>
+                  </label>
+                </div>
+              )}
+              <p className="meta">{auth === "basic" ? t("px.passS") : t("px.winS")}</p>
+              {msg && (
+                <p className="err-t" role="alert">
+                  {msg}
+                </p>
+              )}
+              <div className="row-btns flush">
+                <button type="button" className="fx btn btn-s" onClick={() => void login(auth === "windows")}>
+                  {auth === "windows" ? t("px.useWin") : t("px.save")}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Sec>
+  );
+}
+
+function LoginsSection() {
+  const { t } = useTranslation();
+  const [list, setList] = useState<SiteLogin[]>([]);
+  const [prefix, setPrefix] = useState("");
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState("");
+  useEffect(() => void api.loginList().then(setList), []);
+  const add = async () => {
+    try {
+      await api.loginSet(prefix.trim(), user.trim(), pass);
+      setPrefix("");
+      setUser("");
+      setPass(""); // P-01: the password lives in Credential Manager only
+      setErr("");
+      setList(await api.loginList());
+    } catch (e) {
+      setErr(errText(e));
+    }
+  };
+  return (
+    <Sec id="logins" title={t("set.logins")}>
+      <div className="opt col-opt">
+        {list.length === 0 && <p className="meta">{t("lg.empty")}</p>}
+        {list.map((l) => (
+          <div className="hl-row" key={l.id}>
+            <span className="mono clip1" title={l.prefix}>
+              {l.prefix}
+            </span>
+            <span className="clip1" title={l.user}>
+              {l.user}
+            </span>
+            <button type="button" className="fx mini" aria-label={t("lg.delete", { p: l.prefix })} title={t("lg.delete", { p: l.prefix })} onClick={() => void api.loginDelete(l.id).then(() => api.loginList().then(setList))}>
+              <Icon n="trash" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="opt col-opt">
+        <div className="t">
+          <b>{t("lg.new")}</b>
+          <small>{t("px.passS")}</small>
+        </div>
+        <label className="fld wide-fld">
+          <span>{t("lg.prefix")}</span>
+          <span className="in">
+            <input className="mono" value={prefix} placeholder="https://files.example.org/folder/" onChange={(e) => setPrefix(e.target.value)} />
+          </span>
+        </label>
+        <div className="two even">
+          <label className="fld">
+            <span>{t("px.user")}</span>
+            <span className="in">
+              <input value={user} autoComplete="off" onChange={(e) => setUser(e.target.value)} />
+            </span>
+          </label>
+          <label className="fld">
+            <span>{t("px.pass")}</span>
+            <span className="in">
+              <input type="password" value={pass} autoComplete="new-password" onChange={(e) => setPass(e.target.value)} />
+            </span>
+          </label>
+        </div>
+        {err && (
+          <p className="err-t" role="alert">
+            {t(`lg.e.${err}`, { defaultValue: err })}
+          </p>
+        )}
+        <div className="row-btns flush">
+          <button type="button" className="fx btn btn-s" onClick={() => void add()}>
+            <Icon n="plus" />
+            {t("lg.save")}
+          </button>
+        </div>
+      </div>
+    </Sec>
+  );
+}
+
+const SYS = ["SystemAsterisk", "SystemExclamation", "SystemNotification"];
+
+function SoundsSection() {
+  const { t } = useTranslation();
+  const s = useStore((x) => x.settings)!;
+  const save = useStore((x) => x.saveSettings);
+  const events: SoundEvent[] = ["complete", "failed", "queue"];
+  return (
+    <Sec id="sounds" title={t("set.sounds")}>
+      {events.map((ev) => {
+        const v = s.sounds[ev] ?? "";
+        const custom = v && !v.startsWith("system:");
+        return (
+          <Opt key={ev} title={t(`snd.${ev}`)} sub={custom ? fileName(v) : undefined}>
+            <select className="fx sel snd" aria-label={t(`snd.${ev}`)} value={v} onChange={(e) => void save({ sounds: { ...s.sounds, [ev]: e.target.value } })}>
+              <option value="">{t("snd.off")}</option>
+              {SYS.map((a) => (
+                <option key={a} value={"system:" + a}>
+                  {t(`snd.${a}`)}
+                </option>
+              ))}
+              {custom && <option value={v}>{fileName(v)}</option>}
+            </select>
+            <button type="button" className="fx btn btn-s" onClick={() => void api.soundPick(ev).then(async (p) => p && useStore.setState({ settings: await api.settingsGet() }))}>
+              {t("snd.pick")}
+            </button>
+            <button type="button" className="fx mini" aria-label={t("snd.play") + " · " + t(`snd.${ev}`)} title={t("snd.play")} disabled={!v} onClick={() => void api.soundTest(ev)}>
+              <Icon n="play" />
+            </button>
+          </Opt>
+        );
+      })}
+    </Sec>
+  );
+}
+
+function VideoSection() {
+  const { t } = useTranslation();
+  const [st, setSt] = useState<{ ytdlp: boolean; ffmpeg: boolean } | null>(null);
+  const load = () => void api.componentsState().then(setSt);
+  useEffect(load, []);
+  const row = (name: string, ok: boolean | undefined) => (
+    <Opt title={name}>
+      {ok ? (
+        <span className="ok">
+          <Icon n="check-circle" fill />
+          {t("vid.ok")}
+        </span>
+      ) : (
+        <span className="meta">{t("vid.missing")}</span>
+      )}
+    </Opt>
+  );
+  return (
+    <Sec id="video" title={t("set.videoSec")}>
+      {row("yt-dlp", st?.ytdlp)}
+      {row("FFmpeg", st?.ffmpeg)}
+      <div className="opt col-opt">{st && st.ytdlp && st.ffmpeg ? <p className="meta flush">{t("vid.notice")}</p> : <Components onDone={load} />}</div>
+    </Sec>
   );
 }
 

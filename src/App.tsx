@@ -4,11 +4,12 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as RKE } from "react";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api, type Detail, type Row } from "./api";
+import { api, droppedLinks, errText, fileName, type Detail, type QueueView, type Row } from "./api";
 import { useStore, type Nav } from "./store";
 import { bytes, eta, host, isActive, isDone, speed, view, type Action } from "./status";
-import { ftClass, ftIcon, Icon, Modal } from "./ui";
+import { ftClass, ftIcon, Icon, Menu, Modal, type MenuGroup } from "./ui";
 import { Onboarding, SettingsView } from "./Settings";
+import { Countdown, G7Dialogs, qName, QueueSelect, rememberDir } from "./Dialogs";
 
 const NONE: Row[] = []; // a stable empty list: a new [] in a selector re-renders forever (React #185)
 
@@ -33,7 +34,7 @@ export default function App() {
 
 function Shell() {
   const { t, i18n } = useTranslation();
-  const { nav, setNav, settings, jobs } = useStore();
+  const { nav, setNav, settings, jobs, queues } = useStore();
   const [why, setWhy] = useState<string | null>(null);
   const adding = useStore((s) => s.adding);
   const lang = i18n.language;
@@ -65,6 +66,7 @@ function Shell() {
   }, []);
   return (
     <>
+      <Countdown />
       <div id="shell" className="win">
         <div className="body">
           <nav className="rail" aria-label={t("nav.cats")}>
@@ -75,6 +77,10 @@ function Shell() {
             {settings!.categories.map((c) => (
               <NavBtn key={c.id} k={`cat:${c.id}`} ic={c.id === "general" ? "folder" : ftIcon(c.id)} label={catName(lang, c)} n={counts["cat:" + c.id] ?? 0} sel={nav === `cat:${c.id}`} onClick={() => setNav(`cat:${c.id}`)} />
             ))}
+            <div className="grp">{t("nav.queues")}</div>
+            {queues.map((q) => (
+              <NavBtn key={q.def.id} k={`q:${q.def.id}`} ic={q.def.sync ? "arrow-clockwise" : "queue"} label={qName(t, q.def)} n={q.jobs.length} sel={nav === `q:${q.def.id}`} onClick={() => setNav(`q:${q.def.id}`)} />
+            ))}
             <div className="sp" />
             <NavBtn k="settings" ic="gear-six" label={t("nav.settings")} sel={nav === "settings"} onClick={() => setNav("settings")} />
           </nav>
@@ -84,6 +90,7 @@ function Shell() {
       <InfoDialog />
       {adding && <AddDialog />}
       {why && <WhyDialog k={why} onClose={() => setWhy(null)} />}
+      <G7Dialogs />
       <Toasts />
     </>
   );
@@ -105,7 +112,23 @@ function NavBtn({ ic, label, n, sel, onClick }: { k: string; ic: string; label: 
   );
 }
 
-function filterRows(jobs: Row[], nav: Nav) {
+export type Col = "name" | "size" | "status" | "speed" | "eta" | "added";
+const ALL: Col[] = ["name", "size", "status", "speed", "eta", "added"];
+const DEF: Col[] = ["name", "size", "status", "speed", "eta"];
+const WIDTH: Record<Col, string> = { name: "minmax(0,1.3fr)", size: "76px", status: "minmax(150px,1fr)", speed: "84px", eta: "64px", added: "92px" };
+// ponytail: the sort rides in settings.columns as one "sort:<col>:<asc|desc>" entry (no separate settings field)
+function colModel(list: string[]) {
+  const shown = list.filter((c): c is Col => (ALL as string[]).includes(c));
+  const sort = list.find((c) => c.startsWith("sort:"))?.split(":") ?? [];
+  return { shown: shown.length ? shown : DEF, sortBy: (sort[1] as Col) || null, desc: sort[2] === "desc" };
+}
+
+function filterRows(jobs: Row[], nav: Nav, queues: QueueView[]) {
+  if (nav.startsWith("q:")) {
+    // a queue shows its files in queue order (IDM "Files in the queue")
+    const by = new Map(jobs.map((j) => [j.id, j]));
+    return (queues.find((q) => q.def.id === nav.slice(2))?.jobs ?? []).flatMap((id) => by.get(id) ?? []);
+  }
   if (nav === "active") return jobs.filter(isActive);
   if (nav === "done") return jobs.filter(isDone);
   if (nav === "unfinished") return jobs.filter((j) => !isDone(j));
@@ -144,21 +167,133 @@ export async function act(r: Row, a: Action | undefined, onWhy: (k: string) => v
 
 function Main({ onWhy }: { onWhy: (k: string) => void }) {
   const { t, i18n } = useTranslation();
-  const { jobs, nav, q, setQ, sel, setSel, live, tick, settings } = useStore();
-  const rows = useMemo(() => filterRows(jobs, nav), [jobs, nav]);
+  const { jobs, nav, q, setQ, sel, setSel, live, tick, settings, queues } = useStore();
+  const { shown, sortBy, desc } = colModel(settings!.columns);
+  const rows = useMemo(() => {
+    const r = filterRows(jobs, nav, queues);
+    if (!sortBy || nav.startsWith("q:")) return r; // a queue keeps its own order
+    const key = (j: Row): number | string =>
+      sortBy === "name" ? j.name.toLowerCase() : sortBy === "size" ? (j.size ?? -1) : sortBy === "status" ? j.state : sortBy === "added" ? j.created_at : sortBy === "speed" ? (live[j.id]?.speed ?? 0) : (live[j.id] ? (live[j.id].total - live[j.id].done) / (live[j.id].speed || 1) : Infinity);
+    return [...r].sort((a, b) => {
+      const x = key(a), y = key(b);
+      return (x < y ? -1 : x > y ? 1 : 0) * (desc ? -1 : 1);
+    });
+    // live speed changes every tick: sorting by speed/eta re-sorts then, by design
+  }, [jobs, nav, queues, sortBy, desc, live]);
+  const [menu, setMenu] = useState<{ x: number; y: number; label: string; groups: MenuGroup[] } | null>(null);
   const w = useWide();
   const [drawer, setDrawer] = useState(false);
   const wide = w >= 1180;
+  // compact (< 760 px): name + status; mini (< 480 px): no icon either; wide: speed and time left live in the pane
+  const cols = w < 760 ? shown.filter((c) => c === "name" || c === "status").concat(shown.includes("status") ? [] : ["status"]) : wide ? shown.filter((c) => c !== "speed" && c !== "eta") : shown;
+  const icon = w >= 480;
+  const grid = [...(icon ? ["30px"] : []), ...cols.map((c) => (w < 760 && c === "status" ? "minmax(100px,.9fr)" : WIDTH[c]))].join(" ");
+  const saveCols = (list: Col[], sort: [Col, boolean] | null) => void useStore.getState().saveSettings({ columns: [...list, ...(sort ? [`sort:${sort[0]}:${sort[1] ? "desc" : "asc"}`] : [])] });
+  const sortClick = (c: Col) => saveCols(shown, sortBy !== c ? [c, false] : !desc ? [c, true] : null);
+  const colMenu = (c: Col, x: number, y: number) => {
+    const i = shown.indexOf(c);
+    const move = (d: number) => {
+      const l = [...shown];
+      [l[i], l[i + d]] = [l[i + d], l[i]];
+      saveCols(l, sortBy ? [sortBy, desc] : null);
+    };
+    setMenu({
+      x,
+      y,
+      label: t("cols.menu"),
+      groups: [
+        {
+          label: t("cols.menu"),
+          items: ALL.map((k) => ({
+            label: t(`cols.${k}`),
+            checked: shown.includes(k),
+            disabled: k === "name",
+            onClick: () => saveCols(shown.includes(k) ? shown.filter((x) => x !== k) : [...shown, k], sortBy ? [sortBy, desc] : null),
+          })),
+        },
+        {
+          items: [
+            { label: t("cols.left", { c: t(`cols.${c}`) }), disabled: i <= 0, onClick: () => move(-1) },
+            { label: t("cols.right", { c: t(`cols.${c}`) }), disabled: i < 0 || i >= shown.length - 1, onClick: () => move(1) },
+          ],
+        },
+      ],
+    });
+  };
   const scroller = useRef<HTMLDivElement>(null);
   const v = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => 62, overscan: 8 });
   const selIdx = rows.findIndex((r) => r.id === sel);
   const selected = selIdx >= 0 ? rows[selIdx] : null;
   const total = Object.values(live).reduce((a, l) => a + l.speed, 0);
-  const title = nav.startsWith("cat:") ? catName(i18n.language, settings!.categories.find((c) => c.id === nav.slice(4)) ?? { name_km: "", name_en: "" }) : t(`title.${nav}`);
+  const title = nav.startsWith("cat:")
+    ? catName(i18n.language, settings!.categories.find((c) => c.id === nav.slice(4)) ?? { name_km: "", name_en: "" })
+    : nav.startsWith("q:")
+      ? qName(t, settings!.queues.find((x) => x.id === nav.slice(2)))
+      : t(`title.${nav}`);
+  const at = (el: Element) => {
+    const b = el.getBoundingClientRect();
+    return { x: b.left, y: b.bottom + 4 };
+  };
+  const after = () => void useStore.getState().refreshQueues();
+  const qItems = (f: (id: string) => Promise<void>) => settings!.queues.map((x) => ({ label: qName(t, x), onClick: () => void f(x.id).then(after) }));
+  // IDM context menu: Refresh download address, Add to queue, Delete from queue
+  const rowMenu = (r: Row, x: number, y: number) =>
+    setMenu({
+      x,
+      y,
+      label: t("q.menu"),
+      groups: [
+        {
+          items: [
+            { label: t("q.refresh"), disabled: isDone(r), onClick: () => useStore.getState().setDlg({ k: "refresh", id: r.id }) },
+            { label: t("prop.url"), disabled: isActive(r) || isDone(r), onClick: () => useStore.getState().setDlg({ k: "url", id: r.id }) },
+            {
+              label: t("act.moveTo"),
+              disabled: isActive(r) || isDone(r) || r.done > 0,
+              onClick: () =>
+                void api.jobMove(r.id).then(
+                  (nid) => nid && useStore.getState().setSel(nid),
+                  (e) => useStore.getState().notify("error", t(`prop.e.${errText(e)}`, { defaultValue: errText(e) })),
+                ),
+            },
+          ],
+        },
+        { label: t("q.addTo"), items: qItems((id) => api.queuePut([r.id], id)).filter((_, i) => settings!.queues[i].id !== r.queue) },
+        ...(r.queue ? [{ items: [{ label: t("q.removeFrom"), onClick: () => void api.queuePut([r.id], null).then(after) }] }] : []),
+      ],
+    });
+  const tasks = (el: Element) => {
+    const s = useStore.getState();
+    const basket = !settings!.basket;
+    setMenu({
+      ...at(el),
+      label: t("tasks.menu"),
+      groups: [
+        {
+          items: [
+            { label: t("tasks.batch"), onClick: () => s.setDlg({ k: "batch" }) },
+            { label: t("tasks.video"), onClick: () => s.setDlg({ k: "video" }) },
+          ],
+        },
+        {
+          items: [
+            { label: t("tasks.import"), onClick: () => void api.importPick().then((pv) => pv && s.setDlg({ k: "import", pv }), (e) => s.notify("error", errText(e))) },
+            { label: t("tasks.export"), onClick: () => void api.exportPick().then((p) => p && s.notify("exported", fileName(p)), (e) => s.notify("error", errText(e))) },
+          ],
+        },
+        {
+          items: [
+            { label: t("tasks.basket"), checked: !basket, onClick: () => void api.basketShow(basket).then(() => useStore.setState({ settings: { ...useStore.getState().settings!, basket } }), (e) => s.notify("error", errText(e))) },
+            { label: t("tasks.scheduler"), onClick: () => s.openSettings("queues") },
+          ],
+        },
+      ],
+    });
+  };
   const searchRef = useRef<HTMLInputElement>(null);
 
   const onKey = (e: RKE) => {
-    if (!rows.length) return;
+    if (!rows.length || (e.target as HTMLElement).closest(".cols")) return;
     const go = (i: number) => {
       const k = Math.max(0, Math.min(rows.length - 1, i));
       setSel(rows[k].id);
@@ -173,6 +308,10 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
     else if (e.key === "Enter") void act(selected, view(selected, live[selected.id]).action, onWhy, view(selected).why);
     else if (e.key === " ") void (isActive(selected) ? api.pause(selected.id) : api.start(selected.id));
     else if (e.key === "Delete") void api.remove(selected.id, e.shiftKey);
+    else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      const b = document.getElementById("row-" + selected.id)!.getBoundingClientRect();
+      rowMenu(selected, b.left + 40, b.bottom);
+    }
     else return;
     e.preventDefault();
   };
@@ -196,15 +335,15 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
       window.removeEventListener("paste", paste);
     };
   }, []);
-  const onDrop = (e: DragEvent) => {
+  // P1 #21: links dropped on the window (the WebView gets the drop: dragDropEnabled is false), at most 50
+  const onDrop = async (e: DragEvent) => {
     e.preventDefault();
-    const s = (e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain")).split(/\r?\n/).find((l) => /^https?:\/\//i.test(l.trim()));
-    if (s) void api.addUrl(s.trim());
+    for (const u of droppedLinks(e.dataTransfer.getData("text/uri-list"), e.dataTransfer.getData("text/plain"))) await api.addUrl(u).catch(() => {});
   };
   const upd = tick?.update;
   const banner = tick?.banner;
   return (
-    <main className={"main" + (wide ? " split" : "")} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <main className={"main" + (wide ? " split" : "")} onDragOver={(e) => e.preventDefault()} onDrop={(e) => void onDrop(e)}>
       <div className="col">
         <div className="top">
           <h1>{title}</h1>
@@ -216,8 +355,17 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
             <Icon n="plus" />
             {t("add")}
           </button>
+          <button type="button" className="fx chip" aria-label={t("tasks.menu")} title={t("tasks.menu")} aria-haspopup="menu" onClick={(e) => tasks(e.currentTarget)}>
+            <Icon n="caret-down" />
+          </button>
           <button type="button" className="fx chip" aria-label={t("pauseAll")} title={t("pauseAll")} onClick={() => void api.pauseAll()}>
             <Icon n="pause" />
+          </button>
+          <button type="button" className="fx chip" aria-label={t("q.start")} title={t("q.start")} aria-haspopup="menu" onClick={(e) => setMenu({ ...at(e.currentTarget), label: t("q.start"), groups: [{ items: qItems(api.queueStart) }] })}>
+            <Icon n="play" />
+          </button>
+          <button type="button" className="fx chip" aria-label={t("q.stop")} title={t("q.stop")} aria-haspopup="menu" onClick={(e) => setMenu({ ...at(e.currentTarget), label: t("q.stop"), groups: [{ items: qItems(api.queueStop) }] })}>
+            <Icon n="square" />
           </button>
           {!wide && (
             <button type="button" className="fx chip" aria-label={t("d.title")} title={t("d.title")} aria-pressed={drawer} onClick={() => setDrawer(!drawer)}>
@@ -228,13 +376,28 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
         {banner && <Banner text={banner.startsWith("restored:") ? t("banner.restored", { name: banner.slice(9) }) : banner === "readonly" ? t("banner.readonly") : t("banner.pipe")} />}
         {upd && (upd.state === "ready" || upd.state === "available" || upd.state === "failed") && <UpdateBanner />}
         <div className="list" ref={scroller} role="grid" aria-label={title} aria-rowcount={rows.length + 1} onKeyDown={onKey}>
-          <div className="cols" role="row" aria-rowindex={1}>
-            <span role="columnheader" aria-label={t("cols.name")} />
-            <span role="columnheader">{t("cols.name")}</span>
-            <span role="columnheader">{t("cols.size")}</span>
-            <span role="columnheader">{t("cols.status")}</span>
-            <span role="columnheader">{t("cols.speed")}</span>
-            <span role="columnheader">{t("cols.eta")}</span>
+          <div className="cols" role="row" aria-rowindex={1} style={{ gridTemplateColumns: grid }}>
+            {icon && <span role="columnheader" aria-label={t("cols.type")} />}
+            {cols.map((c) => (
+              <span key={c} role="columnheader" className={c === "name" || c === "status" ? "" : "c-end"} aria-sort={sortBy === c ? (desc ? "descending" : "ascending") : undefined}>
+                <button
+                  type="button"
+                  className="fx colh"
+                  title={t("cols.hint")}
+                  onClick={() => sortClick(c)}
+                  onContextMenu={(e) => (e.preventDefault(), colMenu(c, e.clientX, e.clientY))}
+                  onKeyDown={(e) => {
+                    if (e.key !== "ContextMenu" && !(e.shiftKey && e.key === "F10")) return;
+                    e.preventDefault();
+                    const b = e.currentTarget.getBoundingClientRect();
+                    colMenu(c, b.left, b.bottom);
+                  }}
+                >
+                  {t(`cols.${c}`)}
+                  {sortBy === c && <Icon n="caret-down" />}
+                </button>
+              </span>
+            ))}
           </div>
           {rows.length === 0 && <div className="empty">{q ? t("noMatch") : t("empty")}</div>}
           <div style={{ height: v.getTotalSize(), position: "relative" }}>
@@ -242,7 +405,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
               const r = rows[it.index];
               return (
                 <div key={r.id} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${it.start}px)` }}>
-                  <RowView r={r} idx={it.index} sel={r.id === sel} focusable={r.id === sel || (selIdx < 0 && it.index === 0)} onWhy={onWhy} />
+                  <RowView r={r} idx={it.index} sel={r.id === sel} focusable={r.id === sel || (selIdx < 0 && it.index === 0)} onWhy={onWhy} onMenu={rowMenu} cols={cols} icon={icon} grid={grid} />
                 </div>
               );
             })}
@@ -265,12 +428,13 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
         </footer>
       </div>
       {(wide || drawer) && <DetailsPane r={selected} onWhy={onWhy} drawer={!wide} onClose={() => setDrawer(false)} />}
+      {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </main>
   );
 }
 
-function RowView({ r, idx, sel, focusable, onWhy }: { r: Row; idx: number; sel: boolean; focusable: boolean; onWhy: (k: string) => void }) {
-  const { t } = useTranslation();
+function RowView({ r, idx, sel, focusable, onWhy, onMenu, cols, icon, grid }: { r: Row; idx: number; sel: boolean; focusable: boolean; onWhy: (k: string) => void; onMenu: (r: Row, x: number, y: number) => void; cols: Col[]; icon: boolean; grid: string }) {
+  const { t, i18n } = useTranslation();
   const l = useStore((s) => s.live[r.id]);
   const st = view(r, l);
   const text = t(`st.${st.key}`, st.vars ?? {});
@@ -283,44 +447,62 @@ function RowView({ r, idx, sel, focusable, onWhy }: { r: Row; idx: number; sel: 
       aria-selected={sel}
       tabIndex={focusable ? 0 : -1}
       className={"fx row" + (sel ? " is-selected" : "")}
+      style={{ gridTemplateColumns: grid }}
       onClick={() => useStore.getState().setSel(r.id)}
       onFocus={() => useStore.getState().setSel(r.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        useStore.getState().setSel(r.id);
+        onMenu(r, e.clientX, e.clientY);
+      }}
     >
-      <span role="gridcell" className={"ft " + ftClass(r.category)}>
-        <Icon n={ftIcon(r.category)} />
-      </span>
-      <span role="gridcell" className="nm" title={r.name}>
-        <b>{r.name}</b>
-        <small>
-          <span className="sub">{host(r.url)}</span>
-          {r.ext && <span className={"ext" + (r.dangerous ? " danger" : "")}>{r.ext}</span>}
-        </small>
-      </span>
-      <span role="gridcell" className="num">
-        {bytes(l?.total || r.size)}
-      </span>
-      <span role="gridcell" className={"st " + st.tone}>
-        <span className="tx" title={text}>
-          {text}
+      {icon && (
+        <span role="gridcell" className={"ft " + ftClass(r.category)}>
+          <Icon n={ftIcon(r.category)} />
         </span>
-        {st.bar != null ? (
-          <span className={"bar" + (st.barTone ? " " + st.barTone : "")}>
-            <i style={{ width: `${st.bar}%` }} />
+      )}
+      {cols.map((c) =>
+        c === "name" ? (
+          <span key={c} role="gridcell" className="nm" title={r.name}>
+            <b>{r.name}</b>
+            <small>
+              <span className="sub">{host(r.url)}</span>
+              {r.ext && <span className={"ext" + (r.dangerous ? " danger" : "")}>{r.ext}</span>}
+            </small>
+          </span>
+        ) : c === "status" ? (
+          <span key={c} role="gridcell" className={"st " + st.tone}>
+            <span className="tx" title={text}>
+              {text}
+            </span>
+            {st.bar != null ? (
+              <span className={"bar" + (st.barTone ? " " + st.barTone : "")}>
+                <i style={{ width: `${st.bar}%` }} />
+              </span>
+            ) : (
+              st.action && (
+                <button type="button" className="fx act" tabIndex={-1} onClick={(e) => (e.stopPropagation(), void act(r, st.action, onWhy, st.why))}>
+                  {t(`act.${st.action}`)}
+                </button>
+              )
+            )}
           </span>
         ) : (
-          st.action && (
-            <button type="button" className="fx act" tabIndex={-1} onClick={(e) => (e.stopPropagation(), void act(r, st.action, onWhy, st.why))}>
-              {t(`act.${st.action}`)}
-            </button>
-          )
-        )}
-      </span>
-      <span role="gridcell" className="num">
-        {l ? speed(l.speed) : "—"}
-      </span>
-      <span role="gridcell" className="num">
-        {l && r.state !== "finalizing" ? eta(left, l.speed) : "—"}
-      </span>
+          <span key={c} role="gridcell" className="num c-end">
+            {c === "size"
+              ? bytes(l?.total || r.size)
+              : c === "speed"
+                ? l
+                  ? speed(l.speed)
+                  : "—"
+                : c === "eta"
+                  ? l && r.state !== "finalizing"
+                    ? eta(left, l.speed)
+                    : "—"
+                  : new Date(r.created_at * 1000).toLocaleDateString(i18n.language === "km" ? "km-KH" : "en-GB")}
+          </span>
+        ),
+      )}
     </div>
   );
 }
@@ -348,6 +530,7 @@ function Segments({ segs, total }: { segs: [number, number, number][]; total: nu
 
 function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: string) => void; drawer: boolean; onClose: () => void }) {
   const { t } = useTranslation();
+  const settings = useStore((s) => s.settings);
   const l = useStore((s) => (r ? s.live[r.id] : undefined));
   const [d, setD] = useState<Detail | null>(null);
   const [desc, setDesc] = useState("");
@@ -407,6 +590,12 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
               "—"
             )}
           </dd>
+          {r.queue && (
+            <>
+              <dt>{t("d.queue")}</dt>
+              <dd className="clip1">{qName(t, settings?.queues.find((x) => x.id === r.queue))}</dd>
+            </>
+          )}
           <dt>{t("d.folder")}</dt>
           <dd className="clip1" title={r.dir}>
             {r.dir}
@@ -518,6 +707,7 @@ function InfoDialog() {
   const [name, setName] = useState("");
   const [cat, setCat] = useState("");
   const [armed, setArmed] = useState(false);
+  const [queue, setQueue] = useState("main");
   const first = items[0];
   const key = items.map((i) => i.id).join(",");
   useEffect(() => {
@@ -537,10 +727,17 @@ function InfoDialog() {
   const isOn = (id: string) => checked[id] ?? true;
   const confirm = async (later: boolean) => {
     hide(items.map((i) => i.id));
-    if (!many) return void (await api.infoConfirm(first.id, name, cat, later));
-    for (const it of items) {
-      if (isOn(it.id)) await api.infoConfirm(it.id, null, null, later);
-      else await api.infoCancel(it.id);
+    const ids: string[] = [];
+    if (!many) ids.push(await api.infoConfirm(first.id, name, cat, later));
+    else
+      for (const it of items) {
+        if (isOn(it.id)) ids.push(await api.infoConfirm(it.id, null, null, later));
+        else await api.infoCancel(it.id);
+      }
+    // IDM "Download later" with the queue selection panel: the files wait in the chosen queue
+    if (later && ids.length) {
+      await api.queuePut(ids, queue);
+      await useStore.getState().refreshQueues();
     }
   };
   const cancel = async () => {
@@ -549,6 +746,7 @@ function InfoDialog() {
   };
   const started = items.some((i) => live[i.id]);
   const c = settings.categories.find((x) => x.id === cat);
+  const saveTo = c?.dir || settings.download_dir + (c?.sub ? "\\" + c.sub : "");
   return (
     <Modal label={many ? t("info.batch", { n: items.length }) : t("info.title")} onClose={() => void cancel()} wide={many}>
       <h2>{many ? t("info.batch", { n: items.length }) : t("info.title")}</h2>
@@ -589,15 +787,29 @@ function InfoDialog() {
             </label>
             <div className="fld">
               <span>{t("info.save")}</span>
-              <div className="url clip1" title={settings.download_dir + (c?.sub ? "\\" + c.sub : "")}>
-                {settings.download_dir + (c?.sub ? "\\" + c.sub : "")}
+              <div className="url clip1" title={saveTo}>
+                {saveTo}
               </div>
             </div>
           </div>
+          {c && (
+            <div className="row-btns tight">
+              <button type="button" className="fx btn btn-s" onClick={() => void rememberDir(c.id, false)}>
+                <Icon n="folder-open" />
+                {t("info.remember", { c: catName(i18n.language, c) })}
+              </button>
+              {c.dir && (
+                <button type="button" className="fx btn btn-g" onClick={() => void rememberDir(c.id, true)}>
+                  {t("info.forget")}
+                </button>
+              )}
+            </div>
+          )}
           <span className="lab">{t("info.url")}</span>
           <div className="url">{first.url}</div>
         </>
       )}
+      <QueueSelect value={queue} onChange={setQueue} label={t("info.queue")} />
       <div className="mfoot">
         <span className="meta num">{bytes(live[first.id]?.total || first.size)}</span>
         <span className="sp" />
@@ -680,6 +892,11 @@ function WhyDialog({ k, onClose }: { k: string; onClose: () => void }) {
 function Toasts() {
   const { t } = useTranslation();
   const toasts = useStore((s) => s.toasts);
+  const jobs = useStore((s) => s.jobs);
+  const queues = useStore((s) => s.settings!.queues);
+  // queue-done names the queue (the built-in ones come as ""); refresh names the file
+  const sub = (x: { kind: string; id: string; name: string }) =>
+    x.kind === "queue-done" ? qName(t, queues.find((q) => q.id === x.id)) : x.kind === "refresh" ? (jobs.find((j) => j.id === x.id)?.name ?? "") : x.name;
   useEffect(() => {
     if (!toasts.length) return;
     const tm = setTimeout(() => useStore.getState().dismiss(toasts[0].n), 8000);
@@ -689,13 +906,30 @@ function Toasts() {
     <div className="toasts" role="status" aria-live="polite">
       {toasts.map((x) => (
         <div key={x.n} className={"toast " + x.kind}>
-          <Icon n={x.kind === "blocked" || x.kind === "failed" ? "warning-circle" : "check-circle"} fill />
+          <Icon n={x.kind === "blocked" || x.kind === "failed" || x.kind === "error" ? "warning-circle" : x.kind === "info" ? "info" : x.kind === "video-link" ? "file-video" : "check-circle"} fill={x.kind !== "info"} />
           <div className="tt">
-            <b>{t(`toast.${x.kind}`)}</b>
-            <span className="clip1" title={x.name}>
-              {x.name}
-            </span>
+            <b>{x.kind === "info" ? t(`toast.infoMsg.${x.name}`, { defaultValue: x.name }) : t(`toast.${x.kind}`, { defaultValue: x.kind })}</b>
+            {x.kind !== "info" && (
+              <span className="clip1" title={sub(x)}>
+                {sub(x)}
+              </span>
+            )}
           </div>
+          {x.kind === "video-link" && (
+            <>
+              <button type="button" className="fx act" onClick={() => (useStore.getState().setDlg({ k: "video", url: x.name }), useStore.getState().dismiss(x.n))}>
+                {t("toast.chooseQuality")}
+              </button>
+              <button type="button" className="fx act" onClick={() => useStore.getState().dismiss(x.n)}>
+                {t("toast.dismiss")}
+              </button>
+            </>
+          )}
+          {x.kind === "refresh" && (
+            <button type="button" className="fx act" onClick={() => (useStore.getState().setDlg({ k: "refresh", id: x.id }), useStore.getState().dismiss(x.n))}>
+              {t("toast.choose")}
+            </button>
+          )}
           {x.kind === "complete" && !x.dangerous && (
             <button type="button" className="fx act" onClick={() => void api.open(x.id)}>
               {t("act.open")}

@@ -52,7 +52,7 @@ const lang = JSON.parse(fs.readFileSync(path.join(data, "settings.json"), "utf8"
 await page.mouse.move(2, 2);
 await page.screenshot({ path: path.join(shots, `webview2-list-${lang}${TAG}.png`) });
 const rules = await page.evaluate(P.rulesProbe, HC);
-if (MODE) console.log(`engine: dpr=${await page.evaluate(() => devicePixelRatio)} forced-colors=${await page.evaluate(() => matchMedia("(forced-colors: active)").matches)}`);
+if (MODE) console.log(`engine: dpr=${await page.evaluate(() => window.devicePixelRatio)} forced-colors=${await page.evaluate(() => window.matchMedia("(forced-colors: active)").matches)}`);
 check(rules.length === 0, `rule 8 on the real UI: ${rules.length ? rules.join("; ") : "no border/outline/ring/glow"}`);
 const lay = await page.evaluate(P.layoutProbe);
 check(!lay.hClip.length && !lay.offscreen.length, `layout on the real UI: hclip ${lay.hClip.length}, offscreen ${lay.offscreen.length}`);
