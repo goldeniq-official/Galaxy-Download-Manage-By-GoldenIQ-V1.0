@@ -41,6 +41,7 @@ async fn http_proxy(mode: &'static str, seen: Arc<Mutex<Seen>>) -> String {
             let seen = seen.clone();
             let conn = n;
             tokio::spawn(async move {
+                #[cfg(windows)]
                 let mut srv = (mode == "ntlm").then(|| gdm_auth::TestServer::new("NTLM").unwrap());
                 loop {
                     let Some(h) = head(&mut s).await else { return };
@@ -50,6 +51,7 @@ async fn http_proxy(mode: &'static str, seen: Arc<Mutex<Seen>>) -> String {
                     seen.lock().unwrap().connects.push((conn, authority.clone(), auth.is_some()));
                     let ok = match mode {
                         "basic" => auth.as_deref() == Some(&relay::basic("alice", "pw")),
+                        #[cfg(windows)]
                         "ntlm" => match auth.as_deref().and_then(|a| a.strip_prefix("NTLM ")) {
                             None => {
                                 s.write_all(b"HTTP/1.1 407 Auth\r\nProxy-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n").await.unwrap();
@@ -197,16 +199,19 @@ async fn w05_proxy_gets_only_checked_ips_ntlm_on_one_socket_private_refused() {
     assert_eq!(o.sha256, gdm_fixture::expected_sha256(82, MIB));
 
     // 3. NTLM with the current user's credentials (real SSPI on both sides): 3 CONNECTs on one socket
-    let seen = Arc::new(Mutex::new(Seen::default()));
-    let p = http_proxy("ntlm", seen.clone()).await;
-    let url3 = format!("http://localhost:{port}/file?size={}&seed=83", MIB);
-    let o = via(Route::Http(p, ProxyAuth::Sspi("NTLM".into())), &t, &url3).await.unwrap();
-    assert_eq!(o.sha256, gdm_fixture::expected_sha256(83, MIB));
-    let c = seen.lock().unwrap().connects.clone();
-    let v4 = format!("127.0.0.1:{port}");
-    let ok_conn = c.iter().filter(|(_, a, _)| a == &v4).map(|(n, _, _)| *n).next().unwrap();
-    let legs = c.iter().filter(|(n, _, _)| *n == ok_conn).count();
-    assert_eq!(legs, 3, "NTLM: 3 CONNECTs on one socket: {c:?}");
+    #[cfg(windows)]
+    {
+        let seen = Arc::new(Mutex::new(Seen::default()));
+        let p = http_proxy("ntlm", seen.clone()).await;
+        let url3 = format!("http://localhost:{port}/file?size={}&seed=83", MIB);
+        let o = via(Route::Http(p, ProxyAuth::Sspi("NTLM".into())), &t, &url3).await.unwrap();
+        assert_eq!(o.sha256, gdm_fixture::expected_sha256(83, MIB));
+        let c = seen.lock().unwrap().connects.clone();
+        let v4 = format!("127.0.0.1:{port}");
+        let ok_conn = c.iter().filter(|(_, a, _)| a == &v4).map(|(n, _, _)| *n).next().unwrap();
+        let legs = c.iter().filter(|(n, _, _)| *n == ok_conn).count();
+        assert_eq!(legs, 3, "NTLM: 3 CONNECTs on one socket: {c:?}");
+    }
 
     // 4. SOCKS5: an IPv4 address, never a domain (address type 3)
     let seen = Arc::new(Mutex::new(Seen::default()));

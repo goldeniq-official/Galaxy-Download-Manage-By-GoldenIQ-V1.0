@@ -13,7 +13,6 @@ use crate::fsx::{self, Dir, FsError};
 use crate::{failpoint, Fail};
 use sha2::{Digest, Sha256};
 use std::fs::File;
-use std::os::windows::fs::FileExt;
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,7 +50,7 @@ pub fn sha_handle(f: &File) -> std::io::Result<String> {
     let mut buf = vec![0u8; 4 << 20];
     let mut off = 0u64;
     loop {
-        let n = f.seek_read(&mut buf, off)?;
+        let n = fsx::read_at(f, &mut buf, off)?;
         if n == 0 {
             break;
         }
@@ -125,11 +124,16 @@ pub fn finalize(
         return Err(Fail::Io(format!("byte count {len} != total {total}")));
     }
     let fs = fsx::fs_name(&f);
-    let ntfs = matches!(fs.as_str(), "NTFS" | "ReFS");
+    // a failing Save with the file still present is an operational error, never proof of malware (Windows:
+    // only where MOTW can exist; FAT/exFAT have no streams. macOS/Linux: marking failed on a normal volume)
+    let must_mark = if cfg!(windows) {
+        matches!(fs.as_str(), "NTFS" | "ReFS")
+    } else {
+        !matches!(fs.as_str(), "vfat" | "msdos" | "exfat" | "smb" | "smbfs" | "nfs" | "fuse" | "other" | "")
+    };
     if let Err(e) = &saved {
-        // on NTFS a failing Save with the file still present is an operational error, never proof of malware
-        if ntfs {
-            return Err(Fail::Io(format!("IAttachmentExecute::Save {:#010x}", e.code().0)));
+        if must_mark {
+            return Err(Fail::Io(e.clone()));
         }
     }
     let t = std::time::Instant::now();
@@ -151,7 +155,7 @@ pub fn finalize(
             && replaces.is_some_and(|want| {
                 dir.open_locked(&fin).ok().and_then(|o| fsx::file_id(&o).ok()).map(|i| format!("{:08x}:{:016x}", i.0, i.1)).as_deref() == Some(want)
             });
-        match fsx::rename(&f, dir, &fin, own) {
+        match fsx::rename(&f, dir, part, &fin, own) {
             Ok(()) => {
                 failpoint::hit("after_rename");
                 break;
@@ -163,10 +167,9 @@ pub fn finalize(
             Err(e) => return Err(Fail::Io(format!("rename: {e}"))),
         }
     }
-    let protection = if ntfs && zone_internet(zone.as_deref()) {
-        Protection::Protected
-    } else {
-        Protection::Unprotected(format!("filesystem {fs} without Mark-of-the-Web"))
+    let protection = match fsx::os_protected(&f, zone.as_deref()) {
+        Ok(()) => Protection::Protected,
+        Err(why) => Protection::Unprotected(why),
     };
     Ok(Finished { name: fin, sha256: sha, protection, zone })
 }

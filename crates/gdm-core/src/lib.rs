@@ -474,10 +474,9 @@ impl Engine {
             return Err(Fail::NeedsDecision(format!("{target} changed after it was published (sha256 differs)")));
         }
         let zone = fsx::zone_identifier(dir, &target);
-        let prot = if finalize::zone_internet(zone.as_deref()) && matches!(fsx::fs_name(&f).as_str(), "NTFS" | "ReFS") {
-            finalize::Protection::Protected
-        } else {
-            finalize::Protection::Unprotected("filesystem without Mark-of-the-Web".into())
+        let prot = match fsx::os_protected(&f, zone.as_deref()) {
+            Ok(()) => finalize::Protection::Protected,
+            Err(why) => finalize::Protection::Unprotected(why),
         };
         let (state, p) = if prot == finalize::Protection::Protected { ("complete", "protected") } else { ("unprotected", "unprotected") };
         let _ = dir.delete(&sidecar::leaf(&job.name));
@@ -772,8 +771,7 @@ impl Engine {
                 }
                 let body = r.bytes().await.map_err(|e| Fail::Io(e.to_string()))?;
                 let mut disk = vec![0u8; (b - a) as usize];
-                use std::os::windows::fs::FileExt;
-                if body.len() != disk.len() || part.seek_read(&mut disk, a).ok() != Some(disk.len()) || body[..] != disk[..] {
+                if body.len() != disk.len() || fsx::read_at(&part, &mut disk, a).ok() != Some(disk.len()) || body[..] != disk[..] {
                     ok = false;
                     break;
                 }
@@ -872,8 +870,13 @@ impl Engine {
             replaces: None,
         };
         let got = st.insert_job(&j, &|_| false).map_err(Fail::Io)?;
-        let zone = fsx::Dir::open(dir).ok().and_then(|d| fsx::zone_identifier(&d, name));
-        let prot = if finalize::zone_internet(zone.as_deref()) { "protected" } else { "unprotected" };
+        let held = fsx::Dir::open(dir).ok();
+        let zone = held.as_ref().and_then(|d| fsx::zone_identifier(d, name));
+        #[cfg(windows)]
+        let protected = finalize::zone_internet(zone.as_deref());
+        #[cfg(unix)]
+        let protected = held.as_ref().and_then(|d| d.open_locked(name).ok()).is_some_and(|f| fsx::os_protected(&f, zone.as_deref()).is_ok());
+        let prot = if protected { "protected" } else { "unprotected" };
         st.finish(&id, if prot == "protected" { "complete" } else { "unprotected" }, &got, sha256, prot).map_err(Fail::Io)?;
         Ok(id)
     }

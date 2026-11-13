@@ -3,14 +3,20 @@
 //! bypass list, auto-detect/WPAD, PAC URL) read through WinHTTP, and PAC evaluation per destination by
 //! WinHttpGetProxyForUrl (Windows runs the script, GDM never does). The result is routes for the policy relay:
 //! a PAC answer is routing input only, never permission to skip the destination checks (council G7).
+//! macOS / Linux: the conventional HTTPS_PROXY / HTTP_PROXY / ALL_PROXY / NO_PROXY variables; a PAC script is
+//! not evaluated there (no system evaluator to delegate to), so a PAC setting blocks instead of going DIRECT.
 use crate::relay::{ProxyAuth, Route, Router};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+#[cfg(windows)]
 use windows::core::{HSTRING, PCWSTR, PWSTR};
+#[cfg(windows)]
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
+#[cfg(windows)]
 use windows::Win32::Networking::WinHttp::*;
 
+#[cfg(windows)]
 fn take(p: PWSTR) -> Option<String> {
     if p.is_null() {
         return None;
@@ -31,6 +37,7 @@ pub struct IeConfig {
 }
 
 /// the current user's Internet Options proxy settings
+#[cfg(windows)]
 pub fn ie_config() -> IeConfig {
     let mut c = WINHTTP_CURRENT_USER_IE_PROXY_CONFIG::default();
     if unsafe { WinHttpGetIEProxyConfigForCurrentUser(&mut c) }.is_err() {
@@ -42,6 +49,56 @@ pub fn ie_config() -> IeConfig {
         proxy: take(c.lpszProxy),
         bypass: take(c.lpszProxyBypass).map(|b| b.split([';', ' ']).filter(|x| !x.is_empty()).map(String::from).collect()).unwrap_or_default(),
     }
+}
+
+/// macOS / Linux: the proxy environment variables (lower case first, as curl reads them), as one list in the
+/// WinHTTP "http=a:1;https=b:2;socks=c:3" form; NO_PROXY becomes the bypass list
+#[cfg(unix)]
+pub fn ie_config() -> IeConfig {
+    env_config(&|k| std::env::var(k).ok())
+}
+
+#[cfg(unix)]
+fn env_config(get: &dyn Fn(&str) -> Option<String>) -> IeConfig {
+    let var = |k: &str| get(&k.to_ascii_lowercase()).or_else(|| get(&k.to_ascii_uppercase())).filter(|v| !v.trim().is_empty());
+    // "http://user@host:3128/" -> "host:3128" (credentials never come from the environment: the Proxy settings own them)
+    let hp = |v: String| {
+        let v = v.trim().to_string();
+        let rest = v.split_once("://").map(|(_, r)| r.to_string()).unwrap_or(v);
+        let rest = rest.rsplit_once('@').map(|(_, h)| h.to_string()).unwrap_or(rest);
+        rest.trim_end_matches('/').to_string()
+    };
+    let mut list = vec![];
+    if let Some(v) = var("http_proxy") {
+        list.push(format!("http={}", hp(v)));
+    }
+    if let Some(v) = var("https_proxy") {
+        list.push(format!("https={}", hp(v)));
+    }
+    if let Some(v) = var("all_proxy") {
+        let socks = v.trim_start().to_ascii_lowercase().starts_with("socks");
+        let h = hp(v);
+        if socks {
+            list.push(format!("socks={h}"));
+        } else {
+            for s in ["http", "https"] {
+                if !list.iter().any(|x| x.starts_with(&format!("{s}="))) {
+                    list.push(format!("{s}={h}"));
+                }
+            }
+        }
+    }
+    let bypass = var("no_proxy")
+        .map(|b| {
+            b.split(',')
+                .map(|x| x.trim().trim_start_matches('.'))
+                .filter(|x| !x.is_empty())
+                .map(|x| if x == "*" { x.to_string() } else { format!("*.{x}") })
+                .flat_map(|w| [w.clone(), w.trim_start_matches("*.").to_string()])
+                .collect()
+        })
+        .unwrap_or_default();
+    IeConfig { auto_detect: false, pac_url: None, proxy: (!list.is_empty()).then(|| list.join(";")), bypass }
 }
 
 /// "PROXY a:1; SOCKS b:2; DIRECT" or WinHTTP's "a:1;b:2" / "http=a:1;https=b:2" => routes for `scheme`
@@ -74,7 +131,14 @@ pub fn parse_list(list: &str, scheme: &str, auth: &ProxyAuth) -> Vec<Route> {
     out
 }
 
+/// PAC / WPAD: no system evaluator on macOS / Linux, and GDM never runs the script itself: block (fail closed)
+#[cfg(unix)]
+pub fn pac_routes(_pac_url: Option<&str>, _auto_detect: bool, _dest: &str, _auth: &ProxyAuth) -> Option<Vec<Route>> {
+    Some(vec![Route::Block("pac-unsupported: set the proxy in Settings".into())])
+}
+
 /// PAC / WPAD for one destination URL (Windows evaluates the script)
+#[cfg(windows)]
 pub fn pac_routes(pac_url: Option<&str>, auto_detect: bool, dest: &str, auth: &ProxyAuth) -> Option<Vec<Route>> {
     unsafe {
         let s = WinHttpOpen(&HSTRING::from("GDM"), WINHTTP_ACCESS_TYPE_NO_PROXY, PCWSTR::null(), PCWSTR::null(), 0);
@@ -184,6 +248,21 @@ pub fn system_router(auth: ProxyAuth) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn unix_env_proxy() {
+        let env = |v: &[(&str, &str)]| {
+            let m: HashMap<String, String> = v.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            env_config(&move |k| m.get(k).cloned())
+        };
+        let c = env(&[("HTTPS_PROXY", "http://user:pw@corp:3128/"), ("no_proxy", "localhost,.corp.local")]);
+        assert_eq!(c.proxy.as_deref(), Some("https=corp:3128"), "no credentials taken from the environment");
+        assert!(crate::relay::bypassed(&c.bypass, "a.corp.local") && crate::relay::bypassed(&c.bypass, "localhost"));
+        assert!(!crate::relay::bypassed(&c.bypass, "corp.local.evil.com"));
+        assert_eq!(env(&[("all_proxy", "socks5://s:1080")]).proxy.as_deref(), Some("socks=s:1080"));
+        assert_eq!(env(&[]).proxy, None);
+        assert!(matches!(pac_routes(Some("http://wpad/x.pac"), false, "https://e.com/", &ProxyAuth::None).unwrap()[0], Route::Block(_)));
+    }
     #[test]
     fn proxy_lists() {
         let a = ProxyAuth::None;

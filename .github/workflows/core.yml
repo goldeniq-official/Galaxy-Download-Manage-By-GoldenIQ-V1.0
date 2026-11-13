@@ -47,6 +47,26 @@ jobs:
         env:
           GDM_NET_TESTS: "1"
 
+  # P4 (every OS/CPU): the download core on real macOS and Linux machines, x64 and ARM64. The Windows-only
+  # crates (gdm-bridge pipe, the Tauri app) are ported in later steps; until this job is green on a runner,
+  # nothing outside Windows counts as working (decisions 2026-11-13 P4).
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: toolchain
+        run: rustup toolchain install "$RUST_VERSION" --profile minimal -c clippy; rustup default "$RUST_VERSION"
+      - run: cargo clippy -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture --all-targets --locked -- -D warnings
+      - name: "tests (fsx_unix O_NOFOLLOW, hard links, flock Busy, quarantine/origin mark; E/N/W cards)"
+        run: cargo test -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture --locked
+
   kill1000:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 18 * * *')
     runs-on: windows-2025

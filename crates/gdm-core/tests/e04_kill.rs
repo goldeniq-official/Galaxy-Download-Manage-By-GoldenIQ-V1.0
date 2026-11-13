@@ -9,7 +9,6 @@ use common::*;
 use gdm_core::sidecar;
 use gdm_core::store::Store;
 use gdm_fixture::{expected_sha256, fill, Fixture};
-use std::os::windows::fs::FileExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -41,7 +40,7 @@ fn ranges_ok(part: &Path, seed: u64, segs: &[[u64; 3]]) -> Result<u64, String> {
         let mut p = a;
         while p < d {
             let n = ((d - p) as usize).min(buf.len());
-            let got = f.seek_read(&mut buf[..n], p).map_err(|e| e.to_string())?;
+            let got = gdm_core::fsx::read_at(&f, &mut buf[..n], p).map_err(|e| e.to_string())?;
             fill(seed, p, &mut want[..n]);
             if got != n || buf[..n] != want[..n] {
                 return Err(format!("bad bytes in [{p}, {}) of segment starting {a}", p + n as u64));
@@ -207,7 +206,7 @@ async fn e04_published_file_changed_after_crash_is_not_completed() {
     assert!(!child(&db, &url, &dir, Some("after_rename:1")).status().unwrap().success());
     let fin = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).find(|p| !p.to_string_lossy().contains(".part")).unwrap();
     let f = std::fs::OpenOptions::new().write(true).open(&fin).unwrap();
-    f.seek_write(b"XXXX", 1000).unwrap(); // same size, same file object, different bytes
+    gdm_core::fsx::write_at(&f, b"XXXX", 1000).unwrap(); // same size, same file object, different bytes
     drop(f);
     let out = child(&db, &url, &dir, None).output().unwrap();
     let line = String::from_utf8_lossy(&out.stdout).to_string();

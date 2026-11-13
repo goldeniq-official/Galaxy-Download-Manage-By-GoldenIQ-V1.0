@@ -308,6 +308,8 @@ impl Relay {
                     _ => None,
                 };
                 let (mut status, mut hdrs) = connect_once(&mut t, &authority, first.as_deref()).await?;
+                // NTLM/Negotiate (SSPI) is Windows-only for now: elsewhere a 407 for it ends in the error below
+                #[cfg(windows)]
                 if status == 407 {
                     if let ProxyAuth::Sspi(pkg) = auth {
                         // the handshake stays on THIS socket (NTLM is connection-bound); a proxy that closes it
@@ -353,6 +355,8 @@ impl Relay {
                 if status == 200 {
                     Ok(t)
                 } else {
+                    #[cfg(not(windows))]
+                    let _ = (&mut hdrs, &mut status); // only the Windows SSPI handshake updates them
                     Err(format!("proxy answered {status} to CONNECT {authority} (it may refuse IP addresses)"))
                 }
             }

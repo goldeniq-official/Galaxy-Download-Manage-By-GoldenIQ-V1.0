@@ -13,7 +13,6 @@ use futures_util::StreamExt;
 use reqwest::{Client, Response, StatusCode};
 use std::collections::HashMap;
 use std::fs::File;
-use std::os::windows::fs::FileExt;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -221,7 +220,7 @@ fn writer(file: Arc<File>, epoch: Arc<AtomicU64>, mut rx: mpsc::Receiver<Chunk>,
         } // fenced: a chunk of a restarted download
         let mut done = 0;
         while done < c.data.len() {
-            match file.seek_write(&c.data[done..], c.off + done as u64) {
+            match crate::fsx::write_at(&file, &c.data[done..], c.off + done as u64) {
                 Ok(0) => {
                     let _ = ev.send(Ev::WriteFail("write returned 0".into()));
                     return;
@@ -660,7 +659,7 @@ async fn seam_ok(sh: &Shared, f: &File, a: u64, b: u64) -> bool {
         }
     }
     let mut disk = vec![0u8; want];
-    body.len() == want && f.seek_read(&mut disk, a).is_ok_and(|n| n == want) && body == disk
+    body.len() == want && crate::fsx::read_at(f, &mut disk, a).is_ok_and(|n| n == want) && body == disk
 }
 
 #[allow(clippy::too_many_arguments)]
