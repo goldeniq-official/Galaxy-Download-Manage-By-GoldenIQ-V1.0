@@ -73,11 +73,12 @@ pub fn content_range(h: &HeaderMap) -> Option<(u64, u64, Option<u64>)> {
     Some((a, b, total))
 }
 
-/// E-01 acceptance of a ranged reply: 206 AND Content-Range == the requested [a, end) prefix AND the total
-/// equals the initial one. `end` is exclusive; the server may send less than asked (b + 1 <= end).
-pub fn range_ok(h: &HeaderMap, a: u64, end: u64, total: Option<u64>) -> bool {
+/// E-01 acceptance of a ranged reply: 206 AND Content-Range starts at the requested `a` AND the total equals the
+/// initial one. The server may send less than asked, or more (some servers ignore the range end and send to the
+/// end of the file, IDM accepts it): the worker keeps only its lease [a, end) and drops the connection there.
+pub fn range_ok(h: &HeaderMap, a: u64, _end: u64, total: Option<u64>) -> bool {
     match content_range(h) {
-        Some((x, y, t)) => x == a && y.checked_add(1).is_some_and(|y1| y1 <= end) && t == total,
+        Some((x, _, t)) => x == a && t == total,
         None => false,
     }
 }

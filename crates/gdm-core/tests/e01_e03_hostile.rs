@@ -58,6 +58,26 @@ async fn e01_206_then_200_mid_download_restarts_from_zero() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn range_end_ignored_by_server_still_downloads() {
+    // every reply runs to the end of the file: each connection keeps only its own lease (IDM accepts this)
+    let a = fx().await;
+    let t = engine("toend", quick());
+    let o = t.get(&a.url(&format!("/to-end?size={}&seed=31&rate=8000000", 16 * MIB))).await.1.unwrap();
+    assert_eq!(o.sha256, expected_sha256(31, 16 * MIB));
+    assert!(o.transfer.ranged && o.transfer.peak_conns >= 2, "still segmented: peak {}", o.transfer.peak_conns);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cap_of_one_connection_holds_from_the_start() {
+    // a server that bans a second connection: the user set 1 (or a 429 taught 1); never 2 at the start
+    let a = fx().await;
+    let t = engine("cap1", gdm_core::seg::Config { cap: 1, ..quick() });
+    let o = t.get(&a.url(&format!("/file?size={}&seed=32&rate=8000000", 8 * MIB))).await.1.unwrap();
+    assert_eq!(o.sha256, expected_sha256(32, 8 * MIB));
+    assert_eq!(o.transfer.peak_conns, 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn e01_bad_content_range_and_multipart_rejected() {
     let a = fx().await;
     let t = engine("e01c", quick());

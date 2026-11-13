@@ -12,6 +12,7 @@
 //!   /overlong      206 correct Content-Range, then extra bytes          (invariant 5)
 //!   /short         206, body ends early, connection closed
 //!   /bad-cr        206 with Content-Range start != requested start     (invariant 5)
+//!   /to-end        206 from the requested start to the END of the file (range end ignored)
 //!   /slowloris     header bytes 1 per second, forever                  (E-03)
 //!   /slowbody      headers fine, then 1 body byte every 2 s
 //!   /redirect      302 Location: <to>                                  (W-01)
@@ -301,6 +302,13 @@ Accept-Ranges: bytes
                 let (a, b) = clamp(range, size);
                 s.write_all(format!("HTTP/1.1 206 Partial Content\r\nContent-Type: application/octet-stream\r\nContent-Range: bytes {a}-{}/{size}\r\nContent-Length: {}\r\nETag: \"s{seed}-{size}\"\r\n\r\n", b - 1, b - a).as_bytes()).await?;
                 send_bytes(s, seed, a, a + (b - a) / 2, 0, None).await?;
+                Ok(false)
+            }
+            "/to-end" => {
+                // ignores the range END (some real servers): 206 from the asked start to the end of the file
+                let (a, _) = clamp(range, size);
+                s.write_all(format!("HTTP/1.1 206 Partial Content\r\nContent-Type: application/octet-stream\r\nContent-Range: bytes {a}-{}/{size}\r\nContent-Length: {}\r\nETag: \"t{seed}-{size}\"\r\n\r\n", size - 1, size - a).as_bytes()).await?;
+                send_bytes(s, seed, a, size, 0, None).await?;
                 Ok(false)
             }
             "/bad-cr" => {

@@ -140,10 +140,12 @@ struct Seg {
     gen: u64,
     tries: u32,
     fail_pos: u64,
+    /// a failed connection waits until then before its segment is leased again (backoff; the loop never sleeps)
+    not_before: Option<Instant>,
 }
 impl Seg {
     fn new(start: u64, end: u64, done: u64) -> Seg {
-        Seg { start, end, next: done, written: done, committed: done, worker: None, gen: 0, tries: 0, fail_pos: done }
+        Seg { start, end, next: done, written: done, committed: done, worker: None, gen: 0, tries: 0, fail_pos: done, not_before: None }
     }
 }
 
@@ -156,7 +158,7 @@ enum Ev {
     Nack,
     Exit { wid: usize, next: u64, err: Option<WErr> },
     Written { epoch: u64, seg: u64, upto: u64 },
-    WriteFail(String),
+    WriteFail(std::io::Error),
 }
 #[derive(Debug, Clone)]
 enum WErr {
@@ -222,12 +224,12 @@ fn writer(file: Arc<File>, epoch: Arc<AtomicU64>, mut rx: mpsc::Receiver<Chunk>,
         while done < c.data.len() {
             match crate::fsx::write_at(&file, &c.data[done..], c.off + done as u64) {
                 Ok(0) => {
-                    let _ = ev.send(Ev::WriteFail("write returned 0".into()));
+                    let _ = ev.send(Ev::WriteFail(std::io::Error::other("write returned 0")));
                     return;
                 }
                 Ok(k) => done += k,
                 Err(e) => {
-                    let _ = ev.send(Ev::WriteFail(e.to_string()));
+                    let _ = ev.send(Ev::WriteFail(e));
                     return;
                 }
             }
@@ -328,10 +330,16 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         }
     }
     // E-03: space check before preallocation (sparse reserves nothing, so this is the only up-front check)
-    let unknown_cap = cfg.unknown_cap.unwrap_or_else(|| (20u64 << 30).min(rq.free.saturating_sub(RESERVE) / 10 * 9));
+    // free == 0 means "could not be read" (a really full disk fails at the first write, as DiskFull). The reserve
+    // is 1 GiB but at most a tenth of what is free: a 1 KB file still fits on a stick with 800 MB free.
+    let reserve = RESERVE.min(rq.free / 10);
+    let unknown_cap = cfg.unknown_cap.unwrap_or(if rq.free == 0 { 20u64 << 30 } else { (20u64 << 30).min(rq.free.saturating_sub(reserve) / 10 * 9) });
     let need = total.map(|t| t - resume.as_ref().filter(|_| ranged).map_or(0, |r| r.segs.iter().map(|s| s[2] - s[0]).sum::<u64>()));
-    if need.is_some_and(|n| n.saturating_add(RESERVE) > rq.free) {
+    if rq.free > 0 && need.is_some_and(|n| n.saturating_add(reserve) > rq.free) {
         return Err(Fail::DiskFull);
+    }
+    if total.is_none() && unknown_cap == 0 {
+        return Err(Fail::DiskFull); // never "complete" with an empty file
     }
     let file = rq.file.clone();
     let fresh = !ranged || resume.is_none();
@@ -384,13 +392,22 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     });
     // seam check (E-04): a persisted offset is only a claim. For every resumed segment re-fetch the last
     // <= 64 KiB below its committed offset and compare with the disk; a mismatch drops that segment's progress.
-    if ranged && resume.is_some() {
+    // Only bytes that really differ drop progress; a check that could not run (timeout, 429/503, reset) pauses the
+    // job with every claim kept. The probe connection is closed first, so a one-connection server (or a
+    // per-server limit of 1) can answer the checks.
+    let mut probe = Some(probe);
+    if ranged && resume.is_some() && segs.iter().any(|s| s.committed > s.start) {
+        probe = None;
         let mut dropped = false;
         for s in segs.iter_mut().filter(|s| s.committed > s.start) {
             let a = s.committed - (s.committed - s.start).min(64 * 1024);
-            if !seam_ok(&sh, &file, a, s.committed).await {
-                *s = Seg::new(s.start, s.end, s.start);
-                dropped = true;
+            match seam(&sh, &file, a, s.committed).await {
+                Seam::Same => {}
+                Seam::Differs => {
+                    *s = Seg::new(s.start, s.end, s.start);
+                    dropped = true;
+                }
+                Seam::Unknown(why) => return Err(Fail::TooManyRetries(format!("resume check could not run: {why}"))),
             }
         }
         if dropped {
@@ -401,12 +418,12 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let mut ctl: HashMap<usize, mpsc::UnboundedSender<Ctl>> = HashMap::new();
     let mut tasks = Tasks::default();
     let mut next_wid = 0usize;
-    let mut target = if !ranged { 1 } else { cfg.fixed.unwrap_or(2).clamp(1, MAX_CONNS) };
+    let mut target = if !ranged { 1 } else { cfg.fixed.unwrap_or(2).min(cfg.cap).clamp(1, MAX_CONNS) };
     let mut peak = 0usize;
     let mut pending_split: Option<(u64, u64, u64)> = None; // (seg start, gen, mid)
+    let mut stray_200 = 0u32;
     let (mut ramp_base, mut ramp_stopped, mut ramp_t, mut ramp_bytes) = (0.0f64, cfg.fixed.is_some() || !ranged, Instant::now(), 0u64);
     let (mut last_flush, mut flushes, mut flush_time) = (Instant::now(), 0u64, Duration::ZERO);
-    let mut probe = Some(probe);
 
     macro_rules! spawn_worker {
         ($i:expr, $resp:expr, $permits:expr) => {{
@@ -465,7 +482,8 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         let permits = || -> Option<Vec<tokio::sync::OwnedSemaphorePermit>> { cfg.slots.iter().map(|s| s.clone().try_acquire_owned().ok()).collect() };
         let free = cfg.slots.iter().all(|s| s.available_permits() > 0) || (active == 0 && !first_permits.is_empty());
         if active < target && free {
-            if let Some(i) = segs.iter().position(|s| s.worker.is_none() && s.next < s.end) {
+            let now = Instant::now();
+            if let Some(i) = segs.iter().position(|s| s.worker.is_none() && s.next < s.end && s.not_before.is_none_or(|t| t <= now)) {
                 // the job's own first slots come back when its only connection restarts (retry after an error)
                 let p = if active == 0 && !first_permits.is_empty() { std::mem::take(&mut first_permits) } else { permits().unwrap_or_default() };
                 if p.len() == cfg.slots.len() {
@@ -499,7 +517,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                         if let Some(s) = segs.iter_mut().find(|s| s.start == seg) { s.written = s.written.max(upto.min(s.end)); }
                     }
                 }
-                Ev::WriteFail(m) => fail!(if m.contains("112") || m.to_ascii_lowercase().contains("not enough space") { Fail::DiskFull } else { Fail::Io(format!("write: {m}")) }),
+                Ev::WriteFail(e) => fail!(if disk_full(&e) { Fail::DiskFull } else { Fail::Io(format!("write: {e}")) }),
                 Ev::Ack { wid, gen, end } => {
                     if let Some((st, g, mid)) = pending_split.take() {
                         if let Some(i) = segs.iter().position(|s| s.start == st && s.worker == Some(wid)) {
@@ -524,7 +542,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                     match err {
                         None => {}
                         Some(WErr::Fatal(f)) => fail!(f),
-                        Some(WErr::NoRange) => {
+                        Some(WErr::NoRange) if !proven(&segs, i) || stray_200 >= 2 => {
                             // E-01: stop every worker, mark no-range, restart one stream from 0 in a new epoch
                             tasks.0.iter().for_each(|t| t.abort());
                             for t in tasks.0.drain(..) { let _ = t.await; } // joined: no old worker can enqueue now
@@ -538,6 +556,10 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                             if let Err(err) = (rq.checkpoint)(&snap(&segs, &|s| s.committed, e)) { fail!(err); }
                         }
                         Some(e) => {
+                            // a 200 on one connection while others proved ranges (a CDN node that has not cached the
+                            // file yet): that connection retries and the job runs one connection fewer
+                            // (twice per job: a server that keeps answering 200 gets the E-01 restart above)
+                            if matches!(e, WErr::NoRange) { stray_200 += 1; target = target.saturating_sub(1).max(1); ramp_stopped = true; }
                             // a retry budget is per stall: >= 1 MiB of progress since the last failure refills it
                             if segs[i].next >= segs[i].fail_pos + MIB { segs[i].tries = 0; }
                             segs[i].fail_pos = segs[i].next;
@@ -545,7 +567,10 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                             if segs[i].tries > cfg.retries {
                                 fail!(match e { WErr::Retry(m) if m.contains("timed out") || m.contains("timeout") => Fail::Timeout, e => Fail::TooManyRetries(format!("{e:?}")) });
                             }
-                            let wait = match e { WErr::RetryAfter(s) => { target = (target / 2).max(1); if let Some(l) = &cfg.learned { l.store(target, Ordering::Relaxed); } s } WErr::Backoff => 1u64 << segs[i].tries.min(6), _ => 0 };
+                            // backoff: a dropped connection retries at once, then 2, 4 ... 64 s, so a Wi-Fi drop of a
+                            // few seconds does not burn the whole budget in milliseconds
+                            let tries = segs[i].tries;
+                            let wait = match e { WErr::RetryAfter(s) => { target = (target / 2).max(1); if let Some(l) = &cfg.learned { l.store(target, Ordering::Relaxed); } s } WErr::Backoff => 1u64 << tries.min(6), _ if tries <= 1 => 0, _ => 1u64 << (tries - 1).min(6) };
                             if !ranged {
                                 // no resume without ranges: start over in a new epoch
                                 let e2 = epoch_cell.fetch_add(1, Ordering::SeqCst) + 1;
@@ -554,7 +579,8 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                                 segs[i].tries = tries; // the retry budget survives the restart
                                 if let Err(err) = (rq.checkpoint)(&snap(&segs, &|s| s.committed, e2)) { fail!(err); }
                             }
-                            if wait > 0 { tokio::time::sleep(Duration::from_secs(wait)).await; }
+                            // the loop keeps running meanwhile: checkpoints, progress, the other connections
+                            segs[i].not_before = (wait > 0).then(|| Instant::now() + Duration::from_secs(wait));
                         }
                     }
                 }
@@ -635,31 +661,57 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     Ok(Done { total: got, final_url: final_url.to_string(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time })
 }
 
-/// bytes [a, b) on the server (same validator) == bytes [a, b) on disk; any doubt => false (refetch)
-async fn seam_ok(sh: &Shared, f: &File, a: u64, b: u64) -> bool {
-    let Ok(Ok(r)) = tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, format!("bytes={a}-{}", b - 1), true).send()).await else {
-        return false;
+enum Seam {
+    Same,
+    /// the server's bytes (or representation) differ from the disk: that segment's progress is dropped
+    Differs,
+    /// the check could not run: nothing is dropped
+    Unknown(String),
+}
+
+/// bytes [a, b) on the server (same validator) vs bytes [a, b) on disk
+async fn seam(sh: &Shared, f: &File, a: u64, b: u64) -> Seam {
+    let r = match tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, format!("bytes={a}-{}", b - 1), true).send()).await {
+        Err(_) => return Seam::Unknown("timeout".into()),
+        Ok(Err(e)) => return Seam::Unknown(e.to_string()),
+        Ok(Ok(r)) => r,
     };
+    match http::status(r.status().as_u16(), r.headers()) {
+        Step::Accept => {}
+        Step::Fatal(Fail::SizeChanged) => return Seam::Differs, // 416: the file is shorter now
+        s => return Seam::Unknown(format!("{s:?}")),
+    }
+    // 200 under If-Range = another representation; a wrong start, total or encoding = not these bytes
     if r.status() != StatusCode::PARTIAL_CONTENT || !http::range_ok(r.headers(), a, b, sh.total) || !http::identity(r.headers()) {
-        return false;
+        return Seam::Differs;
     }
     let want = (b - a) as usize;
     let mut r = r;
     let mut body = Vec::with_capacity(want);
-    loop {
+    while body.len() < want {
         match r.chunk().await {
-            Ok(Some(c)) => {
-                if body.len() + c.len() > want {
-                    return false;
-                }
-                body.extend_from_slice(&c);
-            }
-            Ok(None) => break,
-            Err(_) => return false,
+            Ok(Some(c)) => body.extend_from_slice(&c[..c.len().min(want - body.len())]), // a longer reply is cut here
+            Ok(None) => return Seam::Unknown("short body".into()),
+            Err(e) => return Seam::Unknown(e.to_string()),
         }
     }
     let mut disk = vec![0u8; want];
-    body.len() == want && crate::fsx::read_at(f, &mut disk, a).is_ok_and(|n| n == want) && body == disk
+    match crate::fsx::read_at(f, &mut disk, a) {
+        Ok(n) if n == want && body == disk => Seam::Same,
+        Ok(_) => Seam::Differs,
+        Err(e) => Seam::Unknown(e.to_string()),
+    }
+}
+
+/// ranges are proven for this job: another segment already received bytes over a ranged connection
+fn proven(segs: &[Seg], i: usize) -> bool {
+    segs.iter().enumerate().any(|(j, s)| j != i && s.written > s.start)
+}
+
+/// ERROR_DISK_FULL / ERROR_HANDLE_DISK_FULL (Windows), ENOSPC / EDQUOT (Unix)
+fn disk_full(e: &std::io::Error) -> bool {
+    matches!(e.kind(), std::io::ErrorKind::StorageFull | std::io::ErrorKind::QuotaExceeded)
+        || (cfg!(windows) && matches!(e.raw_os_error(), Some(112 | 39)))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -812,7 +864,12 @@ async fn run_worker(
                 }
                 Some(Err(e)) => { flush_buf!(); return Err(WErr::Retry(format!("{e} {:?}", std::error::Error::source(&e).map(|s| s.to_string())))); }
                 Some(Ok(b)) => {
-                    if let Some(l) = &sh.limit { l.take(b.len() as u64).await; }
+                    if let Some(l) = &sh.limit {
+                        // time spent waiting on the user's speed limit is not a slow connection (E-07)
+                        let t = tokio::time::Instant::now();
+                        l.take(b.len() as u64).await;
+                        win_t += t.elapsed();
+                    }
                     win_b += b.len() as u64;
                     sh.rx_bytes.fetch_add(b.len() as u64, Ordering::Relaxed);
                     let cur = *next + buf.len() as u64;
