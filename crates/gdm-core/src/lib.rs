@@ -11,9 +11,12 @@ pub mod http;
 pub mod limiter;
 pub mod name;
 pub mod net;
+pub mod relay;
+pub mod sched;
 pub mod seg;
 pub mod sidecar;
 pub mod store;
+pub mod sysproxy;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -82,6 +85,37 @@ pub enum Unverified {
     Restart,
 }
 
+/// `sha256sum` style text: "<hex>  name" lines or a bare hex; the line for `name` wins, a bare single hash
+/// counts only when there is exactly one
+pub fn parse_sha256_file(text: &str, name: &str) -> Option<String> {
+    let hex64 = |t: &str| t.len() == 64 && t.bytes().all(|b| b.is_ascii_hexdigit());
+    let mut bare = vec![];
+    for l in text.lines().take(200) {
+        let mut it = l.split_whitespace();
+        let Some(h) = it.next().map(|h| h.trim_start_matches('\\')) else { continue };
+        if !hex64(h) {
+            continue;
+        }
+        match it.next().map(|n| n.trim_start_matches('*')) {
+            Some(n) if n.rsplit(['/', '\\']).next() == Some(name) => return Some(h.to_ascii_lowercase()),
+            Some(_) => {}
+            None => bare.push(h.to_ascii_lowercase()),
+        }
+    }
+    (bare.len() == 1).then(|| bare.remove(0))
+}
+
+/// result of probing a refreshed link (R-01)
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct RefreshCheck {
+    pub size: Option<u64>,
+    pub same_size: bool,
+    /// same strong validator and size: resume is safe
+    pub strong: bool,
+    /// None = nothing committed to compare; Some(true) = 3 spots match (a hint, not proof)
+    pub seam: Option<bool>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct NewJob {
     pub url: String,
@@ -107,6 +141,8 @@ pub struct Outcome {
 }
 
 pub struct Engine {
+    /// P1 #10: look for `<url>.sha256` on the same origin before downloading (on by default)
+    pub hash_sidecar: std::sync::atomic::AtomicBool,
     pub store: Mutex<store::Store>,
     pub report: store::OpenReport,
     pub cfg: seg::Config,
@@ -115,6 +151,83 @@ pub struct Engine {
     creds: Mutex<std::collections::HashMap<String, net::Creds>>,
     /// one execution per job at a time
     running: Mutex<std::collections::HashSet<String>>,
+    /// F11: connection limits shared by all jobs
+    pub conns: Mutex<ConnPolicy>,
+}
+
+/// L-02 total connection cap + per-server profiles (IDM "Exceptions") + caps learned from 429/503
+#[derive(Debug)]
+pub struct ConnPolicy {
+    pub total: Arc<tokio::sync::Semaphore>,
+    pub total_n: usize,
+    /// (host pattern with `*`, max connections)
+    pub profiles: Vec<(String, usize)>,
+    /// global User-Agent ("" = GDM's own) and per-site ones (host pattern, UA): P1 #8
+    pub user_agent: String,
+    pub site_agents: Vec<(String, String)>,
+    hosts: std::collections::HashMap<String, (Arc<tokio::sync::Semaphore>, Arc<std::sync::atomic::AtomicUsize>)>,
+}
+
+pub const TOTAL_CONNS: usize = 48;
+
+impl Default for ConnPolicy {
+    fn default() -> Self {
+        ConnPolicy {
+            total: Arc::new(tokio::sync::Semaphore::new(TOTAL_CONNS)),
+            total_n: TOTAL_CONNS,
+            profiles: vec![],
+            user_agent: String::new(),
+            site_agents: vec![],
+            hosts: Default::default(),
+        }
+    }
+}
+
+/// `*` wildcard, case-insensitive, whole host
+pub fn host_match(pat: &str, host: &str) -> bool {
+    let (p, h) = (pat.trim().to_ascii_lowercase(), host.to_ascii_lowercase());
+    match p.strip_prefix("*.") {
+        Some(rest) => h == rest || h.ends_with(&format!(".{rest}")),
+        None => p == h || p == "*",
+    }
+}
+
+impl ConnPolicy {
+    /// change the total cap and profiles (Settings); running connections keep their permits
+    pub fn set(&mut self, total: usize, profiles: Vec<(String, usize)>) {
+        let total = total.clamp(1, 512);
+        if total != self.total_n {
+            self.total = Arc::new(tokio::sync::Semaphore::new(total));
+            self.total_n = total;
+        }
+        if profiles != self.profiles {
+            self.profiles = profiles;
+            self.hosts.clear();
+        }
+    }
+
+    /// the job's config: cap = min(job cap, profile, learned); slots = total + this host's
+    pub fn for_host(&mut self, host: &str, mut cfg: seg::Config) -> seg::Config {
+        let prof = self.profiles.iter().find(|(p, _)| host_match(p, host)).map(|(_, n)| (*n).clamp(1, seg::MAX_CONNS));
+        let (sem, learned) = self
+            .hosts
+            .entry(host.to_ascii_lowercase())
+            .or_insert_with(|| {
+                (Arc::new(tokio::sync::Semaphore::new(prof.unwrap_or(seg::MAX_CONNS * 4))), Arc::new(std::sync::atomic::AtomicUsize::new(0)))
+            })
+            .clone();
+        let l = learned.load(std::sync::atomic::Ordering::Relaxed);
+        cfg.cap = cfg.cap.min(prof.unwrap_or(usize::MAX)).min(if l > 0 { l } else { usize::MAX }).max(1);
+        cfg.slots = vec![self.total.clone(), sem];
+        cfg.user_agent = self
+            .site_agents
+            .iter()
+            .find(|(p, _)| host_match(p, host))
+            .map(|(_, ua)| ua.clone())
+            .or_else(|| (!self.user_agent.is_empty()).then(|| self.user_agent.clone()));
+        cfg.learned = Some(learned);
+        cfg
+    }
 }
 
 struct RunGuard<'a>(&'a Engine, String);
@@ -144,8 +257,16 @@ impl Engine {
     /// then recover jobs from sidecars found in the known download folders (D-01)
     pub fn open(db: &Path, cfg: seg::Config) -> Result<Engine, Fail> {
         let (st, report) = store::Store::open(db).map_err(Fail::Io)?;
-        let e =
-            Engine { store: Mutex::new(st), report, cfg, global: limiter::Bucket::new(0), creds: Default::default(), running: Default::default() };
+        let e = Engine {
+            hash_sidecar: std::sync::atomic::AtomicBool::new(true),
+            store: Mutex::new(st),
+            report,
+            cfg,
+            global: limiter::Bucket::new(0),
+            creds: Default::default(),
+            running: Default::default(),
+            conns: Default::default(),
+        };
         if e.report.restored_from.is_some() || e.report.quarantined.is_some() {
             e.recover_sidecars()?;
         }
@@ -199,6 +320,7 @@ impl Engine {
                     file_id: Some(sc.fid.clone()),
                     allow_private: None,
                     target: None,
+                    replaces: None,
                 };
                 // the recovered job keeps exactly its own name (its .part is on disk): no counter
                 let name = st.insert_job(&j, &|_| false).map_err(Fail::Io)?;
@@ -215,58 +337,77 @@ impl Engine {
 
     /// create a job: validate the URL, sanitize the name, reserve it (N-04). Nothing is downloaded yet.
     pub fn add(&self, nj: NewJob) -> Result<String, Fail> {
-        let url = url::Url::parse(&nj.url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
-        if !url.username().is_empty() || url.password().is_some() {
-            return Err(Fail::Forbidden("credentials in the URL are not stored; use the login fields".into()));
-        }
-        if !matches!(url.scheme(), "http" | "https") {
-            return Err(Fail::Forbidden(format!("scheme {}", url.scheme())));
-        }
-        for (k, v) in &nj.creds {
-            // W-01: only the two credential headers reqwest also strips on a cross-host redirect; any other
-            // header would follow a redirect to another origin. W-04: CR/LF/NUL refused before anything is kept.
-            if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") {
-                return Err(Fail::Forbidden(format!("credential header {k} not allowed")));
+        let mut v = self.add_many(vec![nj], false)?;
+        v.pop().ok_or_else(|| Fail::Io("add".into()))
+    }
+
+    /// batch / import (I-03, I-04): every job validated first, then all inserted in one transaction.
+    /// `paused`: the jobs wait for the user (import, batch: nothing starts by itself, whatever the count)
+    pub fn add_many(&self, list: Vec<NewJob>, paused: bool) -> Result<Vec<String>, Fail> {
+        let mut dirs: std::collections::HashMap<PathBuf, fsx::Dir> = Default::default();
+        let mut jobs = Vec::with_capacity(list.len());
+        let mut creds = vec![];
+        for nj in list {
+            let url = url::Url::parse(&nj.url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+            if !url.username().is_empty() || url.password().is_some() {
+                return Err(Fail::Forbidden("credentials in the URL are not stored; use the login fields".into()));
             }
-            reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+            if !matches!(url.scheme(), "http" | "https") {
+                return Err(Fail::Forbidden(format!("scheme {}", url.scheme())));
+            }
+            for (k, v) in &nj.creds {
+                // W-01: only the two credential headers reqwest also strips on a cross-host redirect; any other
+                // header would follow a redirect to another origin. W-04: CR/LF/NUL refused before anything is kept.
+                if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("authorization") {
+                    return Err(Fail::Forbidden(format!("credential header {k} not allowed")));
+                }
+                reqwest::header::HeaderValue::from_str(v).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+            }
+            let name = nj.name.as_deref().map(name::sanitize).unwrap_or_else(|| name::file_name(None, &url));
+            if !dirs.contains_key(&nj.dir) {
+                let dh = fsx::Dir::open(&nj.dir).map_err(|e| Fail::Reparse(e.to_string()))?;
+                dirs.insert(nj.dir.clone(), dh);
+            }
+            let dirh = &dirs[&nj.dir];
+            let id = new_id();
+            let dir_id = self.st().dir_id(&dirh.path).map_err(Fail::Io)?;
+            if !nj.creds.is_empty() {
+                creds.push((id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds, digest: None }));
+            }
+            jobs.push(store::Job {
+                id,
+                url: url.to_string(),
+                final_url: None,
+                referrer: nj.referrer,
+                name,
+                dir: dirh.path.clone(),
+                dir_id,
+                state: if paused { "paused".into() } else { "queued".into() },
+                size: None,
+                done: 0,
+                validator: None,
+                sha256_expected: nj.sha256,
+                sha256: None,
+                epoch: 0,
+                unverified: false,
+                protection: None,
+                error_code: None,
+                file_id: None,
+                allow_private: nj.typed.then(|| url.host_str().unwrap_or("").to_string()),
+                target: None,
+                replaces: None,
+            });
         }
-        let name = nj.name.as_deref().map(name::sanitize).unwrap_or_else(|| name::file_name(None, &url));
-        let dirh = fsx::Dir::open(&nj.dir).map_err(|e| Fail::Reparse(e.to_string()))?;
-        let id = new_id();
-        let mut st = self.st();
-        let dir_id = st.dir_id(&dirh.path).map_err(Fail::Io)?;
-        let j = store::Job {
-            id: id.clone(),
-            url: url.to_string(),
-            final_url: None,
-            referrer: nj.referrer,
-            name,
-            dir: dirh.path.clone(),
-            dir_id,
-            state: "queued".into(),
-            size: None,
-            done: 0,
-            validator: None,
-            sha256_expected: nj.sha256,
-            sha256: None,
-            epoch: 0,
-            unverified: false,
-            protection: None,
-            error_code: None,
-            file_id: None,
-            allow_private: nj.typed.then(|| url.host_str().unwrap_or("").to_string()),
-            target: None,
+        let by_path: std::collections::HashMap<PathBuf, &fsx::Dir> = dirs.values().map(|d| (d.path.clone(), d)).collect();
+        let taken = |j: &store::Job, n: &str| {
+            by_path.get(&j.dir).is_some_and(|d| d.exists(n) || d.exists(&format!("{n}.part")) || d.exists(&sidecar::leaf(n)))
         };
-        let taken = |n: &str| dirh.exists(n) || dirh.exists(&format!("{n}.part")) || dirh.exists(&sidecar::leaf(n));
-        st.insert_job(&j, &taken).map_err(Fail::Io)?;
-        drop(st);
-        if !nj.creds.is_empty() {
-            self.creds
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .insert(id.clone(), net::Creds { origin: Some(net::origin(&url)), headers: nj.creds });
+        self.st().insert_jobs(&jobs, &taken).map_err(Fail::Io)?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        for (id, cr) in creds {
+            c.insert(id, cr);
         }
-        Ok(id)
+        Ok(jobs.into_iter().map(|j| j.id).collect())
     }
 
     /// the user confirmed "download from the local network?" for this job's host (W-02). A job recovered from
@@ -375,6 +516,13 @@ impl Engine {
                 return Ok(o);
             }
         }
+        let mut job = job;
+        if job.sha256_expected.is_none() && job.done == 0 && self.hash_sidecar.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(h) = self.sidecar_hash(&job).await {
+                self.st().conn.execute("UPDATE jobs SET sha256_expected = ?2 WHERE id = ?1", rusqlite::params![id, h]).map_err(s)?;
+                job.sha256_expected = Some(h);
+            }
+        }
         let segs = self.st().segments(id).map_err(Fail::Io)?;
         let mut resume = (!segs.is_empty() && job.size.is_some()).then(|| seg::Snapshot {
             epoch: job.epoch,
@@ -462,17 +610,18 @@ impl Engine {
         };
         let file = Arc::new(file);
         let rq = seg::Request { url, creds, policy, file: file.clone(), free, resume, limit, checkpoint: &mut cp, live };
-        let done = seg::download(rq, self.cfg.clone()).await?;
+        let cfg = self.conns.lock().unwrap_or_else(|p| p.into_inner()).for_host(rq.url.host_str().unwrap_or(""), self.cfg.clone());
+        let done = seg::download(rq, cfg).await?;
         drop(file); // the writer thread has exited: this was the last handle
         failpoint::hit("before_finalizing");
         self.st().set_state(id, "finalizing", None).map_err(Fail::Io)?;
         let fin = {
-            let (dir, part, name, exp, url, refr) =
-                (&dir, part.clone(), job.name.clone(), job.sha256_expected.clone(), job.url.clone(), job.referrer.clone());
+            let (dir, part, name, exp, url, refr, repl) =
+                (&dir, part.clone(), job.name.clone(), job.sha256_expected.clone(), job.url.clone(), job.referrer.clone(), job.replaces.clone());
             let total = done.total;
             let mut intent = |target: &str, sha: &str| self.st().set_intent(id, target, sha).map_err(Fail::Io);
             tokio::task::block_in_place(|| {
-                finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid), &mut intent)
+                finalize::finalize(dir, &part, &name, total, exp.as_deref(), &url, refr.as_deref(), Some(fid), repl.as_deref(), &mut intent)
             })?
         };
         let (state, prot) = match &fin.protection {
@@ -493,6 +642,262 @@ impl Engine {
             unverified: done.validator.is_none(),
             transfer: done,
         })
+    }
+
+    /// sync queue check (Q-05): one conditional GET (If-None-Match with a strong ETag, else If-Modified-Since,
+    /// plus Range 0-0 so a changed file costs a few bytes). 304 => unchanged, nothing read. 2xx => changed:
+    /// the job is prepared to download again and replace only its own published file. No validator at all =>
+    /// compare the total size (a weaker signal, recorded in history).
+    pub async fn sync_check(&self, id: &str) -> Result<bool, Fail> {
+        let job = self.job(id)?;
+        if job.state != "complete" && job.state != "unprotected" {
+            return Ok(false);
+        }
+        let url = url::Url::parse(job.final_url.as_deref().unwrap_or(&job.url)).map_err(s)?;
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&url).map_err(|e| Fail::Forbidden(e.0))?;
+        let c = net::client(policy, true, std::time::Duration::from_secs(30)).map_err(Fail::Io)?;
+        let mut rq = c.get(url.clone()).header("Range", "bytes=0-0");
+        match job.validator.as_deref() {
+            Some(v) if v.starts_with('"') => rq = rq.header("If-None-Match", v),
+            Some(v) => rq = rq.header("If-Modified-Since", v),
+            None => {}
+        }
+        let creds = self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(id).cloned().unwrap_or_default();
+        for (k, v) in creds.for_url(&url) {
+            rq = rq.header(k.as_str(), v.as_str());
+        }
+        let r = rq.send().await.map_err(|e| Fail::Io(e.to_string()))?;
+        let st = r.status().as_u16();
+        let changed = match st {
+            304 => false,
+            200..=299 => match job.validator {
+                Some(_) => true,
+                None => http::content_range(r.headers()).and_then(|c| c.2).or(r.content_length()) != job.size,
+            },
+            401 | 403 => return Err(Fail::Auth),
+            404 | 410 => return Err(Fail::Gone),
+            _ => return Err(Fail::Http(st)),
+        };
+        drop(r); // never read a body here
+        let mut stg = self.st();
+        stg.conn
+            .execute(
+                "INSERT INTO history(job_id, at, event, detail) VALUES (?1, ?2, 'sync-check', ?3)",
+                rusqlite::params![id, store::now(), st.to_string()],
+            )
+            .map_err(s)?;
+        if changed {
+            stg.prepare_resync(id).map_err(Fail::Io)?;
+        }
+        Ok(changed)
+    }
+
+    /// R-01: is the new link the same file? One probe (Range 0-0) for size + validator; if the strong validator
+    /// matches the job's and the size too => `same`, resume. Otherwise a 3-point seam check against the bytes on
+    /// disk (start, middle, end of what was committed) is only a HINT ("probably the same, not verified"); the
+    /// UI defaults to [start over] in a new job and keeps the old .part.
+    pub async fn refresh_check(&self, id: &str, new_url: &str, creds: &[(String, String)]) -> Result<RefreshCheck, Fail> {
+        let job = self.job(id)?;
+        let url = url::Url::parse(new_url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&url).map_err(|e| Fail::Forbidden(e.0))?;
+        let c = net::client(policy, true, std::time::Duration::from_secs(30)).map_err(Fail::Io)?;
+        let origin = net::origin(&url);
+        let hdrs = |mut rq: reqwest::RequestBuilder| {
+            for (k, v) in creds {
+                if net::origin(&url) == origin {
+                    rq = rq.header(k.as_str(), v.as_str());
+                }
+            }
+            rq.header("Accept-Encoding", "identity")
+        };
+        let r = hdrs(c.get(url.clone()).header("Range", "bytes=0-0")).send().await.map_err(|e| Fail::Io(e.to_string()))?;
+        let st = r.status().as_u16();
+        if !(200..300).contains(&st) {
+            return Err(match st {
+                401 | 403 => Fail::Auth,
+                404 | 410 => Fail::Gone,
+                c => Fail::Http(c),
+            });
+        }
+        if http::content_type(r.headers()).starts_with("text/html") {
+            return Err(Fail::Html); // R-03: a login page, not the file
+        }
+        let size = http::content_range(r.headers()).and_then(|c| c.2).or(r.content_length().filter(|_| st == 200));
+        let validator = http::validator(r.headers());
+        drop(r);
+        let same_size = size.is_some() && size == job.size;
+        let strong = same_size && validator.is_some() && validator == job.validator && validator.as_deref().is_some_and(|v| v.starts_with('"'));
+        // seam: up to 3 committed spots, 4 KiB each
+        let segs = self.st().segments(id).map_err(Fail::Io)?;
+        let committed: Vec<(u64, u64)> = segs.iter().filter(|s| s[2] > s[0]).map(|s| (s[0], s[2])).collect();
+        let mut spots = vec![];
+        if let (Some(f), Some(l)) = (committed.first(), committed.last()) {
+            spots.push(f.0);
+            let mid = committed[committed.len() / 2];
+            spots.push(mid.0 + (mid.1 - mid.0) / 2);
+            spots.push(l.1.saturating_sub(4096).max(l.0));
+        }
+        let mut seam = None;
+        if same_size && !spots.is_empty() {
+            let dir = fsx::Dir::open(&job.dir).map_err(|e| Fail::Reparse(e.to_string()))?;
+            let leaf = format!("{}.part", job.name);
+            let mut opened = dir.open_locked(&leaf);
+            for _ in 0..50 {
+                // a cancelled run's writer thread may still be closing its handle
+                if !matches!(opened, Err(fsx::FsError::Busy)) {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                opened = dir.open_locked(&leaf);
+            }
+            let part = opened.map_err(|e| Fail::Io(e.to_string()))?;
+            let mut ok = true;
+            for a in spots {
+                let in_seg = committed.iter().find(|(s, e)| a >= *s && a < *e).map(|(_, e)| *e).unwrap_or(a);
+                let b = (a + 4096).min(in_seg);
+                if b <= a {
+                    continue;
+                }
+                let r = hdrs(c.get(url.clone()).header("Range", format!("bytes={a}-{}", b - 1))).send().await.map_err(|e| Fail::Io(e.to_string()))?;
+                if r.status().as_u16() != 206 {
+                    ok = false;
+                    break;
+                }
+                let body = r.bytes().await.map_err(|e| Fail::Io(e.to_string()))?;
+                let mut disk = vec![0u8; (b - a) as usize];
+                use std::os::windows::fs::FileExt;
+                if body.len() != disk.len() || part.seek_read(&mut disk, a).ok() != Some(disk.len()) || body[..] != disk[..] {
+                    ok = false;
+                    break;
+                }
+            }
+            seam = Some(ok);
+        }
+        Ok(RefreshCheck { size, same_size, strong, seam })
+    }
+
+    /// the user confirmed the refreshed link for this job (credentials replace the old ones, same origin only)
+    pub fn refresh_apply(&self, id: &str, new_url: &str, creds: Vec<(String, String)>) -> Result<(), Fail> {
+        let url = url::Url::parse(new_url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        if !matches!(url.scheme(), "http" | "https") || !url.username().is_empty() {
+            return Err(Fail::Forbidden("bad URL".into()));
+        }
+        self.st().set_url(id, url.as_str()).map_err(Fail::Io)?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        c.remove(id);
+        if !creds.is_empty() {
+            c.insert(id.to_string(), net::Creds { origin: Some(net::origin(&url)), headers: creds, digest: None });
+        }
+        Ok(())
+    }
+
+    /// a site login applies to this job: `Authorization` for the job URL's origin only (memory, never persisted);
+    /// a browser Cookie the job already has is kept
+    pub fn set_authorization(&self, id: &str, url: &str, value: &str) -> Result<(), Fail> {
+        let u = url::Url::parse(url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        reqwest::header::HeaderValue::from_str(value).map_err(|_| Fail::Forbidden("bad header value".into()))?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        let e = c.entry(id.to_string()).or_insert_with(|| net::Creds { origin: Some(net::origin(&u)), ..Default::default() });
+        if e.origin != Some(net::origin(&u)) {
+            return Err(Fail::Forbidden("login for another origin".into()));
+        }
+        e.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+        e.headers.push(("Authorization".into(), value.to_string()));
+        Ok(())
+    }
+
+    /// a site login met a 401: what does the server ask for? (one GET Range 0-0 without credentials)
+    pub async fn auth_challenge(&self, id: &str) -> Option<String> {
+        let job = self.job(id).ok()?;
+        let url = url::Url::parse(&job.url).ok()?;
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&url).ok()?;
+        let c = net::client(policy, true, std::time::Duration::from_secs(30)).ok()?;
+        let r = c.get(url).header("Range", "bytes=0-0").send().await.ok()?;
+        (r.status().as_u16() == 401)
+            .then(|| r.headers().get_all("www-authenticate").iter().filter_map(|v| v.to_str().ok()).collect::<Vec<_>>().join(", "))
+    }
+
+    /// switch a job's site login to Digest for its origin (password in memory for this session only)
+    pub fn set_digest(&self, id: &str, url: &str, challenge: gdm_auth::Challenge, user: &str, pass: &str) -> Result<(), Fail> {
+        let u = url::Url::parse(url).map_err(|e| Fail::Forbidden(format!("bad URL: {e}")))?;
+        let cnonce = gdm_auth::new_cnonce().map_err(Fail::Io)?;
+        let mut c = self.creds.lock().unwrap_or_else(|p| p.into_inner());
+        let e = c.entry(id.to_string()).or_insert_with(|| net::Creds { origin: Some(net::origin(&u)), ..Default::default() });
+        if e.origin != Some(net::origin(&u)) {
+            return Err(Fail::Forbidden("login for another origin".into()));
+        }
+        e.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+        e.digest = Some(Arc::new(net::Digest { challenge, user: user.into(), pass: pass.into(), nc: Default::default(), cnonce }));
+        Ok(())
+    }
+
+    /// a file GDM produced itself (a muxed video) appears in the list as finished, with its hash
+    pub fn record_finished(&self, source: &str, dir: &Path, name: &str, sha256: &str) -> Result<String, Fail> {
+        let id = new_id();
+        let mut st = self.st();
+        let dir_id = st.dir_id(dir).map_err(Fail::Io)?;
+        let size = std::fs::metadata(dir.join(name)).map(|m| m.len()).ok();
+        let j = store::Job {
+            id: id.clone(),
+            url: finalize::clean_url(source),
+            final_url: None,
+            referrer: None,
+            name: name.into(),
+            dir: dir.to_path_buf(),
+            dir_id,
+            state: "queued".into(),
+            size,
+            done: size.unwrap_or(0),
+            validator: None,
+            sha256_expected: None,
+            sha256: None,
+            epoch: 0,
+            unverified: false,
+            protection: None,
+            error_code: None,
+            file_id: None,
+            allow_private: None,
+            target: None,
+            replaces: None,
+        };
+        let got = st.insert_job(&j, &|_| false).map_err(Fail::Io)?;
+        let zone = fsx::Dir::open(dir).ok().and_then(|d| fsx::zone_identifier(&d, name));
+        let prot = if finalize::zone_internet(zone.as_deref()) { "protected" } else { "unprotected" };
+        st.finish(&id, if prot == "protected" { "complete" } else { "unprotected" }, &got, sha256, prot).map_err(Fail::Io)?;
+        Ok(id)
+    }
+
+    /// P1 #10: `<url>.sha256` from the SAME origin (no redirect elsewhere counts), <= 4 KiB, text; the first
+    /// 64-hex token, and when the line names a file it must be this file's name. Anything else => None.
+    async fn sidecar_hash(&self, job: &store::Job) -> Option<String> {
+        let mut u = url::Url::parse(&job.url).ok()?;
+        let leaf = u.path_segments()?.next_back()?.to_string();
+        if leaf.is_empty() || leaf.to_ascii_lowercase().ends_with(".sha256") {
+            return None;
+        }
+        u.set_path(&format!("{}.sha256", u.path()));
+        u.set_query(None);
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        policy.check_url(&u).ok()?; // IP literals never reach the resolver: check before sending (W-02)
+        let c = net::client(policy, true, std::time::Duration::from_secs(5)).ok()?;
+        // the job's own credentials (cookie / site login) for the same origin: a protected folder needs them too
+        let mut rq = c.get(u.clone());
+        let creds = self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(&job.id).cloned().unwrap_or_default();
+        for (k, v) in creds.headers_for(&u) {
+            rq = rq.header(k, v);
+        }
+        let r = tokio::time::timeout(std::time::Duration::from_secs(5), rq.send()).await.ok()?.ok()?;
+        if r.status().as_u16() != 200 || net::origin(r.url()) != net::origin(&u) || r.content_length().is_some_and(|n| n > 4096) {
+            return None;
+        }
+        let b = tokio::time::timeout(std::time::Duration::from_secs(5), r.bytes()).await.ok()?.ok()?;
+        if b.len() > 4096 {
+            return None;
+        }
+        parse_sha256_file(&String::from_utf8_lossy(&b), &leaf)
     }
 
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)

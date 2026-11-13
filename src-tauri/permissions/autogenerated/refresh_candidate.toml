@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-candidate"
+description = "Enables the refresh_candidate command without any pre-configured scope."
+commands.allow = ["refresh_candidate"]
+
+[[permission]]
+identifier = "deny-refresh-candidate"
+description = "Denies the refresh_candidate command without any pre-configured scope."
+commands.deny = ["refresh_candidate"]

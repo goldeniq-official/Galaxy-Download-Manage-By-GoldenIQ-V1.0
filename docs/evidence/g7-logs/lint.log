@@ -1,0 +1,7 @@
+# clippy + fmt + deny + audit, a269e20
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.87s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.45s
+fmt clean
+advisories ok, bans ok, licenses ok, sources ok
+    Scanning Cargo.lock for vulnerabilities (577 crate dependencies)
+warning: 5 allowed warnings found

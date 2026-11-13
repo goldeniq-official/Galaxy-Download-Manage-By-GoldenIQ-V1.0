@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-components-state"
+description = "Enables the components_state command without any pre-configured scope."
+commands.allow = ["components_state"]
+
+[[permission]]
+identifier = "deny-components-state"
+description = "Denies the components_state command without any pre-configured scope."
+commands.deny = ["components_state"]

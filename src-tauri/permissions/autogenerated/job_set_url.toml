@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-job-set-url"
+description = "Enables the job_set_url command without any pre-configured scope."
+commands.allow = ["job_set_url"]
+
+[[permission]]
+identifier = "deny-job-set-url"
+description = "Denies the job_set_url command without any pre-configured scope."
+commands.deny = ["job_set_url"]

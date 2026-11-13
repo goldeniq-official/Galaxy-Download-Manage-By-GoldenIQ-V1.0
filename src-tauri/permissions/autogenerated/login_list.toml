@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-login-list"
+description = "Enables the login_list command without any pre-configured scope."
+commands.allow = ["login_list"]
+
+[[permission]]
+identifier = "deny-login-list"
+description = "Denies the login_list command without any pre-configured scope."
+commands.deny = ["login_list"]

@@ -123,11 +123,25 @@ pub fn tls_config(alpn: &[&[u8]]) -> Result<rustls::ClientConfig, rustls::Error>
 /// `h1_only`: the segmenter uses one TCP per segment like IDM (G3: over h2 all segments became streams on one
 /// TCP, 9.9 MB/s). Otherwise h2 is offered by ALPN.
 pub fn client(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration) -> Result<reqwest::Client, String> {
+    client_ua(policy, h1_only, read_timeout, None)
+}
+
+pub const DEFAULT_UA: &str = concat!("GalaxyDownloadManager/", env!("CARGO_PKG_VERSION"));
+
+/// `client` with a User-Agent (None = GDM's own, never empty)
+pub fn client_ua(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration, ua: Option<&str>) -> Result<reqwest::Client, String> {
     let tls = tls_config(if h1_only { &[b"http/1.1"] } else { &[b"h2", b"http/1.1"] }).map_err(|e| e.to_string())?;
     let p2 = policy.clone();
-    let mut b = reqwest::Client::builder()
-        .tls_backend_preconfigured(tls)
-        .no_proxy() // ponytail: system/corporate proxy is W-05 (medium, later); a proxy would resolve names itself and bypass W-02
+    let relay = crate::relay::global();
+    let ua = ua.filter(|u| !u.trim().is_empty() && u.len() <= 512 && !u.chars().any(|c| c.is_control())).unwrap_or(DEFAULT_UA);
+    let mut b = reqwest::Client::builder().tls_backend_preconfigured(tls).no_proxy().user_agent(ua);
+    if let Some(r) = &relay {
+        // a user proxy (W-05): every request goes through GDM's own relay, which resolves and checks the
+        // destination itself (W-02) and hands the upstream proxy only the checked IP (council G7)
+        let (u, pw) = r.register(&policy);
+        b = b.proxy(reqwest::Proxy::all(r.url()).map_err(|e| e.to_string())?.basic_auth(&u, &pw));
+    }
+    let mut b = b
         .dns_resolver(Arc::new(Resolver(policy)))
         .read_timeout(read_timeout)
         .connect_timeout(Duration::from_secs(15))
@@ -159,8 +173,35 @@ pub fn redirect_ok(previous: &[Url], next: &Url, p: &Policy) -> Result<(), Forbi
 pub struct Creds {
     pub origin: Option<Origin>,
     pub headers: Vec<(String, String)>,
+    /// a site login answered with Digest (RFC 7616): a fresh Authorization per request (nonce count + 1)
+    pub digest: Option<Arc<Digest>>,
 }
+
+#[derive(Debug)]
+pub struct Digest {
+    pub challenge: gdm_auth::Challenge,
+    pub user: String,
+    pub pass: String,
+    pub nc: std::sync::atomic::AtomicU32,
+    pub cnonce: String,
+}
+
 impl Creds {
+    /// every header for a GET of `u` (nothing for another origin)
+    pub fn headers_for(&self, u: &Url) -> Vec<(String, String)> {
+        let mut v = self.for_url(u).to_vec();
+        if let (Some(d), true) = (&self.digest, self.origin.as_ref() == Some(&origin(u))) {
+            let n = d.nc.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            let uri = match u.query() {
+                Some(q) => format!("{}?{q}", u.path()),
+                None => u.path().to_string(),
+            };
+            v.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+            v.push(("Authorization".into(), gdm_auth::authorization(&d.challenge, &d.user, &d.pass, "GET", &uri, n, &d.cnonce)));
+        }
+        v
+    }
+
     pub fn for_url(&self, u: &Url) -> &[(String, String)] {
         match &self.origin {
             Some(o) if *o == origin(u) => &self.headers,

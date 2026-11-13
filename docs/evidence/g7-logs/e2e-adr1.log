@@ -1,0 +1,15 @@
+﻿# G7 ADR-1 failure injection, release gdm.exe built from 98c9306 + WebView recovery, 2026-11-13T13:55:33.7758583+07:00
+PASS WebView2 runs under gdm.exe
+PASS download A started
+killed 6 WebView2 processes at 2026-11-13T13:54:37.1924128+07:00
+PASS gdm.exe alive after the WebView crash
+PASS WebView rebuilt after the crash (new WebView2 processes)
+PASS download A finished after the WebView crash
+PASS download A bytes correct
+PASS download B started
+killed gdm.exe at 2026-11-13T13:55:09.7956062+07:00
+PASS download B resumed by itself and finished after the core crash
+PASS download B bytes correct
+IDM dialogs answered No: 0
+RESULT failures=0
+

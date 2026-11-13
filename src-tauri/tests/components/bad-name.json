@@ -1,0 +1,1 @@
+{"v":1,"expires":1900000000,"components":[{"name":"x","version":"1","url":"https://example.com/x.exe","sha256":"f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d","size":1,"files":[{"name":"evil.dll","sha256":"f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d"}]}]}

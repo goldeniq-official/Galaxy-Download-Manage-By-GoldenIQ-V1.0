@@ -21,6 +21,12 @@ pub struct Category {
     /// sub-folder of the download folder ("" = the folder itself)
     pub sub: String,
     pub exts: Vec<String>,
+    /// site patterns (`*.example.com`) whose downloads go to this category whatever the type (P1 #19)
+    #[serde(default)]
+    pub sites: Vec<String>,
+    /// "remember this folder for the category": an absolute folder chosen in the native picker only
+    #[serde(default)]
+    pub dir: String,
 }
 
 fn cat(id: &str, km: &str, en: &str, sub: &str, exts: &str) -> Category {
@@ -30,6 +36,8 @@ fn cat(id: &str, km: &str, en: &str, sub: &str, exts: &str) -> Category {
         name_en: en.into(),
         sub: sub.into(),
         exts: exts.split(' ').filter(|s| !s.is_empty()).map(String::from).collect(),
+        sites: vec![],
+        dir: String::new(),
     }
 }
 
@@ -47,6 +55,52 @@ pub fn default_categories() -> Vec<Category> {
 
 /// IDM's default "File Types" list (catch rules, §22), as lower-case extensions
 pub const CATCH_EXTS: &str = "3gp 7z aac ace aif apk arj asf avi bin bz2 exe gz gzip img iso lzh m4a m4v mkv mov mp3 mp4 mpa mpe mpeg mpg msi msu ogg ogv pdf plj pps ppt qt ra rar rm rmvb sea sit sitx tar tif tiff wav wma wmv xz z zip";
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default)]
+pub struct SiteAgent {
+    pub host: String,
+    pub ua: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default)]
+pub struct HostLimit {
+    pub host: String,
+    pub conns: usize,
+}
+
+/// proxy (§04 Proxy row, IDM Options > Proxy/Socks): none | system (Internet Options: manual, PAC, WPAD) | manual
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct ProxySettings {
+    pub mode: String,
+    /// manual HTTP/HTTPS proxy host:port ("" = none)
+    pub http: String,
+    /// manual SOCKS5 host:port ("" = none)
+    pub socks: String,
+    pub bypass: Vec<String>,
+    /// login to the proxy: none | basic (user here, password in Credential Manager "GDM/proxy") | windows (SSPI)
+    pub auth: String,
+    pub user: String,
+    /// the proxy host:port the login belongs to: credentials (Basic or Windows SSPI) go to that proxy only,
+    /// never to one a PAC/WPAD answer names (security review G7)
+    pub auth_host: String,
+}
+
+impl Default for ProxySettings {
+    fn default() -> Self {
+        ProxySettings {
+            mode: "none".into(),
+            http: String::new(),
+            socks: String::new(),
+            bypass: vec!["<local>".into()],
+            auth: "none".into(),
+            user: String::new(),
+            auth_host: String::new(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
@@ -79,6 +133,28 @@ pub struct Settings {
     pub highest_seen: String,
     pub last_check: i64,
     pub update_failures: u32,
+    pub queues: Vec<crate::queue::Queue>,
+    /// "run a program when done" per queue id: written ONLY by the `hook_set` command (Q-01)
+    pub hooks: HashMap<String, crate::hook::Hook>,
+    /// download quota (F11): at most quota_mb every quota_hours in total (0 = none)
+    pub quota_mb: u64,
+    pub quota_hours: u32,
+    /// L-02: connections across all downloads (default 48)
+    pub total_conns: usize,
+    /// per-server connection limits (IDM "Exceptions"): host pattern (`*.example.com`) -> connections
+    pub host_limits: Vec<HostLimit>,
+    pub proxy: ProxySettings,
+    /// User-Agent for every download ("" = GDM's own) and per site (P1 #8)
+    pub user_agent: String,
+    pub site_agents: Vec<SiteAgent>,
+    /// P1 #10: check `<file>.sha256` published next to a download (same origin)
+    pub hash_sidecar: bool,
+    /// the drop basket is shown (Tasks > Show drop target)
+    pub basket: bool,
+    /// site logins (P-01): address prefix + user; the password is in Credential Manager only
+    pub site_logins: Vec<crate::creds::SiteLogin>,
+    /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
+    pub sounds: HashMap<String, String>,
 }
 
 impl Default for Settings {
@@ -109,6 +185,19 @@ impl Default for Settings {
             highest_seen: env!("CARGO_PKG_VERSION").into(),
             last_check: 0,
             update_failures: 0,
+            queues: crate::queue::default_queues(),
+            hooks: HashMap::new(),
+            sounds: HashMap::new(),
+            quota_mb: 0,
+            quota_hours: 1,
+            total_conns: gdm_core::TOTAL_CONNS,
+            host_limits: vec![],
+            site_logins: vec![],
+            proxy: ProxySettings::default(),
+            basket: false,
+            user_agent: String::new(),
+            site_agents: vec![],
+            hash_sidecar: true,
         }
     }
 }
@@ -181,7 +270,28 @@ pub struct App {
     pub handoff_jobs: Mutex<HashMap<String, (String, Instant)>>,
     pub banner: Mutex<Option<String>>,
     pub notify: Mutex<Option<Notify>>,
+    pub qstate: Mutex<HashMap<String, crate::queue::QState>>,
+    /// a finish action is being carried out: nothing new starts (Q-02)
+    pub finishing: std::sync::atomic::AtomicBool,
+    pub power: Mutex<crate::queue::Power>,
+    /// Q-02 countdown before a power action (60 s; tests shorten it)
+    pub countdown_ms: AtomicU64,
+    /// queue speed buckets (queue id -> bucket)
+    pub qbuckets: Mutex<HashMap<String, Arc<limiter::Bucket>>>,
+    /// jobs whose 401 already led to one Digest attempt
+    pub digest_tried: Mutex<std::collections::HashSet<String>>,
+    /// parsed import waiting for the user's [Add] after the preview (I-03)
+    pub import_pending: Mutex<Option<ImportPending>>,
+    /// CLI /q: exit GDM after these downloads succeed
+    pub quit_after: Mutex<std::collections::HashSet<String>>,
+    pub quota: Mutex<crate::quota::QuotaState>,
+    /// refresh candidates waiting for the user's confirmation (F06)
+    pub refresh: Mutex<HashMap<String, crate::refresh::Candidate>>,
+    /// yt-dlp results waiting for the user's quality choice (F07)
+    pub media: Mutex<HashMap<String, crate::media::Pending>>,
 }
+
+pub type ImportPending = (Vec<crate::import::Item>, Option<serde_json::Value>);
 
 pub type Notify = Box<dyn Fn(&Toast) + Send + Sync>;
 
@@ -221,6 +331,17 @@ impl App {
             handoff_jobs: Default::default(),
             banner: Mutex::new(banner),
             notify: Mutex::new(None),
+            qstate: Default::default(),
+            finishing: Default::default(),
+            power: Mutex::new(crate::queue::real_power()),
+            countdown_ms: AtomicU64::new(crate::queue::COUNTDOWN.as_millis() as u64),
+            qbuckets: Default::default(),
+            digest_tried: Default::default(),
+            import_pending: Default::default(),
+            quit_after: Default::default(),
+            quota: Default::default(),
+            refresh: Default::default(),
+            media: Default::default(),
         });
         app.apply_limit();
         Ok(app)
@@ -233,9 +354,95 @@ impl App {
         std::fs::rename(&tmp, self.data.join("settings.json")).map_err(|e| e.to_string())
     }
 
+    /// settings_set: merge a partial settings object into a validated copy (not applied yet). Paths, hooks
+    /// (Q-01) and updater state are never taken from the patch.
+    pub fn merge_settings(&self, patch: serde_json::Value) -> Result<Settings, String> {
+        let serde_json::Value::Object(p) = patch else { return Err("bad".into()) };
+        let mut cur = serde_json::to_value(&*lock(&self.settings)).map_err(|e| e.to_string())?;
+        for (k, v) in p {
+            // paths, hooks (Q-01) and updater state are never set through this command
+            if matches!(k.as_str(), "download_dir" | "highest_seen" | "last_check" | "update_failures" | "hooks" | "site_logins") {
+                continue;
+            }
+            cur[k] = v;
+        }
+        let mut s: Settings = serde_json::from_value(cur).map_err(|e| e.to_string())?;
+        for c in &mut s.categories {
+            c.sub = gdm_core::name::sanitize(&c.sub).replace(['\\', '/'], "");
+            if c.sub == "_" {
+                c.sub.clear();
+            }
+            c.exts =
+                c.exts.iter().map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase()).filter(|e| !e.is_empty() && e.len() <= 16).collect();
+        }
+        s.max_conns = s.max_conns.clamp(1, 32);
+        {
+            let old = lock(&self.settings);
+            s.hooks = old.hooks.clone();
+            for c in &mut s.categories {
+                c.dir = old.categories.iter().find(|o| o.id == c.id).map(|o| o.dir.clone()).unwrap_or_default();
+                c.sites = c
+                    .sites
+                    .iter()
+                    .map(|p| p.trim().to_ascii_lowercase())
+                    .filter(|p| !p.is_empty() && p.len() <= 253 && !p.contains(['/', ' ']))
+                    .take(64)
+                    .collect();
+            }
+            s.user_agent = s.user_agent.chars().filter(|c| !c.is_control()).take(512).collect();
+            s.site_agents.retain(|a| !a.host.trim().is_empty() && !a.ua.chars().any(|c| c.is_control()) && a.ua.len() <= 512);
+            s.site_logins = old.site_logins.clone();
+            // a sound is off, a built-in one, or the WAV already picked in the file dialog (never a path from the UI)
+            for (ev, v) in s.sounds.iter_mut() {
+                let keep = v.is_empty() || v.strip_prefix("system:").is_some_and(|a| crate::os::SYSTEM_SOUNDS.contains(&a));
+                if !keep && old.sounds.get(ev) != Some(v) {
+                    *v = old.sounds.get(ev).cloned().unwrap_or_default();
+                }
+            }
+            s.sounds.retain(|k, _| matches!(k.as_str(), "complete" | "failed" | "queue"));
+            // queues: the two built-in ones always exist; ids are kept; user queues get q-<n>
+            let mut seen = std::collections::HashSet::new();
+            s.queues.retain(|q| seen.insert(q.id.clone()) && crate::queue::valid_id(&q.id));
+            for d in crate::queue::default_queues() {
+                if !s.queues.iter().any(|q| q.id == d.id) {
+                    s.queues.push(d);
+                }
+            }
+            for q in &mut s.queues {
+                q.max_active = q.max_active.clamp(1, 32);
+                q.retries = q.retries.min(1000);
+                q.name = q.name.chars().filter(|c| !c.is_control()).take(64).collect();
+                if q.id == "main" {
+                    q.sync = false;
+                }
+                if q.id == "sync" {
+                    q.sync = true;
+                }
+                if !matches!(q.on_done.as_str(), "none" | "exit" | "sleep" | "hibernate" | "shutdown") {
+                    q.on_done = "none".into();
+                }
+            }
+        }
+        Ok(s)
+    }
+
     pub fn apply_limit(&self) {
         let s = lock(&self.settings);
         self.engine.global.set_rate(if s.limit_on { s.limit_kbps * 1024 } else { 0 });
+        crate::proxy::apply(&s.proxy);
+        let prof: Vec<(String, usize)> =
+            s.host_limits.iter().filter(|h| !h.host.trim().is_empty()).map(|h| (h.host.trim().to_string(), h.conns.clamp(1, 32))).collect();
+        {
+            let mut c = self.engine.conns.lock().unwrap_or_else(|p| p.into_inner());
+            c.set(s.total_conns, prof);
+            c.user_agent = s.user_agent.clone();
+            c.site_agents = s.site_agents.iter().map(|a| (a.host.trim().to_string(), a.ua.clone())).collect();
+        }
+        self.engine.hash_sidecar.store(s.hash_sidecar, Ordering::Relaxed);
+        let mut b = lock(&self.qbuckets);
+        for q in &s.queues {
+            b.entry(q.id.clone()).or_insert_with(|| limiter::Bucket::new(0)).set_rate(q.speed_kbps * 1024);
+        }
     }
 
     pub fn bump(&self) {
@@ -248,7 +455,17 @@ impl App {
         cats.iter().find(|c| !e.is_empty() && c.exts.iter().any(|x| x == &e)).cloned().unwrap_or_else(|| cats[0].clone())
     }
 
+    /// a site pattern decides first (P1 #19), then the file type
+    pub fn category_for_url(&self, name: &str, url: &str) -> Category {
+        let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(String::from)).unwrap_or_default();
+        let cats = lock(&self.settings).categories.clone();
+        cats.into_iter().find(|c| c.sites.iter().any(|p| gdm_core::host_match(p, &host))).unwrap_or_else(|| self.category_for(name))
+    }
+
     pub fn category_dir(&self, c: &Category) -> PathBuf {
+        if !c.dir.is_empty() {
+            return PathBuf::from(&c.dir); // remembered folder (picked in the native dialog)
+        }
         let base = PathBuf::from(&lock(&self.settings).download_dir);
         if c.sub.is_empty() {
             base
@@ -303,13 +520,29 @@ impl App {
     }
 
     pub fn start(self: &Arc<Self>, id: &str, decision: Unverified) {
+        if self.finishing.load(Ordering::SeqCst) {
+            return; // Q-02: a shutdown/sleep is being carried out
+        }
+        if !lock(&self.digest_tried).contains(id) {
+            self.apply_login(id);
+        }
+        self.start_keep_auth(id, decision);
+    }
+
+    /// `start` without (re)applying the Basic site login (after a switch to Digest)
+    pub fn start_keep_auth(self: &Arc<Self>, id: &str, decision: Unverified) {
+        if self.finishing.load(Ordering::SeqCst) {
+            return;
+        }
+        let queue = lock(&self.engine.store).queue_of(id);
+        let qb = queue.and_then(|q| lock(&self.qbuckets).get(&q).cloned());
         let mut runs = lock(&self.runs);
         if runs.contains_key(id) {
             return;
         }
         let live = Arc::new(Live::default());
         let job_limit = limiter::Bucket::new(0);
-        let limit = Arc::new(limiter::JobLimit { job: job_limit.clone(), queue: None, global: self.engine.global.clone() });
+        let limit = Arc::new(limiter::JobLimit { job: job_limit.clone(), queue: qb, global: self.engine.global.clone() });
         let (me, id2, l2) = (self.clone(), id.to_string(), live.clone());
         let handle = tauri::async_runtime::spawn(async move {
             let r = me.engine.run_live(&id2, decision, Some(limit), Some(l2)).await;
@@ -321,8 +554,63 @@ impl App {
         self.bump();
     }
 
-    fn finished(&self, id: &str, r: Result<gdm_core::Outcome, Fail>) {
+    fn finished(self: &Arc<Self>, id: &str, r: Result<gdm_core::Outcome, Fail>) {
         self.bump();
+        // a site login got 401 with Basic: if the server asks for Digest, switch and try once more
+        if matches!(r, Err(Fail::Auth)) && !lock(&self.digest_tried).contains(id) {
+            let j = self.engine.job(id).ok();
+            let login = j.as_ref().and_then(|j| crate::creds::matching(&lock(&self.settings).site_logins, &j.url).cloned());
+            if let (Some(j), Some(l)) = (j, login) {
+                lock(&self.digest_tried).insert(id.to_string());
+                let (me, id2) = (self.clone(), id.to_string());
+                tauri::async_runtime::spawn(async move {
+                    let ch = me.engine.auth_challenge(&id2).await.and_then(|h| gdm_auth::parse_challenge(&h).ok());
+                    if let (Some(ch), Some((user, pass))) = (ch, crate::creds::load(&l.id)) {
+                        if me.engine.set_digest(&id2, &j.url, ch, &user, &pass).is_ok() {
+                            me.start_keep_auth(&id2, Unverified::Ask);
+                        }
+                    }
+                });
+                return;
+            }
+        }
+        let queue = lock(&self.engine.store).queue_of(id);
+        if let Some(q) = queue {
+            let sync = self.queue_defs().iter().any(|d| d.id == q && d.sync);
+            match &r {
+                Ok(o) => {
+                    lock(&self.qstate).entry(q.clone()).or_default().last_file = Some(o.path.clone());
+                    if !sync {
+                        let _ = lock(&self.engine.store).set_queue(&[id.to_string()], None);
+                        // main queue: done files leave
+                    }
+                }
+                Err(_) => {
+                    let failed = self.engine.job(id).map(|j| j.state == "failed").unwrap_or(false);
+                    if failed {
+                        let _ = lock(&self.engine.store).requeue_failed(id);
+                    }
+                }
+            }
+        }
+        if r.is_ok() && lock(&self.quit_after).remove(id) && self.running() == 0 {
+            crate::request_quit(); // CLI /q
+        }
+        // §04 "virus scan with your own scanner" (IDM Virus checking): the program set in Settings (hooks["scan"],
+        // UI-only like Q-01) runs with {file} after every finished download
+        if let Ok(o) = &r {
+            let scan = lock(&self.settings).hooks.get("scan").cloned();
+            if let Some(h) = scan {
+                if let Err(e) = crate::hook::run(&h, &o.path) {
+                    self.push_toast("failed", id, &format!("scanner: {e}"));
+                }
+            }
+        }
+        match &r {
+            Ok(_) => self.play("complete"),
+            Err(Fail::Io(m)) if m.contains("already running") => {}
+            Err(_) => self.play("failed"),
+        }
         let toast = match &r {
             Ok(o) => Some((if o.protection == gdm_core::finalize::Protection::Protected { "complete" } else { "unprotected" }, o.name.clone())),
             Err(Fail::Blocked(_)) => self.engine.job(id).ok().map(|j| ("blocked", j.name)),
@@ -355,6 +643,65 @@ impl App {
         while q.len() > 20 {
             q.pop_front();
         }
+    }
+
+    /// P-01: a site login for the job's address => Authorization for that origin (password from Credential
+    /// Manager, held in memory for this run only)
+    pub fn apply_login(&self, id: &str) {
+        let Ok(j) = self.engine.job(id) else { return };
+        // the job's own address decides; a final URL on another origin (redirect) gets no login (W-01)
+        let url = j.url.clone();
+        let same = |a: &str, b: &str| match (url::Url::parse(a), url::Url::parse(b)) {
+            (Ok(x), Ok(y)) => gdm_core::net::origin(&x) == gdm_core::net::origin(&y),
+            _ => false,
+        };
+        if j.final_url.as_deref().is_some_and(|f| !same(f, &url)) {
+            return;
+        }
+        let l = crate::creds::matching(&lock(&self.settings).site_logins, &url).cloned();
+        if let Some(l) = l {
+            if let Some((user, pass)) = crate::creds::load(&l.id) {
+                let _ = self.engine.set_authorization(id, &url, &crate::creds::basic(&user, &pass));
+            }
+        }
+    }
+
+    /// add or replace the login for a prefix (the password goes to Credential Manager, never to settings)
+    pub fn login_set(&self, prefix: &str, user: &str, password: &str) -> Result<crate::creds::SiteLogin, String> {
+        let prefix = crate::creds::norm_prefix(prefix).ok_or("bad-url")?;
+        if user.is_empty() || user.len() > 256 || user.contains(':') || user.chars().any(|c| c.is_control()) || password.len() > 1024 {
+            return Err("bad-login".into());
+        }
+        let id = {
+            let s = lock(&self.settings);
+            s.site_logins.iter().find(|l| l.prefix == prefix).map(|l| l.id.clone()).unwrap_or_else(|| {
+                let n = (1..).find(|n| !s.site_logins.iter().any(|l| l.id == format!("l-{n}"))).unwrap_or(1);
+                format!("l-{n}")
+            })
+        };
+        crate::creds::save(&id, user, password)?;
+        let l = crate::creds::SiteLogin { id: id.clone(), prefix, user: user.to_string() };
+        {
+            let mut s = lock(&self.settings);
+            s.site_logins.retain(|x| x.id != id);
+            s.site_logins.push(l.clone());
+        }
+        self.save_settings()?;
+        Ok(l)
+    }
+
+    pub fn login_delete(&self, id: &str) -> Result<(), String> {
+        if !crate::creds::valid_id(id) {
+            return Err("bad-id".into());
+        }
+        crate::creds::delete(id);
+        lock(&self.settings).site_logins.retain(|l| l.id != id);
+        self.save_settings()
+    }
+
+    pub fn play(&self, event: &str) {
+        let snd = lock(&self.settings).sounds.get(event).cloned().unwrap_or_default();
+        crate::os::play(&snd);
     }
 
     pub fn toasts_after(&self, n: u64) -> Vec<Toast> {
@@ -411,7 +758,7 @@ impl App {
     ) -> Result<String, String> {
         let u = url::Url::parse(nj_url).map_err(|_| "bad-url".to_string())?;
         let guess = name.clone().unwrap_or_else(|| gdm_core::name::file_name(None, &u));
-        let c = self.category_for(&guess);
+        let c = self.category_for_url(&guess, nj_url);
         let dir = self.category_dir(&c);
         std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
         let id = self.engine.add(NewJob { url: nj_url.into(), dir, name, referrer, creds, sha256: None, typed }).map_err(|e| e.code())?;
@@ -422,6 +769,92 @@ impl App {
         }
         self.bump();
         Ok(id)
+    }
+
+    /// import / batch / CLI lists: jobs go to their category folders, nothing starts by itself (I-03, I-04);
+    /// all rows in one transaction
+    pub fn add_items(&self, items: &[crate::import::Item], queue: Option<&str>) -> Result<Vec<String>, String> {
+        let mut list = Vec::with_capacity(items.len());
+        let mut dirs = std::collections::HashSet::new();
+        for it in items {
+            let u = url::Url::parse(&it.url).map_err(|_| "bad-url".to_string())?;
+            let guess = it.name.clone().unwrap_or_else(|| gdm_core::name::file_name(None, &u));
+            let dir = self.category_dir(&self.category_for_url(&guess, &it.url));
+            if dirs.insert(dir.clone()) {
+                std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
+            }
+            list.push(NewJob { url: it.url.clone(), dir, name: it.name.clone(), referrer: it.referrer.clone(), ..Default::default() });
+        }
+        let ids = self.engine.add_many(list, true).map_err(|e| e.code())?;
+        {
+            let st = lock(&self.engine.store);
+            for (id, it) in ids.iter().zip(items) {
+                if let Some(d) = &it.description {
+                    let _ = st.set_description(id, Some(d));
+                }
+            }
+        }
+        if queue.is_some() {
+            self.queue_put(&ids, queue)?;
+        }
+        self.bump();
+        Ok(ids)
+    }
+
+    /// restore a settings backup (import): only low-risk keys; restored queues never shut down, wake the PC,
+    /// run a hook or start by schedule until the user turns that on again (security review G7)
+    pub fn restore_settings(&self, backup: serde_json::Value) -> Result<Settings, String> {
+        const KEYS: &[&str] = &[
+            "lang",
+            "theme",
+            "max_conns",
+            "limit_on",
+            "limit_kbps",
+            "catch_exts",
+            "catch_min_kb",
+            "columns",
+            "categories",
+            "show_info",
+            "force_key",
+            "bypass_key",
+            "queues",
+        ];
+        let serde_json::Value::Object(o) = backup else { return Err("bad".into()) };
+        let patch: serde_json::Map<String, serde_json::Value> = o.into_iter().filter(|(k, _)| KEYS.contains(&k.as_str())).collect();
+        let mut s = self.merge_settings(serde_json::Value::Object(patch))?;
+        for q in &mut s.queues {
+            q.on_done = "none".into();
+            q.force = false;
+            q.wake = false;
+            q.run_hook = false;
+            q.schedule.enabled = false;
+        }
+        Ok(s)
+    }
+
+    /// export JSON: the list + a settings backup without hooks, updater state or secrets (P-01)
+    pub fn export_json(&self) -> Result<Vec<u8>, String> {
+        let jobs = lock(&self.engine.store)
+            .list(None, crate::import::MAX_ITEMS)?
+            .into_iter()
+            .map(|r| crate::import::Item { url: r.url, name: Some(r.name), referrer: None, description: r.description })
+            .collect();
+        let mut set = serde_json::to_value(&*lock(&self.settings)).map_err(|e| e.to_string())?;
+        if let Some(o) = set.as_object_mut() {
+            for k in ["hooks", "highest_seen", "last_check", "update_failures", "download_dir", "sounds", "site_logins"] {
+                o.remove(k);
+            }
+            // no folder paths in an export (PRIVACY.md): remembered category folders are dropped
+            if let Some(cats) = o.get_mut("categories").and_then(|c| c.as_array_mut()) {
+                for c in cats {
+                    if let Some(c) = c.as_object_mut() {
+                        c.remove("dir");
+                    }
+                }
+            }
+        }
+        let e = crate::import::Export { gdm_export: 1, app_version: env!("CARGO_PKG_VERSION").into(), jobs, settings: Some(set) };
+        serde_json::to_vec_pretty(&e).map_err(|e| e.to_string())
     }
 
     /// B-04: at most 30 handoffs a minute start by themselves; the rest wait in the Info dialog unstarted
@@ -450,7 +883,8 @@ impl App {
             let c = category.and_then(|c| cats.iter().find(|x| x.id == c).cloned()).unwrap_or_else(|| self.category_for(&new_name));
             let dir = self.category_dir(&c);
             std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
-            let creds = self.engine.creds_of(&id); // the browser's cookie follows the renamed job
+            // the browser's cookie follows the renamed job; a login is applied again by `start` (never copied)
+            let creds: Vec<(String, String)> = self.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie")).collect();
             self.remove(&id, false).await?;
             id = self
                 .engine
@@ -540,6 +974,26 @@ mod tests {
         let again = App::open(&d).unwrap();
         let s2 = lock(&again.settings).clone();
         assert_eq!((s2.lang.as_str(), s2.limit_kbps), ("en", 321));
+        // Q-01: settings_set never sets a hook, a download path or a sound path
+        let p = serde_json::json!({"hooks": {"main": {"program": r"C:\Windows\System32\cmd.exe", "args": ["/c", "calc"]}},
+            "download_dir": r"C:\Windows", "sounds": {"complete": r"C:\x\evil.wav", "failed": "system:SystemHand", "queue": "system:SystemAsterisk"},
+            "queues": [{"id": "../x", "on_done": "format c:"}, {"id": "main", "on_done": "rm"}]});
+        let m = again.merge_settings(p).unwrap();
+        assert!(m.hooks.is_empty());
+        assert_ne!(m.download_dir, r"C:\Windows");
+        assert_eq!(m.sounds.get("complete").map(String::as_str), Some(""), "a WAV path from the UI is dropped");
+        assert_eq!(m.sounds.get("failed").map(String::as_str), Some(""), "only the 3 built-in sounds");
+        assert_eq!(m.sounds.get("queue").map(String::as_str), Some("system:SystemAsterisk"));
+        assert_eq!(m.queues.iter().map(|q| q.id.as_str()).collect::<Vec<_>>(), vec!["main", "sync"]);
+        assert_eq!(m.queues[0].on_done, "none");
+        // a restored backup keeps only low-risk keys and disarms queue actions
+        let b = serde_json::json!({"lang": "en", "autostart": true, "clipboard": true, "update_mode": "off", "catch_skip": ["*"],
+            "queues": [{"id": "main", "on_done": "shutdown", "force": true, "wake": true, "run_hook": true, "schedule": {"enabled": true, "start": "02:00", "days": 127}}]});
+        let r = again.restore_settings(b).unwrap();
+        assert_eq!(r.lang, "en");
+        assert!(!r.autostart && !r.clipboard && r.update_mode == "auto" && r.catch_skip.len() == 1);
+        let q = &r.queues[0];
+        assert!(q.on_done == "none" && !q.force && !q.wake && !q.run_hook && !q.schedule.enabled && q.schedule.start.as_deref() == Some("02:00"));
         drop(again);
         let _ = std::fs::remove_dir_all(&d);
     }

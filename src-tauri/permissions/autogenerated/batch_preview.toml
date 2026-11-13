@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-batch-preview"
+description = "Enables the batch_preview command without any pre-configured scope."
+commands.allow = ["batch_preview"]
+
+[[permission]]
+identifier = "deny-batch-preview"
+description = "Denies the batch_preview command without any pre-configured scope."
+commands.deny = ["batch_preview"]

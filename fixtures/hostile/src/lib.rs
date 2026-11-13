@@ -7,6 +7,7 @@
 //!   /norange       200 full body, ignores Range                        (E-01)
 //!   /range-then-200 first request 206, later range requests 200        (E-01 mid-download)
 //!   /etag-change   after N requests: new ETag and new bytes, same size (E-02)
+//!   (/file and /etag-change answer If-None-Match with 304, Q-05)
 //!   /infinite      200, no length, body never ends                     (E-03)
 //!   /overlong      206 correct Content-Range, then extra bytes          (invariant 5)
 //!   /short         206, body ends early, connection closed
@@ -18,6 +19,8 @@
 //!   /cr-lie        206 whose Content-Range declares 1 KiB, no Content-Length, then sends the whole range
 //!   /novalidator   206 ranges with no ETag and no Last-Modified          (E-02 unverified)
 //!   /429           first request per seed: 429 Retry-After: 2, then /file
+//!   /digest        like /file but needs a Digest Authorization (401 + challenge otherwise)
+//!   /status?code=N  that status, empty body
 //!   /html          200 text/html page                                   (R-03)
 //!   /multipart     206 multipart/byteranges                             (not requested => reject)
 //!   /p/<size>/<seed>/<rate>/<name>  same as /file, parameters in the path (URLs without a query)
@@ -47,6 +50,9 @@ struct State {
     blobs: Mutex<HashMap<String, Arc<Vec<u8>>>>,
     active: AtomicUsize,
     peak: AtomicUsize,
+    /// requests being answered right now (an idle keep-alive connection is not counted)
+    inflight: AtomicUsize,
+    peak_inflight: AtomicUsize,
     conns: AtomicUsize,
 }
 
@@ -86,6 +92,10 @@ impl Fixture {
     pub fn clear_log(&self) {
         self.st.log.lock().unwrap().clear();
         self.st.peak.store(0, Ordering::SeqCst);
+    }
+    /// peak number of requests answered at the same time (transfers, not idle sockets)
+    pub fn peak_inflight(&self) -> usize {
+        self.st.peak_inflight.load(Ordering::SeqCst)
     }
     pub fn peak_conns(&self) -> usize {
         self.st.peak.load(Ordering::SeqCst)
@@ -135,7 +145,11 @@ impl Fixture {
                 headers: headers.clone(),
                 ms: self.t0.elapsed().as_millis(),
             });
-            let keep = self.respond(&mut s, &method, &target, &headers).await?;
+            let n = self.st.inflight.fetch_add(1, Ordering::SeqCst) + 1;
+            self.st.peak_inflight.fetch_max(n, Ordering::SeqCst);
+            let r = self.respond(&mut s, &method, &target, &headers).await;
+            self.st.inflight.fetch_sub(1, Ordering::SeqCst);
+            let keep = r?;
             if !keep {
                 return Ok(());
             }
@@ -147,6 +161,18 @@ impl Fixture {
         let (path, q) = target.split_once('?').unwrap_or((target, ""));
         // /p/<size>/<seed>/<rate>/<name> == /file?size=&seed=&rate=
         let pq;
+        // /p/<size>/<seed>/<rate>/<name>.sha256 => "<hash>  <name>" (a name starting with "bad" gets a wrong hash)
+        if let Some(v) = path.strip_prefix("/p/").map(|r| r.split('/').collect::<Vec<_>>()) {
+            if v.len() >= 4 && v[3].ends_with(".sha256") {
+                let (size, seed) = (v[0].parse().unwrap_or(0u64), v[1].parse().unwrap_or(0u64));
+                let name = v[3].trim_end_matches(".sha256");
+                let h = if name.starts_with("bad") { "0".repeat(64) } else { expected_sha256(seed, size) };
+                let body = format!("{h}  {name}\n");
+                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes())
+                    .await?;
+                return Ok(true);
+            }
+        }
         let (path, q) = match path.strip_prefix("/p/").map(|r| r.split('/').collect::<Vec<_>>()) {
             Some(v) if v.len() >= 3 => {
                 pq = format!("size={}&seed={}&rate={}", v[0], v[1], v[2]);
@@ -164,7 +190,27 @@ impl Fixture {
         let range = hdr("range").and_then(parse_range);
         let head_only = method == "HEAD";
         match path {
-            "/file" => self.ranged(s, size, seed, rate, trate, range, hdr("if-range"), head_only, &format!("\"s{seed}-{size}\"")).await,
+            "/file" => {
+                let etag = format!("\"s{seed}-{size}\"");
+                if hdr("if-none-match") == Some(etag.as_str()) {
+                    return not_modified(s, &etag).await;
+                }
+                self.ranged(s, size, seed, rate, trate, range, hdr("if-range"), head_only, &etag).await
+            }
+            "/digest" => {
+                // needs a Digest login (structure only; the hash maths is tested with the RFC 7616 vectors)
+                let ok = hdr("authorization").is_some_and(|a| a.starts_with("Digest ") && a.contains("username=\"alice\"") && a.contains("nc="));
+                if !ok {
+                    s.write_all(b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Digest realm=\"gdm\", nonce=\"n0nce\", qop=\"auth\", algorithm=SHA-256\r\nContent-Length: 0\r\n\r\n").await?;
+                    return Ok(true);
+                }
+                self.ranged(s, size, seed, rate, trate, range, hdr("if-range"), head_only, &format!("\"s{seed}-{size}\"")).await
+            }
+            "/status" => {
+                let code = num("code", 500);
+                s.write_all(format!("HTTP/1.1 {code} Test\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
+                Ok(true)
+            }
             "/429" => {
                 if self.bump(format!("429-{seed}")) == 1 {
                     s.write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 2\r\nContent-Length: 0\r\n\r\n").await?;
@@ -176,6 +222,10 @@ impl Fixture {
                 let n = self.bump(format!("etag-{seed}"));
                 let after = num("after", 2);
                 let sd = if n > after { seed + 1 } else { seed };
+                let etag = format!("\"s{sd}-{size}\"");
+                if hdr("if-none-match") == Some(etag.as_str()) {
+                    return not_modified(s, &etag).await;
+                }
                 self.ranged(s, size, sd, rate, trate, range, hdr("if-range"), head_only, &format!("\"s{sd}-{size}\"")).await
             }
             "/range-then-200" => {
@@ -379,6 +429,12 @@ Accept-Ranges: bytes
             }
         }
     }
+}
+
+/// Q-05: a conditional request that matches gets 304 and no body
+async fn not_modified(s: &mut TcpStream, etag: &str) -> std::io::Result<bool> {
+    s.write_all(format!("HTTP/1.1 304 Not Modified\r\nETag: {etag}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
+    Ok(true)
 }
 
 fn find(h: &[u8], n: &[u8]) -> Option<usize> {

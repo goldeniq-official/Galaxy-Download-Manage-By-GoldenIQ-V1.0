@@ -561,6 +561,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono-tz"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6139a8597ed92cf816dfb33f5dd6cf0bb93a6adc938f11039f371bc5bcd26c3"
+dependencies = [
+ "chrono",
+ "phf 0.12.1",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1283,8 +1293,12 @@ dependencies = [
 name = "galaxy-download-manager"
 version = "0.9.0"
 dependencies = [
+ "chrono",
+ "gdm-auth",
  "gdm-bridge",
  "gdm-core",
+ "gdm-fixture",
+ "gdm-media",
  "minisign-verify 0.2.5",
  "serde",
  "serde_json",
@@ -1298,6 +1312,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tokio",
  "url",
+ "webview2-com",
  "windows 0.61.3",
 ]
 
@@ -1401,6 +1416,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gdm-auth"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "getrandom 0.3.4",
+ "md-5",
+ "sha2",
+ "windows 0.61.3",
+]
+
+[[package]]
 name = "gdm-bridge"
 version = "0.9.0"
 dependencies = [
@@ -1413,8 +1439,12 @@ dependencies = [
 name = "gdm-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "chrono-tz",
  "futures-util",
+ "gdm-auth",
  "gdm-fixture",
+ "getrandom 0.3.4",
  "httpdate",
  "rcgen",
  "reqwest",
@@ -1437,6 +1467,15 @@ version = "0.1.0"
 dependencies = [
  "sha2",
  "tokio",
+]
+
+[[package]]
+name = "gdm-media"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -1841,7 +1880,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.61.2",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
@@ -2345,6 +2384,16 @@ dependencies = [
  "log",
  "tendril",
  "web_atoms 0.3.0",
+]
+
+[[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest",
 ]
 
 [[package]]
@@ -2937,6 +2986,15 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "phf"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
+dependencies = [
+ "phf_shared 0.12.1",
+]
+
+[[package]]
+name = "phf"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
@@ -3021,6 +3079,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
+dependencies = [
+ "siphasher",
 ]
 
 [[package]]
@@ -4697,6 +4764,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

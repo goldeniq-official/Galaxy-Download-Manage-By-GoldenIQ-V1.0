@@ -56,8 +56,7 @@ html:lang(km) .btn-p { font-size: 13px; font-weight: 600; }
 .list::-webkit-scrollbar { width: 4px; } .list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; }
 .cols, .row { display: grid; grid-template-columns: 30px minmax(0,1.3fr) 76px minmax(170px,1fr) 84px 64px; align-items: center; column-gap: 12px; padding: 0 12px; }
 .cols { font-size: 11.5px; color: var(--tx-muted); height: 32px; position: sticky; top: 0; background: var(--sunk); z-index: var(--z-sticky); }
-.cols span:nth-child(n+3), .row > :nth-child(n+3) { text-align: end; }
-.cols span:nth-child(4), .row > :nth-child(4) { text-align: start; }
+.c-end { text-align: end; }
 .row { min-height: 56px; border-radius: var(--r-md); background: var(--row); margin-bottom: 6px; cursor: default; position: relative; color: var(--tx-2); transition: background var(--motion-hover); }
 .row:hover { background: var(--row-hover); }
 .row.is-selected { background: linear-gradient(90deg, var(--accent-wash), transparent 85%), var(--row); }
@@ -93,8 +92,6 @@ html:lang(km) .btn-p { font-size: 13px; font-weight: 600; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--done); }
 
 /* details pane (wide) */
-.split .cols, .split .row { grid-template-columns: 30px minmax(0,1.4fr) 70px minmax(150px,1fr); }
-.split .cols > :nth-child(n+5), .split .row > :nth-child(n+5) { display: none; }  /* speed + time left live in the pane */
 .split { display: grid; grid-template-columns: minmax(0,1fr) 340px; min-height: 0; }
 .pane { padding: 4px 18px 16px 6px; overflow: auto; min-height: 0; }
 .card { background: linear-gradient(180deg, var(--card-a), var(--card-b)); border-radius: var(--r-xl); box-shadow: var(--shadow-card); padding: 16px; }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-category-pick-dir"
+description = "Enables the category_pick_dir command without any pre-configured scope."
+commands.allow = ["category_pick_dir"]
+
+[[permission]]
+identifier = "deny-category-pick-dir"
+description = "Denies the category_pick_dir command without any pre-configured scope."
+commands.deny = ["category_pick_dir"]

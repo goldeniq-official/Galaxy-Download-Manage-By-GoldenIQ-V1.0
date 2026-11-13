@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-login-delete"
+description = "Enables the login_delete command without any pre-configured scope."
+commands.allow = ["login_delete"]
+
+[[permission]]
+identifier = "deny-login-delete"
+description = "Denies the login_delete command without any pre-configured scope."
+commands.deny = ["login_delete"]

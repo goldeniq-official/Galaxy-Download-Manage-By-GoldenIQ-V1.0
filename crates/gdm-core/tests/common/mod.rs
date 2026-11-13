@@ -31,6 +31,8 @@ pub fn engine(tag: &str, cfg: seg::Config) -> T {
     let dl = root.join("Downloads");
     std::fs::create_dir_all(&dl).unwrap();
     let engine = Engine::open(&root.join("data").join("gdm.db"), cfg).unwrap();
+    // the request traces of the G5/G6 tests have no `<file>.sha256` probe (P1 #10 tests turn it on)
+    engine.hash_sidecar.store(false, std::sync::atomic::Ordering::Relaxed);
     T { root, dl, engine }
 }
 

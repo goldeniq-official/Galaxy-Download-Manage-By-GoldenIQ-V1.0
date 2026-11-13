@@ -73,7 +73,7 @@ pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(
                     }
                     Ok(()) => match serde_json::from_slice::<Envelope>(&buf[..n as usize]) {
                         // the engine validates again: the bridge is not a security boundary (B-08)
-                        Ok(env) if env.msg.validate().is_ok() => {
+                        Ok(env) if env.msg.validate().is_ok() && (!matches!(env.msg, Msg::Cli { .. }) || client_is_gdm(h)) => {
                             let (a, m, o) = (app.clone(), env.msg, env.origin);
                             let reply = rt.block_on(async move { handle(&a, &o, m).await });
                             // B-09 crash-window test only: hold the reply after the job exists (never set in use)
@@ -97,6 +97,15 @@ pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(
         }
     });
     Ok(())
+}
+
+/// I-02: a CLI message counts only when the connected client process IS this gdm.exe (same image path), read
+/// through the process handle; the origin string alone is never trusted
+fn client_is_gdm(h: HANDLE) -> bool {
+    let mut pid = 0;
+    let ok = unsafe { windows::Win32::System::Pipes::GetNamedPipeClientProcessId(h, &mut pid).is_ok() };
+    let me = std::env::current_exe().ok();
+    ok && me.is_some_and(|me| gdm_bridge::image_of(pid).is_some_and(|img| gdm_bridge::norm(&img) == gdm_bridge::norm(&me)))
 }
 
 /// glob with `*` only, case-insensitive (C-01 exception list)
@@ -132,6 +141,12 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
             json!({"ok": true, "running": app.running(), "recent": recent})
         }
         Msg::Handoff { hid, url, referrer, name, cookie, .. } => {
+            // F06: the new link a refresh ticket waits for (checked before the catch rules: the user asked for it)
+            let creds: Vec<(String, String)> = cookie.clone().filter(|c| !c.is_empty()).map(|c| vec![("Cookie".to_string(), c)]).unwrap_or_default();
+            if let Some(job) = app.refresh_take(&url, referrer.as_deref(), creds) {
+                crate::show_main(app, true);
+                return json!({"ok": true, "id": job, "started": false, "refresh": true});
+            }
             let s = lock(&app.settings).clone();
             // the engine applies its own policy too (B-04): catching off or an excepted site => browser keeps it
             if !s.catch_enabled || s.catch_skip.iter().any(|p| glob(p, url.split("://").nth(1).unwrap_or(""))) {
@@ -164,6 +179,15 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
             if let Some((id, _)) = id {
                 let _ = app.info_cancel(&id).await;
             }
+            json!({"ok": true})
+        }
+        Msg::Cli { cmd, url, dir, name, add_only, silent, quit_after } => {
+            crate::cli::serve(app, &cmd, url, dir, name, add_only, silent, quit_after).await
+        }
+        Msg::Video { page } => {
+            // never starts anything: the app shows "download this video?" and the quality list on request
+            app.push_toast("video-link", "", &page);
+            crate::show_main(app, true);
             json!({"ok": true})
         }
         Msg::Links { urls, referrer } => {

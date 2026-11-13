@@ -1,0 +1,15 @@
+  ok 147 tests\ui.spec.ts:340:1 › G7 import: a preview comes first, nothing is added before Add (I-03) (1.4s)
+  ok 148 tests\ui.spec.ts:351:1 › G7 export: the saved file name is shown (1.3s)
+  ok 149 tests\ui.spec.ts:357:1 › G7 Download later puts the file in the chosen queue (1.3s)
+  ok 150 tests\ui.spec.ts:368:1 › G7 queue: the queue node lists files in order, the context menu removes, reorder re-puts (1.7s)
+  ok 151 tests\ui.spec.ts:384:1 › G7 scheduler: Tasks > Scheduler opens queue settings; new queue; program only via the native picker (1.4s)
+  ok 152 tests\ui.spec.ts:401:1 › G7 site login: the password is sent once and never kept in the form (1.3s)
+  ok 153 tests\ui.spec.ts:413:1 › G7 drop basket: dropped links go to add_url (http/https only, at most 50); hide calls basket_show(false) (2.6s)
+  ok 154 tests\ui.spec.ts:434:1 › G7 P1 #21: several links dropped on the main window each go to add_url (1.3s)
+  ok 155 tests\ui.spec.ts:444:1 › G7 P1 #27: a column header sorts, its menu hides a column; both are saved in settings.columns (1.3s)
+  ok 156 tests\ui.spec.ts:458:1 › G7 P1 #19/#26: remember a folder for the category; change the address of a stopped download (1.6s)
+  ok 157 tests\ui.spec.ts:472:1 › G7 copied video link: a toast asks first, Choose quality opens the quality list, nothing starts by itself (1.6s)
+
+  Slow test file: tests\ui.spec.ts (10.4m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  157 passed (10.4m)

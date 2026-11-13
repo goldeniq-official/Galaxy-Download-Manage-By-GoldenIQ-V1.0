@@ -3,8 +3,19 @@
 //! notification, autostart, window-state only; no shell/fs/http/opener (X-02). Every command takes job IDs or
 //! plain values, never paths, URLs to open or command lines (X-01).
 pub mod app;
+pub mod cli;
+pub mod clip;
+pub mod components;
+pub mod creds;
+pub mod hook;
+pub mod import;
+pub mod media;
 pub mod os;
 pub mod pipe;
+pub mod proxy;
+pub mod queue;
+pub mod quota;
+pub mod refresh;
 pub mod update;
 
 use app::{lock, App, RowView, Settings};
@@ -85,34 +96,399 @@ fn settings_get(app: A) -> Settings {
 /// merge a partial settings object; fields that hold paths or updater state cannot be set from the UI
 #[tauri::command]
 fn settings_set(app: A, patch: Value) -> R<Settings> {
-    let Value::Object(p) = patch else { return Err("bad".into()) };
-    let mut cur = serde_json::to_value(&*lock(&app.settings)).map_err(|e| e.to_string())?;
-    for (k, v) in p {
-        if matches!(k.as_str(), "download_dir" | "highest_seen" | "last_check" | "update_failures") {
-            continue;
-        }
-        cur[k] = v;
-    }
-    let mut s: Settings = serde_json::from_value(cur).map_err(|e| e.to_string())?;
-    for c in &mut s.categories {
-        c.sub = gdm_core::name::sanitize(&c.sub).replace(['\\', '/'], "");
-        if c.sub == "_" {
-            c.sub.clear();
-        }
-        c.exts = c.exts.iter().map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase()).filter(|e| !e.is_empty() && e.len() <= 16).collect();
-    }
-    s.max_conns = s.max_conns.clamp(1, 32);
+    let s = app.merge_settings(patch)?;
+    apply_settings(app.inner(), s)
+}
+
+fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
+    let wake: Vec<queue::Queue> = s.queues.clone();
     let autostart = s.autostart;
     *lock(&app.settings) = s.clone();
     app.save_settings()?;
     app.apply_limit();
+    os::sync_wake_tasks(&wake);
     if let Some(h) = HANDLE.get() {
         use tauri_plugin_autostart::ManagerExt;
         let al = h.autolaunch();
         let _ = if autostart { al.enable() } else { al.disable() };
-        let _ = rebuild_tray(h, &app);
+        let _ = rebuild_tray(h, app);
     }
     Ok(s)
+}
+
+#[derive(Serialize)]
+struct QueueView {
+    def: queue::Queue,
+    state: queue::QState,
+    jobs: Vec<String>,
+    hook: Option<hook::Hook>,
+}
+
+#[tauri::command]
+fn queue_list(app: A) -> Vec<QueueView> {
+    let st = app.queue_states();
+    let hooks = lock(&app.settings).hooks.clone();
+    app.queue_defs()
+        .into_iter()
+        .map(|d| QueueView {
+            jobs: lock(&app.engine.store).queue_jobs(&d.id).unwrap_or_default(),
+            state: st.get(&d.id).cloned().unwrap_or_default(),
+            hook: hooks.get(&d.id).cloned(),
+            def: d,
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn queue_put(app: A, ids: Vec<String>, queue: Option<String>) -> R<()> {
+    if ids.len() > 100_000 {
+        return Err("too-many".into());
+    }
+    app.queue_put(&ids, queue.as_deref())
+}
+
+#[tauri::command]
+fn queue_start(app: A, id: String) -> R<()> {
+    app.inner().queue_start(&id, None)
+}
+
+#[tauri::command]
+async fn queue_stop(app: A<'_>, id: String) -> R<()> {
+    app.inner().clone().queue_stop(&id).await;
+    Ok(())
+}
+
+#[tauri::command]
+fn queue_cancel_action(app: A, id: String) {
+    app.queue_cancel_action(&id);
+}
+
+/// Q-01: the ONLY way a hook is set. The program comes from the native file dialog (never a path string from
+/// the WebView); the arguments are a list. `pick: false` keeps the program and changes the arguments only.
+#[tauri::command]
+fn hook_set(app: A, queue: String, pick: bool, args: Vec<String>, clear: bool) -> R<Option<hook::Hook>> {
+    // "scan" = the user's own virus scanner, run with {file} after each download (§04 Safety row)
+    if queue != "scan" && !app.queue_defs().iter().any(|q| q.id == queue) {
+        return Err("no-queue".into());
+    }
+    if clear {
+        lock(&app.settings).hooks.remove(&queue);
+        app.save_settings()?;
+        return Ok(None);
+    }
+    let program = if pick {
+        let start = std::env::var_os("ProgramFiles").map(std::path::PathBuf::from).unwrap_or_default();
+        match os::pick_file(&start, "Program", "*.exe;*.bat;*.cmd") {
+            Some(p) => p.display().to_string(),
+            None => return Ok(lock(&app.settings).hooks.get(&queue).cloned()),
+        }
+    } else {
+        lock(&app.settings).hooks.get(&queue).map(|h| h.program.clone()).ok_or("no-program")?
+    };
+    let h = hook::Hook { program, args };
+    hook::validate(&h)?;
+    // the exact program and argv are confirmed in a native box, never only in the WebView (security review G7)
+    let km = lock(&app.settings).lang != "en";
+    let ask = if km {
+        "ដំណើរការកម្មវិធីនេះពេល queue បញ្ចប់?"
+    } else {
+        "Run this program when the queue finishes?"
+    };
+    let args: String = h.args.iter().enumerate().map(|(i, a)| format!("[{}] \"{a}\"\n", i + 1)).collect();
+    let shown = format!("{ask}\n\n\"{}\"\n{args}", h.program);
+    if !os::confirm("Galaxy Download Manager", &shown) {
+        return Ok(lock(&app.settings).hooks.get(&queue).cloned());
+    }
+    lock(&app.settings).hooks.insert(queue, h.clone());
+    app.save_settings()?;
+    Ok(Some(h))
+}
+
+/// a custom WAV for an event, from the native file dialog only
+#[tauri::command]
+fn sound_pick(app: A, event: String) -> R<Option<String>> {
+    if !matches!(event.as_str(), "complete" | "failed" | "queue") {
+        return Err("bad-event".into());
+    }
+    let start = std::env::var_os("SystemRoot").map(|p| std::path::PathBuf::from(p).join("Media")).unwrap_or_default();
+    let Some(p) = os::pick_file(&start, "WAV", "*.wav") else { return Ok(None) };
+    let p = p.display().to_string();
+    lock(&app.settings).sounds.insert(event, p.clone());
+    app.save_settings()?;
+    Ok(Some(p))
+}
+
+#[tauri::command]
+fn sound_test(app: A, event: String) {
+    app.play(&event);
+}
+
+#[derive(Serialize)]
+struct ImportPreview {
+    count: usize,
+    sample: Vec<import::Item>,
+    has_settings: bool,
+}
+
+/// Tasks > Import: the file comes from the native dialog; nothing is added before [Add] (I-03 preview)
+#[tauri::command]
+fn import_pick(app: A) -> R<Option<ImportPreview>> {
+    let start = app::downloads_dir();
+    let Some(p) = os::pick_file(&start, "IDM .ef2, text, GDM .json", "*.ef2;*.txt;*.json") else { return Ok(None) };
+    let len = std::fs::metadata(&p).map_err(|e| e.to_string())?.len();
+    if len > import::MAX_FILE {
+        return Err("too-large".into());
+    }
+    let bytes = std::fs::read(&p).map_err(|e| e.to_string())?;
+    let (items, set) = import::parse_file(&p.display().to_string(), &bytes)?;
+    let pv = ImportPreview { count: items.len(), sample: items.iter().take(50).cloned().collect(), has_settings: set.is_some() };
+    *lock(&app.import_pending) = Some((items, set));
+    Ok(Some(pv))
+}
+
+#[tauri::command]
+fn import_commit(app: A, queue: Option<String>, restore_settings: bool) -> R<usize> {
+    let Some((items, set)) = lock(&app.import_pending).take() else { return Err("nothing".into()) };
+    let ids = app.add_items(&items, queue.as_deref())?;
+    if restore_settings {
+        if let Some(v) = set {
+            apply_settings(app.inner(), app.restore_settings(v)?)?; // low-risk keys only, queue actions disarmed
+        }
+    }
+    Ok(ids.len())
+}
+
+#[tauri::command]
+fn export_pick(app: A) -> R<Option<String>> {
+    let Some(p) = os::pick_save(&app::downloads_dir(), "gdm-export.json") else { return Ok(None) };
+    std::fs::write(&p, app.export_json()?).map_err(|e| e.to_string())?;
+    Ok(Some(p.display().to_string()))
+}
+
+#[derive(Serialize)]
+struct BatchPreview {
+    count: u64,
+    first: Vec<String>,
+    needs_confirm: bool,
+}
+
+#[tauri::command]
+fn batch_preview(b: import::Batch) -> R<BatchPreview> {
+    let count = b.count()?;
+    Ok(BatchPreview { count, first: b.urls(5)?, needs_confirm: count > import::BATCH_CONFIRM })
+}
+
+/// I-04: > 10 000 needs `confirmed`; > 100 000 is refused; one transaction
+#[tauri::command]
+fn batch_add(app: A, b: import::Batch, confirmed: bool, queue: Option<String>) -> R<usize> {
+    let n = b.count()?;
+    if n > import::MAX_ITEMS as u64 {
+        return Err("too-many".into());
+    }
+    if n > import::BATCH_CONFIRM && !confirmed {
+        return Err("confirm".into());
+    }
+    let items: Vec<import::Item> = b.urls(n as usize)?.into_iter().map(|url| import::Item { url, ..Default::default() }).collect();
+    Ok(app.add_items(&items, queue.as_deref())?.len())
+}
+
+#[tauri::command]
+fn refresh_start(app: A, id: String) -> R<()> {
+    app.refresh_start(&id)
+}
+
+#[tauri::command]
+fn refresh_paste(app: A, id: String, url: String) -> R<()> {
+    if url.len() > gdm_bridge::MAX_URL {
+        return Err("bad-url".into());
+    }
+    app.refresh_paste(&id, &url)
+}
+
+#[tauri::command]
+async fn refresh_candidate(app: A<'_>, id: String) -> R<Option<refresh::Candidate>> {
+    app.inner().clone().refresh_candidate(&id).await
+}
+
+#[tauri::command]
+async fn refresh_decide(app: A<'_>, id: String, choice: String) -> R<String> {
+    app.inner().clone().refresh_decide(&id, &choice).await
+}
+
+/// proxy login password: straight to Credential Manager ("GDM/proxy"), never into settings
+#[tauri::command]
+fn proxy_login_set(app: A, host: String, user: String, password: String, windows: bool) -> R<()> {
+    if host.trim().is_empty()
+        || host.len() > 256
+        || user.len() > 256
+        || password.len() > 1024
+        || format!("{host}{user}").chars().any(|c| c.is_control())
+    {
+        return Err("bad-login".into());
+    }
+    let mut p = lock(&app.settings).proxy.clone();
+    if windows {
+        p.auth = "windows".into(); // the logged-on user's Windows sign-in (SSPI), nothing stored
+    } else {
+        creds::save("proxy", &user, &password)?;
+        p.auth = "basic".into();
+    }
+    p.user = user;
+    p.auth_host = gdm_core::relay::hostport(&host, 80);
+    lock(&app.settings).proxy = p.clone();
+    app.save_settings()?;
+    proxy::apply(&p);
+    Ok(())
+}
+
+#[tauri::command]
+async fn media_probe(app: A<'_>, url: String) -> R<media::Probe> {
+    if url.len() > gdm_bridge::MAX_URL {
+        return Err("bad-url".into());
+    }
+    app.inner().clone().media_probe(url.trim()).await
+}
+
+#[tauri::command]
+fn media_start(app: A, token: String, choice: usize) -> R<()> {
+    app.inner().media_start(&token, choice)
+}
+
+#[derive(Serialize)]
+struct ComponentState {
+    ytdlp: bool,
+    ffmpeg: bool,
+}
+
+#[tauri::command]
+fn components_state(app: A) -> ComponentState {
+    ComponentState {
+        ytdlp: components::has(&app.data, "yt-dlp.exe"),
+        ffmpeg: components::has(&app.data, "ffmpeg.exe") && components::has(&app.data, "ffprobe.exe"),
+    }
+}
+
+/// D10 consent given in the UI: fetch the signed components.json, then each component (sha256-checked)
+#[tauri::command]
+async fn components_install(app: A<'_>) -> R<()> {
+    let a = app.inner().clone();
+    let c = gdm_core::net::client(Arc::new(Default::default()), false, Duration::from_secs(60))?;
+    let get = |u: String, cap: u64| {
+        let c = c.clone();
+        async move {
+            let mut r = c.get(u).send().await.map_err(|e| e.to_string())?;
+            if !r.status().is_success() {
+                return Err(format!("http {}", r.status()));
+            }
+            let mut b = Vec::new();
+            while let Some(ch) = r.chunk().await.map_err(|e| e.to_string())? {
+                if (b.len() + ch.len()) as u64 > cap {
+                    return Err("too-large".to_string());
+                }
+                b.extend_from_slice(&ch);
+            }
+            Ok(b)
+        }
+    };
+    let body = get(components::MANIFEST_URL.to_string(), 256 * 1024).await?;
+    let sig = get(format!("{}.sig", components::MANIFEST_URL), 4096).await?;
+    let m = components::verify(&body, &String::from_utf8_lossy(&sig), update::PUBKEY, gdm_core::store::now())?;
+    for comp in &m.components {
+        let bytes = get(comp.url.clone(), comp.size.min(components::MAX_DOWNLOAD)).await?;
+        let (d, cc) = (a.data.clone(), comp.clone());
+        tauri::async_runtime::spawn_blocking(move || components::install(&d, &cc, &bytes)).await.map_err(|e| e.to_string())??;
+    }
+    Ok(())
+}
+
+/// Tasks > Show drop target (IDM): the small always-on-top basket window; links dropped on it go to add_url
+#[tauri::command]
+fn basket_show(app: A, on: bool) -> R<()> {
+    lock(&app.settings).basket = on;
+    app.save_settings()?;
+    let w = HANDLE.get().and_then(|h| h.get_webview_window("basket")).ok_or("no-basket")?;
+    if on {
+        w.show().map_err(|e| e.to_string())
+    } else {
+        w.hide().map_err(|e| e.to_string())
+    }
+}
+
+/// P1 #19 "remember this folder for the category": the folder comes from the native picker only
+#[tauri::command]
+fn category_pick_dir(app: A, id: String, clear: bool) -> R<Option<String>> {
+    let cur = lock(&app.settings).categories.iter().find(|c| c.id == id).cloned().ok_or("no-category")?;
+    let dir = if clear {
+        String::new()
+    } else {
+        match os::pick_folder(&app.category_dir(&cur)) {
+            Some(p) => {
+                gdm_core::fsx::Dir::open(&p).map_err(|e| e.to_string())?; // no junction on the way (N-03)
+                p.display().to_string()
+            }
+            None => return Ok(None),
+        }
+    };
+    for c in lock(&app.settings).categories.iter_mut().filter(|c| c.id == id) {
+        c.dir = dir.clone();
+    }
+    app.save_settings()?;
+    Ok(Some(dir))
+}
+
+/// P1 #26 Properties: a stopped job downloads from a new address (same checks as a refreshed link: the
+/// validator is checked on the next run, a changed file stops with "file changed")
+#[tauri::command]
+fn job_set_url(app: A, id: String, url: String) -> R<()> {
+    if url.len() > gdm_bridge::MAX_URL || app.is_running(&id) {
+        return Err("bad-url".into());
+    }
+    app.engine.refresh_apply(&id, url.trim(), vec![]).map_err(|e| e.code())?;
+    app.bump();
+    Ok(())
+}
+
+/// P1 #26 Properties: another folder for a job that has not downloaded anything yet (native picker)
+#[tauri::command]
+async fn job_move(app: A<'_>, id: String) -> R<Option<String>> {
+    let j = app.engine.job(&id).map_err(|e| e.code())?;
+    if j.done > 0 || app.is_running(&id) || matches!(j.state.as_str(), "complete" | "unprotected") {
+        return Err("has-progress".into());
+    }
+    let Some(dir) = os::pick_folder(&j.dir) else { return Ok(None) };
+    let creds: Vec<(String, String)> = app.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie")).collect();
+    app.inner().clone().remove(&id, false).await?;
+    let nid = app
+        .engine
+        .add(gdm_core::NewJob {
+            url: j.url,
+            dir,
+            name: Some(j.name),
+            referrer: j.referrer,
+            creds,
+            typed: j.allow_private.is_some(),
+            ..Default::default()
+        })
+        .map_err(|e| e.code())?;
+    let _ = app.engine.stopped(&nid);
+    app.bump();
+    Ok(Some(nid))
+}
+
+#[tauri::command]
+fn login_list(app: A) -> Vec<creds::SiteLogin> {
+    lock(&app.settings).site_logins.clone()
+}
+
+/// P-01: the password goes straight to Credential Manager; it is never returned to the WebView
+#[tauri::command]
+fn login_set(app: A, prefix: String, user: String, password: String) -> R<creds::SiteLogin> {
+    app.login_set(&prefix, &user, &password)
+}
+
+#[tauri::command]
+fn login_delete(app: A, id: String) -> R<()> {
+    app.login_delete(&id)
 }
 
 #[tauri::command]
@@ -470,8 +846,99 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
     )?;
     if let Some(t) = h.tray_by_id("gdm") {
         t.set_menu(Some(menu))?;
+        // I-01: the tray says when the clipboard is being watched
+        let tip = match (lock(&app.settings).clipboard, lang == "en") {
+            (true, true) => "Galaxy Download Manager (watching the clipboard)",
+            (true, false) => "Galaxy Download Manager (កំពុងមើល clipboard)",
+            _ => "Galaxy Download Manager",
+        };
+        t.set_tooltip(Some(tip))?;
     }
     Ok(())
+}
+
+/// the main window's behaviour: closing hides it (§07); a WebView2 process failure rebuilds it (council G7,
+/// ADR-1: the engine keeps downloading through a WebView crash, the window must come back too)
+fn attach_main(h: &AppHandle, w: &tauri::WebviewWindow) {
+    let w2 = w.clone();
+    w.on_window_event(move |e| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+            api.prevent_close(); // closing the window is not quitting (§07): GDM stays in the tray
+            let _ = w2.hide();
+        }
+    });
+    let h2 = h.clone();
+    let _ = w.with_webview(move |pw| unsafe {
+        use webview2_com::ProcessFailedEventHandler;
+        let Ok(core) = pw.controller().CoreWebView2() else { return };
+        let mut token = 0i64;
+        let h3 = h2.clone();
+        let _ = core.add_ProcessFailed(
+            &ProcessFailedEventHandler::create(Box::new(move |_, _| {
+                let h4 = h3.clone();
+                let _ = h3.run_on_main_thread(move || rebuild_main(&h4));
+                Ok(())
+            })),
+            &mut token,
+        );
+    });
+}
+
+fn wv_log(h: &AppHandle, m: &str) {
+    if let Some(a) = h.try_state::<Arc<App>>() {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(a.data.join("webview.log")) {
+            let _ = writeln!(f, "{} {m}", gdm_core::store::now());
+        }
+    }
+}
+
+static REBUILDS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// a new main window from the same config; it reads all state from the engine again (no job is touched)
+fn rebuild_main(h: &AppHandle) {
+    use std::sync::atomic::Ordering;
+    if REBUILDS.fetch_add(1, Ordering::SeqCst) > 20 {
+        return; // a WebView that keeps dying: stop trying (downloads continue; the tray still works)
+    }
+    let visible = h.get_webview_window("main").and_then(|w| w.is_visible().ok()).unwrap_or(false);
+    wv_log(h, "process failed: rebuilding the main window");
+    if let Some(w) = h.get_webview_window("main") {
+        let _ = w.destroy();
+    }
+    // the label is free only once the old window is gone (destroy is asynchronous)
+    let h2 = h.clone();
+    std::thread::spawn(move || {
+        for _ in 0..50 {
+            if h2.get_webview_window("main").is_none() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let h3 = h2.clone();
+        let _ = h2.run_on_main_thread(move || {
+            let Some(cfg) = h3.config().app.windows.iter().find(|c| c.label == "main").cloned() else { return };
+            match tauri::WebviewWindowBuilder::from_config(&h3, &cfg).and_then(|b| b.build()) {
+                Ok(w) => {
+                    attach_main(&h3, &w);
+                    if visible {
+                        let _ = w.show();
+                    }
+                    wv_log(&h3, "main window rebuilt");
+                }
+                Err(e) => wv_log(&h3, &format!("rebuild failed: {e}")),
+            }
+        });
+    });
+}
+
+/// "exit GDM when the queue is done" and the CLI /q
+pub fn request_quit() {
+    if let Some(h) = HANDLE.get() {
+        if let Some(a) = h.try_state::<Arc<App>>() {
+            quit(h, a.inner().clone());
+        }
+    }
 }
 
 fn quit(h: &AppHandle, app: Arc<App>) {
@@ -508,7 +975,12 @@ fn notifier(h: AppHandle, app: &Arc<App>) {
 }
 
 pub fn run() {
-    let background = std::env::args().any(|a| a == "--background");
+    // I-02: `gdm.exe /d URL ...` is a pipe client of the running GDM (started in the tray if needed), then exits
+    let argv: Vec<String> = std::env::args().collect();
+    if let Some(m) = cli::parse(&argv) {
+        std::process::exit(cli::main(m));
+    }
+    let background = argv.iter().any(|a| a == "--background");
     let app = match App::open(&app::data_dir()) {
         Ok(a) => a,
         Err(e) => {
@@ -555,7 +1027,36 @@ pub fn run() {
             open_link,
             browsers,
             update_check,
-            update_restart
+            update_restart,
+            queue_list,
+            queue_put,
+            queue_start,
+            queue_stop,
+            queue_cancel_action,
+            hook_set,
+            sound_pick,
+            sound_test,
+            import_pick,
+            import_commit,
+            export_pick,
+            batch_preview,
+            batch_add,
+            refresh_start,
+            refresh_paste,
+            refresh_candidate,
+            refresh_decide,
+            login_list,
+            login_set,
+            login_delete,
+            proxy_login_set,
+            media_probe,
+            media_start,
+            components_state,
+            components_install,
+            basket_show,
+            category_pick_dir,
+            job_set_url,
+            job_move
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();
@@ -597,15 +1098,50 @@ pub fn run() {
                 if !background {
                     let _ = w.show();
                 }
-                let w2 = w.clone();
-                w.on_window_event(move |e| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = e {
-                        api.prevent_close(); // closing the window is not quitting (§07): GDM stays in the tray
-                        let _ = w2.hide();
-                    }
-                });
+                attach_main(&h, &w);
             }
             app.resume_interrupted();
+            if lock(&app.settings).basket {
+                if let Some(b) = h.get_webview_window("basket") {
+                    let _ = b.show();
+                }
+            }
+            // I-01: clipboard monitor (reads nothing while off); a URL opens the Download Info dialog, unstarted
+            let (ac, ao) = (Arc::downgrade(&app), Arc::downgrade(&app));
+            clip::spawn(
+                Box::new(move || {
+                    ac.upgrade().and_then(|a| {
+                        let video = components::has(&a.data, "yt-dlp.exe");
+                        let s = lock(&a.settings);
+                        s.clipboard.then(|| (s.catch_exts.clone(), video))
+                    })
+                }),
+                Box::new(move |u, is_video| {
+                    if let Some(a) = ao.upgrade() {
+                        if is_video {
+                            // a copied video page: ask in the app (quality flow), never start by itself
+                            a.push_toast("video-link", "", &u);
+                            return;
+                        }
+                        if let Ok(id) = a.add_and_start(&u, None, None, vec![], false, false) {
+                            lock(&a.pending).push(id);
+                            show_main(&a, true);
+                        }
+                    }
+                }),
+            );
+            // queue scheduler: every second (schedules use wall time, countdowns use Instant)
+            let aq = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut last = chrono::Utc::now() - chrono::Duration::seconds(90);
+                loop {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    let now = chrono::Utc::now();
+                    aq.quota_tick().await;
+                    aq.queue_tick(now, last).await;
+                    last = now;
+                }
+            });
             // backups + updater timer (§07: daily, at start after a minute, never more often than 6 h)
             let a3 = app.clone();
             tauri::async_runtime::spawn(async move {

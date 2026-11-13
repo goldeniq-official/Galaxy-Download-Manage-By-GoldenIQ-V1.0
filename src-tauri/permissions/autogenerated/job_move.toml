@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-job-move"
+description = "Enables the job_move command without any pre-configured scope."
+commands.allow = ["job_move"]
+
+[[permission]]
+identifier = "deny-job-move"
+description = "Denies the job_move command without any pre-configured scope."
+commands.deny = ["job_move"]

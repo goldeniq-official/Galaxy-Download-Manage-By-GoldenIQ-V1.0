@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-queue-cancel-action"
+description = "Enables the queue_cancel_action command without any pre-configured scope."
+commands.allow = ["queue_cancel_action"]
+
+[[permission]]
+identifier = "deny-queue-cancel-action"
+description = "Denies the queue_cancel_action command without any pre-configured scope."
+commands.deny = ["queue_cancel_action"]

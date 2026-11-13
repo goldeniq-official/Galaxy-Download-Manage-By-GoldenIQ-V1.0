@@ -24,6 +24,8 @@ exceptions = [
   { crate = "gdm-core", allow = ["RPL-1.5"] },
   { crate = "gdm-fixture", allow = ["RPL-1.5"] },
   { crate = "gdm-bridge", allow = ["RPL-1.5"] },
+  { crate = "gdm-media", allow = ["RPL-1.5"] },
+  { crate = "gdm-auth", allow = ["RPL-1.5"] },
 ]
 
 [advisories]

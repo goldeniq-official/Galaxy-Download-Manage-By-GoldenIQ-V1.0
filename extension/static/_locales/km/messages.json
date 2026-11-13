@@ -1,14 +1,44 @@
 {
-  "name": { "message": "Galaxy Download Manager" },
-  "desc": { "message": "ផ្ញើការទាញយកទៅ Galaxy Download Manager ក្នុងកុំព្យូទ័រនេះ។ ផ្ញើតែ link ឈ្មោះ និង cookie របស់ site នោះ គ្មានអ្វីចេញពីកុំព្យូទ័ររបស់អ្នកទេ។" },
-  "menuLink": { "message": "ទាញដោយ GDM" },
-  "menuAll": { "message": "ទាញ link ទាំងអស់ដោយ GDM" },
-  "connected": { "message": "បានភ្ជាប់ GDM" },
-  "offline": { "message": "មិនបានភ្ជាប់ GDM" },
-  "offlineHelp": { "message": "ដំឡើង ឬបើក Galaxy Download Manager។ មុនពេលនោះ browser ទាញធម្មតា។" },
-  "catching": { "message": "ចាប់ការទាញយក" },
-  "thisSite": { "message": "កុំចាប់លើគេហទំព័រនេះ" },
-  "siteSkipped": { "message": "មិនចាប់លើគេហទំព័រនេះ" },
-  "recent": { "message": "ថ្មីៗ" },
-  "keys": { "message": "Ctrl + ចុច = GDM · Alt + ចុច = browser" }
+  "name": {
+    "message": "Galaxy Download Manager"
+  },
+  "desc": {
+    "message": "ផ្ញើការទាញយកទៅ Galaxy Download Manager ក្នុងកុំព្យូទ័រនេះ។ ផ្ញើតែ link ឈ្មោះ និង cookie របស់ site នោះ គ្មានអ្វីចេញពីកុំព្យូទ័ររបស់អ្នកទេ។"
+  },
+  "menuLink": {
+    "message": "ទាញដោយ GDM"
+  },
+  "menuAll": {
+    "message": "ទាញ link ទាំងអស់ដោយ GDM"
+  },
+  "connected": {
+    "message": "បានភ្ជាប់ GDM"
+  },
+  "offline": {
+    "message": "មិនបានភ្ជាប់ GDM"
+  },
+  "offlineHelp": {
+    "message": "ដំឡើង ឬបើក Galaxy Download Manager។ មុនពេលនោះ browser ទាញធម្មតា។"
+  },
+  "catching": {
+    "message": "ចាប់ការទាញយក"
+  },
+  "thisSite": {
+    "message": "កុំចាប់លើគេហទំព័រនេះ"
+  },
+  "siteSkipped": {
+    "message": "មិនចាប់លើគេហទំព័រនេះ"
+  },
+  "recent": {
+    "message": "ថ្មីៗ"
+  },
+  "keys": {
+    "message": "Ctrl + ចុច = GDM · Alt + ចុច = browser"
+  },
+  "videoSite": {
+    "message": "បង្ហាញវីដេអូលើគេហទំព័រនេះ"
+  },
+  "videoGet": {
+    "message": "ទាញវីដេអូពីទំព័រនេះ"
+  }
 }

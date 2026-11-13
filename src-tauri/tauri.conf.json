@@ -23,6 +23,20 @@
         "center": true,
         "visible": false,
         "dragDropEnabled": false
+      },
+      {
+        "label": "basket",
+        "title": "GDM",
+        "url": "basket.html",
+        "width": 76,
+        "height": 76,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "shadow": false
       }
     ],
     "security": {
@@ -33,25 +47,43 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZGNzgwMTkxREE4OTAzNjYKUldSbUE0bmFrUUY0L3hsOWZpTmRKTmFwWjZENzh5YnpTVGUrblFsRnI5WTByemcvTkI0NVRnM20K",
-      "endpoints": ["https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases/latest/download/latest.json"],
-      "windows": { "installMode": "passive" }
+      "endpoints": [
+        "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "createUpdaterArtifacts": true,
     "publisher": "GoldenIQ",
     "copyright": "© GoldenIQ. RPL-1.5",
     "shortDescription": "Galaxy Download Manager",
     "license": "RPL-1.5",
-    "externalBin": ["binaries/gdm-bridge"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "externalBin": [
+      "binaries/gdm-bridge"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Khmer", "English"],
-        "customLanguageFiles": { "Khmer": "nsis/Khmer.nsh" },
+        "languages": [
+          "Khmer",
+          "English"
+        ],
+        "customLanguageFiles": {
+          "Khmer": "nsis/Khmer.nsh"
+        },
         "displayLanguageSelector": false,
         "installerHooks": "nsis/hooks.nsh"
       }

@@ -30,7 +30,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const app = spawn(path.join(inst, "gdm.exe"), [], { env: { ...process.env, GDM_DATA: data, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=9339 ${EXTRA}`.trim() }, stdio: "ignore" });
 await sleep(6000);
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9339");
-const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools"));
+// the main window (G7 adds the drop-basket window: basket.html)
+const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools") && !p.url().includes("basket"));
 check(!!page, `WebView2 page found (${page?.url()})`);
 await page.setViewportSize({ width: 1280, height: 760 }).catch(() => {});
 if (MODE) {
@@ -52,7 +53,7 @@ const lang = JSON.parse(fs.readFileSync(path.join(data, "settings.json"), "utf8"
 await page.mouse.move(2, 2);
 await page.screenshot({ path: path.join(shots, `webview2-list-${lang}${TAG}.png`) });
 const rules = await page.evaluate(P.rulesProbe, HC);
-if (MODE) console.log(`engine: dpr=${await page.evaluate(() => devicePixelRatio)} forced-colors=${await page.evaluate(() => matchMedia("(forced-colors: active)").matches)}`);
+if (MODE) console.log(`engine: dpr=${await page.evaluate(() => window.devicePixelRatio)} forced-colors=${await page.evaluate(() => window.matchMedia("(forced-colors: active)").matches)}`);
 check(rules.length === 0, `rule 8 on the real UI: ${rules.length ? rules.join("; ") : "no border/outline/ring/glow"}`);
 const lay = await page.evaluate(P.layoutProbe);
 check(!lay.hClip.length && !lay.offscreen.length, `layout on the real UI: hclip ${lay.hClip.length}, offscreen ${lay.offscreen.length}`);

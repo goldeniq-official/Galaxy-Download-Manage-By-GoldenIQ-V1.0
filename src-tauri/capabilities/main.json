@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
   "description": "X-01/X-02: only the main window, only GDM's own commands (IDs and plain values); no core, shell, fs, http or opener permissions",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "allow-snapshot",
     "allow-tick",
@@ -29,6 +31,35 @@
     "allow-open-link",
     "allow-browsers",
     "allow-update-check",
-    "allow-update-restart"
+    "allow-update-restart",
+    "allow-queue-list",
+    "allow-queue-put",
+    "allow-queue-start",
+    "allow-queue-stop",
+    "allow-queue-cancel-action",
+    "allow-hook-set",
+    "allow-sound-pick",
+    "allow-sound-test",
+    "allow-import-pick",
+    "allow-import-commit",
+    "allow-export-pick",
+    "allow-batch-preview",
+    "allow-batch-add",
+    "allow-refresh-start",
+    "allow-refresh-paste",
+    "allow-refresh-candidate",
+    "allow-refresh-decide",
+    "allow-login-list",
+    "allow-login-set",
+    "allow-login-delete",
+    "allow-proxy-login-set",
+    "allow-media-probe",
+    "allow-media-start",
+    "allow-components-state",
+    "allow-components-install",
+    "allow-basket-show",
+    "allow-category-pick-dir",
+    "allow-job-set-url",
+    "allow-job-move"
   ]
 }
