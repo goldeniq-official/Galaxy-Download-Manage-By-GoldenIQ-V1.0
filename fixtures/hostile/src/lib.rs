@@ -13,6 +13,7 @@
 //!   /short         206, body ends early, connection closed
 //!   /bad-cr        206 with Content-Range start != requested start     (invariant 5)
 //!   /to-end        206 from the requested start to the END of the file (range end ignored)
+//!   /expiring      302 to a new /signed?tok=N link per visit; a link serves `after` requests, then 403
 //!   /slowloris     header bytes 1 per second, forever                  (E-03)
 //!   /slowbody      headers fine, then 1 body byte every 2 s
 //!   /redirect      302 Location: <to>                                  (W-01)
@@ -214,6 +215,20 @@ impl Fixture {
                 let code = num("code", 500);
                 s.write_all(format!("HTTP/1.1 {code} Test\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
                 Ok(true)
+            }
+            "/expiring" => {
+                // each visit hands out a new signed link (GitHub release / S3 style)
+                let tok = self.bump(format!("exp-{seed}"));
+                s.write_all(format!("HTTP/1.1 302 Found\r\nLocation: /signed?tok={tok}&{q}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
+                Ok(true)
+            }
+            "/signed" => {
+                // a signed link answers `after` requests, then 403 (expired); the bytes and ETag never change
+                if self.bump(format!("sig-{seed}-{}", num("tok", 0))) > num("after", 3) {
+                    s.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n").await?;
+                    return Ok(true);
+                }
+                self.ranged(s, size, seed, rate, trate, range, hdr("if-range"), head_only, &format!("\"s{seed}-{size}\"")).await
             }
             "/429" => {
                 if self.bump(format!("429-{seed}")) == 1 {

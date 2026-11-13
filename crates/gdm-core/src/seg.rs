@@ -142,10 +142,12 @@ struct Seg {
     fail_pos: u64,
     /// a failed connection waits until then before its segment is leased again (backoff; the loop never sleeps)
     not_before: Option<Instant>,
+    /// which address generation (link refresh count) the current/last connection of this segment used
+    url_gen: u32,
 }
 impl Seg {
     fn new(start: u64, end: u64, done: u64) -> Seg {
-        Seg { start, end, next: done, written: done, committed: done, worker: None, gen: 0, tries: 0, fail_pos: done, not_before: None }
+        Seg { start, end, next: done, written: done, committed: done, worker: None, gen: 0, tries: 0, fail_pos: done, not_before: None, url_gen: 0 }
     }
 }
 
@@ -178,7 +180,7 @@ struct Chunk {
 
 struct Shared {
     client: Client,
-    url: Url,
+    url: Arc<std::sync::RwLock<Url>>,
     creds: Creds,
     validator: Option<String>,
     total: Option<u64>,
@@ -199,6 +201,12 @@ fn net_fail(e: &reqwest::Error) -> Fail {
         return Fail::Timeout;
     }
     Fail::Io(format!("{e} ({:?})", std::error::Error::source(e).map(|s| s.to_string())))
+}
+
+impl Shared {
+    fn url(&self) -> Url {
+        self.url.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
 }
 
 fn get(sh: &Shared, url: &Url, range: String, if_range: bool) -> reqwest::RequestBuilder {
@@ -256,7 +264,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         .as_ref()
         .and_then(|s| s.segs.iter().find(|x| x[2] < x[1]).map(|x| x[2]))
         .unwrap_or_else(|| resume.as_ref().map_or(0, |s| s.total.unwrap_or(1).saturating_sub(1)));
-    let probe_url = resume.as_ref().and_then(|r| Url::parse(&r.final_url).ok()).unwrap_or_else(|| rq.url.clone());
+    let mut probe_url = resume.as_ref().and_then(|r| Url::parse(&r.final_url).ok()).unwrap_or_else(|| rq.url.clone());
     let mut tries = 0;
     let probe = loop {
         let mut b = client.get(probe_url.clone()).header("Range", format!("bytes={first}-")).header("Accept-Encoding", "identity");
@@ -281,6 +289,10 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         };
         match http::status(r.status().as_u16(), r.headers()) {
             Step::Accept => break r,
+            // the saved redirect target was a short-lived signed link (GitHub release, S3, Drive) that expired:
+            // ask the address the user gave again for a fresh one (IDM does the same). The validator and total
+            // checks below still decide whether the progress on disk belongs to it.
+            Step::Fatal(Fail::Auth | Fail::Gone) if probe_url != rq.url => probe_url = rq.url.clone(),
             Step::Fatal(f) => return Err(f),
             e if tries < cfg.retries => {
                 tries += 1;
@@ -299,7 +311,9 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             e => return Err(Fail::TooManyRetries(format!("{e:?}"))),
         }
     };
-    let final_url = probe.url().clone();
+    // the address every connection uses; replaced when an expired signed link is refreshed (see `refresh`)
+    let cur = Arc::new(std::sync::RwLock::new(probe.url().clone()));
+    let final_url = || cur.read().unwrap_or_else(|p| p.into_inner()).to_string();
     let ct = http::content_type(probe.headers());
     if ct.starts_with("multipart/byteranges") {
         return Err(Fail::Multipart);
@@ -352,7 +366,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     };
     let snap = |segs: &[Seg], pos: &dyn Fn(&Seg) -> u64, epoch: u64| Snapshot {
         epoch,
-        final_url: final_url.to_string(),
+        final_url: final_url(),
         validator: validator.clone(),
         total,
         segs: segs.iter().map(|s| [s.start, s.end, pos(s)]).collect(),
@@ -381,7 +395,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     };
     let sh = Arc::new(Shared {
         client,
-        url: final_url.clone(),
+        url: cur.clone(),
         creds: rq.creds.clone(),
         validator: validator.clone(),
         total,
@@ -422,6 +436,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let mut peak = 0usize;
     let mut pending_split: Option<(u64, u64, u64)> = None; // (seg start, gen, mid)
     let mut stray_200 = 0u32;
+    let mut refreshes = 0u32; // also the generation of the current address
     let (mut ramp_base, mut ramp_stopped, mut ramp_t, mut ramp_bytes) = (0.0f64, cfg.fixed.is_some() || !ranged, Instant::now(), 0u64);
     let (mut last_flush, mut flushes, mut flush_time) = (Instant::now(), 0u64, Duration::ZERO);
 
@@ -435,6 +450,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
             let s = &mut segs[$i];
             s.worker = Some(wid);
             s.gen += 1;
+            s.url_gen = refreshes;
             tasks.0.push(tokio::spawn(worker(
                 permits,
                 wid,
@@ -541,6 +557,18 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                     if !ranged && total.is_none() && err.is_none() { segs[i].end = segs[i].next; } // EOF of an unknown length
                     match err {
                         None => {}
+                        // an expired signed link (GitHub release, S3, Drive: valid for minutes): get a fresh one
+                        // from the user's address (IDM parity). A connection that failed with an OLDER link (many
+                        // die together) just retries with the current one; at most 20 refreshes per run.
+                        Some(WErr::Fatal(Fail::Auth | Fail::Gone)) if ranged && sh.url() != rq.url && refreshes < 20 => {
+                            if segs[i].url_gen == refreshes {
+                                match refresh(&sh, &rq.url).await {
+                                    Ok(u) => *sh.url.write().unwrap_or_else(|p| p.into_inner()) = u,
+                                    Err(f) => fail!(f),
+                                }
+                                refreshes += 1;
+                            }
+                        }
                         Some(WErr::Fatal(f)) => fail!(f),
                         Some(WErr::NoRange) if !proven(&segs, i) || stray_200 >= 2 => {
                             // E-01: stop every worker, mark no-range, restart one stream from 0 in a new epoch
@@ -619,7 +647,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                     flush_time += tf.elapsed();
                     flushes += 1;
                     failpoint::hit("after_sync");
-                    let s = Snapshot { epoch: e, final_url: final_url.to_string(), validator: validator.clone(), total, segs: segs.iter().zip(&pos).map(|(s, p)| [s.start, s.end, *p]).collect() };
+                    let s = Snapshot { epoch: e, final_url: final_url(), validator: validator.clone(), total, segs: segs.iter().zip(&pos).map(|(s, p)| [s.start, s.end, *p]).collect() };
                     if let Err(err) = (rq.checkpoint)(&s) { fail!(err); }
                     for (s, p) in segs.iter_mut().zip(pos) { s.committed = p; }
                     failpoint::hit("after_commit");
@@ -652,13 +680,13 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
     let e = epoch_cell.load(Ordering::SeqCst);
     (rq.checkpoint)(&Snapshot {
         epoch: e,
-        final_url: final_url.to_string(),
+        final_url: final_url(),
         validator: validator.clone(),
         total: Some(got),
         segs: segs.iter().map(|s| [s.start, s.end, s.end]).collect(),
     })?;
     failpoint::hit("after_final_checkpoint");
-    Ok(Done { total: got, final_url: final_url.to_string(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time })
+    Ok(Done { total: got, final_url: final_url(), validator, ranged, peak_conns: peak, transfer, flushes, flush_time })
 }
 
 enum Seam {
@@ -671,7 +699,7 @@ enum Seam {
 
 /// bytes [a, b) on the server (same validator) vs bytes [a, b) on disk
 async fn seam(sh: &Shared, f: &File, a: u64, b: u64) -> Seam {
-    let r = match tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, format!("bytes={a}-{}", b - 1), true).send()).await {
+    let r = match tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url(), format!("bytes={a}-{}", b - 1), true).send()).await {
         Err(_) => return Seam::Unknown("timeout".into()),
         Ok(Err(e)) => return Seam::Unknown(e.to_string()),
         Ok(Ok(r)) => r,
@@ -701,6 +729,29 @@ async fn seam(sh: &Shared, f: &File, a: u64, b: u64) -> Seam {
         Ok(_) => Seam::Differs,
         Err(e) => Seam::Unknown(e.to_string()),
     }
+}
+
+/// A fresh address for an expired signed link: the user's address again (redirects followed, each hop checked),
+/// accepted only as the SAME representation: 206 with the job's total, and the job's validator when it has one
+/// (If-Range: another version answers 200). 401/403 there = a real login problem.
+async fn refresh(sh: &Shared, origin: &Url) -> Result<Url, Fail> {
+    let r = match tokio::time::timeout(sh.cfg.read_timeout, get(sh, origin, "bytes=0-0".into(), true).send()).await {
+        Err(_) => return Err(Fail::Timeout),
+        Ok(Err(e)) => return Err(net_fail(&e)),
+        Ok(Ok(r)) => r,
+    };
+    match http::status(r.status().as_u16(), r.headers()) {
+        Step::Accept => {}
+        Step::Fatal(f) => return Err(f),
+        s => return Err(Fail::TooManyRetries(format!("refresh: {s:?}"))),
+    }
+    let same = r.status() == StatusCode::PARTIAL_CONTENT
+        && http::content_range(r.headers()).is_some_and(|(a, _, t)| a == 0 && t == sh.total)
+        && (sh.validator.is_none() || http::validator(r.headers()) == sh.validator);
+    if !same {
+        return Err(Fail::FileChanged);
+    }
+    Ok(r.url().clone())
 }
 
 /// ranges are proven for this job: another segment already received bytes over a ranged connection
@@ -756,7 +807,7 @@ async fn run_worker(
         Some(r) => r,
         None => {
             let range = if ranged { format!("bytes={start}-{}", end - 1) } else { "bytes=0-".into() };
-            let sent = tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url, range, ranged).send()).await;
+            let sent = tokio::time::timeout(sh.cfg.read_timeout, get(sh, &sh.url(), range, ranged).send()).await;
             let r = match sent {
                 Err(_) => return Err(WErr::Retry("timed out waiting for response headers".into())),
                 Ok(Err(e)) => {

@@ -68,6 +68,18 @@ async fn range_end_ignored_by_server_still_downloads() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn expired_signed_link_is_refreshed_from_the_users_address() {
+    // every signed link answers 2 requests, then 403: a segmented download needs several links (IDM parity)
+    let a = fx().await;
+    let t = engine("signed", quick());
+    let o = t.get(&a.url(&format!("/expiring?size={}&seed=33&rate=4000000&after=2", 24 * MIB))).await.1.unwrap();
+    assert_eq!(o.sha256, expected_sha256(33, 24 * MIB));
+    let log: Vec<_> =
+        a.log().iter().map(|q| format!("{} {}", q.target, q.headers.iter().find(|h| h.0 == "range").map_or("", |h| h.1.as_str()))).collect();
+    assert!(log.iter().filter(|q| q.starts_with("/expiring")).count() >= 2, "the user's address was asked again: {log:#?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn cap_of_one_connection_holds_from_the_start() {
     // a server that bans a second connection: the user set 1 (or a 429 taught 1); never 2 at the start
     let a = fx().await;
