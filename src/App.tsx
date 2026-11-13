@@ -1,19 +1,36 @@
 // SPDX-License-Identifier: RPL-1.5
 // Main window (§06): rail + list (TanStack Virtual) + details pane (wide) / drawer, Download Info, toasts.
 // All text is rendered as React text nodes (X-01); actions call commands with job ids only (X-02).
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as RKE } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent as RKE, type MouseEvent as RME } from "react";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, droppedLinks, errText, fileName, type Detail, type QueueView, type Row } from "./api";
 import { useStore, type Nav } from "./store";
 import { bytes, eta, host, isActive, isDone, speed, view, type Action } from "./status";
-import { ftClass, ftIcon, Icon, Menu, Modal, type MenuGroup } from "./ui";
+import { ErrLine, ftClass, ftIcon, Icon, Menu, Modal, TitleBar, type MenuGroup } from "./ui";
 import { Onboarding, SettingsView } from "./Settings";
 import { Countdown, G7Dialogs, qName, QueueSelect, rememberDir } from "./Dialogs";
 
 const NONE: Row[] = []; // a stable empty list: a new [] in a selector re-renders forever (React #185)
 
 const catName = (lang: string, c: { name_km: string; name_en: string }) => (lang === "en" ? c.name_en : c.name_km);
+/** a video page (not a file): it goes to "Add video" (quality list) instead of being downloaded as an HTML page */
+const videoPage = (u: string) => /^https?:\/\/((www|m|music)\.)?(youtube\.com\/(watch|shorts\/|live\/)|youtu\.be\/)/i.test(u.trim());
+/** a link typed, pasted or added: video pages open the quality list, everything else is a download */
+export function addLink(u: string) {
+  if (videoPage(u)) return void useStore.getState().setDlg({ k: "video", url: u.trim() });
+  return api.addUrl(u.trim());
+}
+/** a dialog is open: window-wide shortcuts (Ctrl+N, Ctrl+F, paste a link) must not act behind it */
+const dialogOpen = () => !!document.querySelector(".scrim");
+/** the address as people read it (Khmer, spaces) instead of %E1%9E...; display only, the stored URL is never changed */
+const readable = (u: string) => {
+  try {
+    return decodeURI(u);
+  } catch {
+    return u;
+  }
+};
 
 function useWide() {
   const [w, setW] = useState(window.innerWidth);
@@ -28,13 +45,18 @@ function useWide() {
 export default function App() {
   const settings = useStore((s) => s.settings);
   if (!settings) return null;
-  if (!settings.onboarded) return <Onboarding />;
-  return <Shell />;
+  return (
+    <>
+      <TitleBar />
+      {settings.onboarded ? <Shell /> : <Onboarding />}
+    </>
+  );
 }
 
 function Shell() {
   const { t, i18n } = useTranslation();
   const { nav, setNav, settings, jobs, queues } = useStore();
+  const setOpen = useStore((s) => s.settingsOpen);
   const [why, setWhy] = useState<string | null>(null);
   const adding = useStore((s) => s.adding);
   const lang = i18n.language;
@@ -56,7 +78,7 @@ function Shell() {
   ];
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "n") {
+      if (e.ctrlKey && e.key.toLowerCase() === "n" && !dialogOpen()) {
         e.preventDefault();
         useStore.getState().setAdding(true);
       }
@@ -82,11 +104,12 @@ function Shell() {
               <NavBtn key={q.def.id} k={`q:${q.def.id}`} ic={q.def.sync ? "arrow-clockwise" : "queue"} label={qName(t, q.def)} n={q.jobs.length} sel={nav === `q:${q.def.id}`} onClick={() => setNav(`q:${q.def.id}`)} />
             ))}
             <div className="sp" />
-            <NavBtn k="settings" ic="gear-six" label={t("nav.settings")} sel={nav === "settings"} onClick={() => setNav("settings")} />
+            <NavBtn k="settings" ic="gear-six" label={t("nav.settings")} sel={setOpen} onClick={() => useStore.setState({ settingsOpen: true })} />
           </nav>
-          {nav === "settings" ? <SettingsView /> : <Main onWhy={setWhy} />}
+          <Main onWhy={setWhy} />
         </div>
       </div>
+      {setOpen && <SettingsView />}
       <InfoDialog />
       {adding && <AddDialog />}
       {why && <WhyDialog k={why} onClose={() => setWhy(null)} />}
@@ -158,6 +181,8 @@ export async function act(r: Row, a: Action | undefined, onWhy: (k: string) => v
       return api.page(r.id);
     case "pause":
       return api.pause(r.id);
+    case "findVideo":
+      return useStore.getState().setDlg({ k: "video", url: r.url });
     case "newName": {
       const id = await api.addUrl(r.url);
       return id;
@@ -184,6 +209,8 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
   const w = useWide();
   const [drawer, setDrawer] = useState(false);
   const wide = w >= 1180;
+  // toolbar words need ~665 px beside the 340 px pane and the 220 px rail: from 1260 px (or any width without the pane)
+  const words = w >= 1260 || (wide && !jobs.length);
   // compact (< 760 px): name + status; mini (< 480 px): no icon either; wide: speed and time left live in the pane
   const cols = w < 760 ? shown.filter((c) => c === "name" || c === "status").concat(shown.includes("status") ? [] : ["status"]) : wide ? shown.filter((c) => c !== "speed" && c !== "eta") : shown;
   const icon = w >= 480;
@@ -236,13 +263,30 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
   };
   const after = () => void useStore.getState().refreshQueues();
   const qItems = (f: (id: string) => Promise<void>) => settings!.queues.map((x) => ({ label: qName(t, x), onClick: () => void f(x.id).then(after) }));
+  // one Queues menu (IDM Start queue / Stop queue): each queue appears once, under the action it can take now
+  const running = (id: string) => !!queues.find((x) => x.def.id === id)?.state.active;
+  const queueMenu = (el: Element) =>
+    setMenu({
+      ...at(el),
+      label: t("nav.queues"),
+      groups: [
+        { label: t("q.start"), items: settings!.queues.filter((x) => !running(x.id)).map((x) => ({ label: qName(t, x), onClick: () => void api.queueStart(x.id).then(after) })) },
+        { label: t("q.stop"), items: settings!.queues.filter((x) => running(x.id)).map((x) => ({ label: qName(t, x), onClick: () => void api.queueStop(x.id).then(after) })) },
+      ].filter((g) => g.items.length),
+    });
   // IDM context menu: Refresh download address, Add to queue, Delete from queue
-  const rowMenu = (r: Row, x: number, y: number) =>
+  const removeDone = () => {
+    for (const j of useStore.getState().jobs.filter(isDone)) void api.remove(j.id, false);
+  };
+  const rowMenu = (r: Row, x: number, y: number) => {
+    const st = view(r, live[r.id]);
+    const own = [...new Set([st.action, st.second].filter((a): a is Action => !!a))];
     setMenu({
       x,
       y,
       label: t("q.menu"),
       groups: [
+        ...(own.length ? [{ items: own.map((a) => ({ label: t(`act.${a}`), onClick: () => void act(r, a, onWhy, st.why) })) }] : []),
         {
           items: [
             { label: t("q.refresh"), disabled: isDone(r), onClick: () => useStore.getState().setDlg({ k: "refresh", id: r.id }) },
@@ -260,11 +304,18 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
         },
         { label: t("q.addTo"), items: qItems((id) => api.queuePut([r.id], id)).filter((_, i) => settings!.queues[i].id !== r.queue) },
         ...(r.queue ? [{ items: [{ label: t("q.removeFrom"), onClick: () => void api.queuePut([r.id], null).then(after) }] }] : []),
+        {
+          items: [
+            { label: t("act.remove"), disabled: isActive(r), onClick: () => void api.remove(r.id, false) },
+            ...(isDone(r) ? [{ label: t("act.removeFile"), onClick: () => void api.remove(r.id, true) }] : []),
+            { label: t("act.removeDone"), disabled: !jobs.some(isDone), onClick: removeDone },
+          ],
+        },
       ],
     });
+  };
   const tasks = (el: Element) => {
     const s = useStore.getState();
-    const basket = !settings!.basket;
     setMenu({
       ...at(el),
       label: t("tasks.menu"),
@@ -283,8 +334,8 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
         },
         {
           items: [
-            { label: t("tasks.basket"), checked: !basket, onClick: () => void api.basketShow(basket).then(() => useStore.setState({ settings: { ...useStore.getState().settings!, basket } }), (e) => s.notify("error", errText(e))) },
             { label: t("tasks.scheduler"), onClick: () => s.openSettings("queues") },
+            { label: t("act.removeDone"), disabled: !s.jobs.some(isDone), onClick: removeDone },
           ],
         },
         { items: [{ label: t("tasks.grab"), onClick: () => s.setDlg({ k: "grab" }) }] },
@@ -318,16 +369,16 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
   };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "f") {
+      if (e.ctrlKey && e.key.toLowerCase() === "f" && !dialogOpen()) {
         e.preventDefault();
         searchRef.current?.focus();
       }
     };
     const paste = (e: ClipboardEvent) => {
       const el = document.activeElement;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+      if (dialogOpen() || (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"))) return;
       const s = e.clipboardData?.getData("text/plain")?.trim() ?? "";
-      if (/^https?:\/\/\S+$/i.test(s)) void api.addUrl(s);
+      if (/^https?:\/\/\S+$/i.test(s)) void addLink(s);
     };
     window.addEventListener("keydown", k);
     window.addEventListener("paste", paste);
@@ -344,38 +395,24 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
   const upd = tick?.update;
   const banner = tick?.banner;
   return (
-    <main className={"main" + (wide ? " split" : "")} onDragOver={(e) => e.preventDefault()} onDrop={(e) => void onDrop(e)}>
+    // no downloads at all: no details pane (nothing to select); keyed on all jobs, not the filtered rows, so switching views never resizes the list
+    <main className={"main" + (wide && jobs.length ? " split" : "")} onDragOver={(e) => e.preventDefault()} onDrop={(e) => void onDrop(e)}>
       <div className="col">
         <div className="top">
-          <h1>{title}</h1>
           <label className="search">
             <Icon n="magnifying-glass" />
             <input ref={searchRef} type="search" value={q} placeholder={t("search")} aria-label={t("search")} onChange={(e) => setQ(e.target.value)} />
           </label>
+          {/* every toolbar button says what it does: words when there is room (>= 1180 px), icon + name on hover below that */}
           <button type="button" className="fx btn btn-p fx-strong" onClick={() => useStore.getState().setAdding(true)}>
             <Icon n="plus" />
             {t("add")}
           </button>
-          <button type="button" className="fx chip" aria-label={t("tasks.menu")} title={t("tasks.menu")} aria-haspopup="menu" onClick={(e) => tasks(e.currentTarget)}>
-            <Icon n="caret-down" />
-          </button>
-          <button type="button" className="fx chip" aria-label={t("pauseAll")} title={t("pauseAll")} onClick={() => void api.pauseAll()}>
-            <Icon n="pause" />
-          </button>
-          <button type="button" className="fx chip" aria-label={t("q.start")} title={t("q.start")} aria-haspopup="menu" onClick={(e) => setMenu({ ...at(e.currentTarget), label: t("q.start"), groups: [{ items: qItems(api.queueStart) }] })}>
-            <Icon n="play" />
-          </button>
-          <button type="button" className="fx chip" aria-label={t("q.stop")} title={t("q.stop")} aria-haspopup="menu" onClick={(e) => setMenu({ ...at(e.currentTarget), label: t("q.stop"), groups: [{ items: qItems(api.queueStop) }] })}>
-            <Icon n="square" />
-          </button>
-          {!wide && (
-            <button type="button" className="fx chip" aria-label={t("d.title")} title={t("d.title")} aria-pressed={drawer} onClick={() => setDrawer(!drawer)}>
-              <Icon n="info" />
-            </button>
-          )}
+          <ToolBtn ic="pause" label={t("pauseAll")} words={words} onClick={() => void api.pauseAll()} />
+          <ToolBtn ic="queue" label={t("nav.queues")} words={words} menu onClick={(e) => queueMenu(e.currentTarget)} />
+          <ToolBtn ic="list-bullets" label={t("tasks.menu")} words={words} menu onClick={(e) => tasks(e.currentTarget)} />
+          {!wide && <ToolBtn ic="info" label={t("d.title")} words={false} pressed={drawer} onClick={() => setDrawer(!drawer)} />}
         </div>
-        {banner && <Banner text={banner.startsWith("restored:") ? t("banner.restored", { name: banner.slice(9) }) : banner === "readonly" ? t("banner.readonly") : t("banner.pipe")} />}
-        {upd && (upd.state === "ready" || upd.state === "available" || upd.state === "failed") && <UpdateBanner />}
         <div className="list" ref={scroller} role="grid" aria-label={title} aria-rowcount={rows.length + 1} onKeyDown={onKey}>
           <div className="cols" role="row" aria-rowindex={1} style={{ gridTemplateColumns: grid }}>
             {icon && <span role="columnheader" aria-label={t("cols.type")} />}
@@ -400,7 +437,19 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
               </span>
             ))}
           </div>
-          {rows.length === 0 && <div className="empty">{q ? t("noMatch") : t("empty")}</div>}
+          {rows.length === 0 && (
+            <div role="row">
+              <div role="gridcell" className="empty">
+                <p>{q ? t("noMatch") : t("empty")}</p>
+                {!q && (
+                  <button type="button" className="fx btn btn-p fx-strong" onClick={() => useStore.getState().setAdding(true)}>
+                    <Icon n="plus" />
+                    {t("add")}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           <div style={{ height: v.getTotalSize(), position: "relative" }}>
             {v.getVirtualItems().map((it) => {
               const r = rows[it.index];
@@ -413,7 +462,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
           </div>
         </div>
         <footer className="foot">
-          <span>
+          <span className="spd">
             {t("foot.speed")} <b className="num">{speed(total)}</b>
           </span>
           <button
@@ -424,13 +473,39 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
             <Icon n="gauge" />
             {settings!.limit_on ? t("foot.limitOn", { v: `${settings!.limit_kbps} KB/s` }) : t("foot.limitOff")}
           </button>
-          <span className="sp" />
+          {/* notices sit in this one footer slot: the list never moves when one appears.
+              An operational warning (read-only database, restored backup, browser pipe) outranks an update notice. */}
+          <span className="sp">
+            {banner ? (
+              <Banner text={banner.startsWith("restored:") ? t("banner.restored", { name: banner.slice(9) }) : banner === "readonly" ? t("banner.readonly") : t("banner.pipe")} />
+            ) : (
+              upd && (upd.state === "ready" || upd.state === "available" || upd.state === "failed") && <UpdateBanner />
+            )}
+          </span>
           <span>{t("foot.items", { n: rows.length })}</span>
         </footer>
       </div>
-      {(wide || drawer) && <DetailsPane r={selected} onWhy={onWhy} drawer={!wide} onClose={() => setDrawer(false)} />}
+      {((wide && jobs.length > 0) || drawer) && <DetailsPane r={selected} onWhy={onWhy} drawer={!wide} onClose={() => setDrawer(false)} />}
       {menu && <Menu {...menu} onClose={() => setMenu(null)} />}
     </main>
+  );
+}
+
+function ToolBtn({ ic, label, words, menu, pressed, onClick }: { ic: string; label: string; words: boolean; menu?: boolean; pressed?: boolean; onClick: (e: RME<HTMLButtonElement>) => void }) {
+  return (
+    <button
+      type="button"
+      className={"fx btn btn-s tb" + (words ? "" : " icon")}
+      aria-label={words ? undefined : label}
+      title={label}
+      aria-haspopup={menu ? "menu" : undefined}
+      aria-pressed={pressed}
+      onClick={onClick}
+    >
+      <Icon n={ic} />
+      {words && <span>{label}</span>}
+      {menu && words && <Icon n="caret-down" />}
+    </button>
   );
 }
 
@@ -542,10 +617,9 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
   }, [r?.id, r?.state, r?.description, r]);
   if (!r)
     return (
-      <aside className={"pane" + (drawer ? " drawer" : "")} aria-label={t("d.title")}>
-        <div className="card">
-          <p className="meta">{t("d.none")}</p>
-        </div>
+      <aside className={"pane none" + (drawer ? " drawer" : "")} aria-label={t("d.title")}>
+        <Icon n="info" lg />
+        <p className="meta">{t("d.none")}</p>
       </aside>
     );
   const st = view(r, l);
@@ -579,11 +653,11 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
           <dd>
             {l ? (
               <span className="step">
-                <button type="button" className="fx" aria-label="−" onClick={() => void api.conns(r.id, Math.max(1, l.conns - 1))}>
+                <button type="button" className="fx" aria-label={t("d.connsLess")} title={t("d.connsLess")} disabled={l.conns <= 1} onClick={() => void api.conns(r.id, Math.max(1, l.conns - 1))}>
                   <Icon n="minus" />
                 </button>
                 <span className="num">{l.conns}</span>
-                <button type="button" className="fx" aria-label="+" onClick={() => void api.conns(r.id, Math.min(32, l.conns + 1))}>
+                <button type="button" className="fx" aria-label={t("d.connsMore")} title={t("d.connsMore")} disabled={l.conns >= 32} onClick={() => void api.conns(r.id, Math.min(32, l.conns + 1))}>
                   <Icon n="plus" />
                 </button>
               </span>
@@ -607,7 +681,7 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
           </dd>
         </dl>
         <span className="lab">{t("d.url")}</span>
-        <div className="url">{d?.final_url ?? r.url}</div>
+        <div className="url">{readable(d?.final_url ?? r.url)}</div>
         <label className="fld">
           <span>{t("d.desc")}</span>
           <span className="in">
@@ -746,6 +820,11 @@ function InfoDialog() {
     for (const it of items) await api.infoCancel(it.id);
   };
   const started = items.some((i) => live[i.id]);
+  // the footer size is what will be downloaded: the checked files; unknown sizes are said, never counted as 0
+  const sizeOf = (it: Row) => live[it.id]?.total || it.size || 0;
+  const picked = many ? items.filter((i) => isOn(i.id)) : [first];
+  const known = picked.reduce((a, i) => a + sizeOf(i), 0);
+  const unknown = picked.filter((i) => !sizeOf(i)).length;
   const c = settings.categories.find((x) => x.id === cat);
   const saveTo = c?.dir || settings.download_dir + (c?.sub ? "\\" + c.sub : "");
   return (
@@ -807,12 +886,16 @@ function InfoDialog() {
             </div>
           )}
           <span className="lab">{t("info.url")}</span>
-          <div className="url">{first.url}</div>
+          <div className="url">{readable(first.url)}</div>
         </>
       )}
       <QueueSelect value={queue} onChange={setQueue} label={t("info.queue")} />
       <div className="mfoot">
-        <span className="meta num">{bytes(live[first.id]?.total || first.size)}</span>
+        <span className="meta num">
+          {many && t("info.picked", { n: picked.length }) + " · "}
+          {known || !unknown ? bytes(known) : ""}
+          {unknown > 0 && (known ? " + " : "") + t("info.unknownN", { n: unknown })}
+        </span>
         <span className="sp" />
         <button type="button" className="fx btn btn-g" onClick={() => void cancel()}>
           {t("info.cancel")}
@@ -836,7 +919,7 @@ function AddDialog() {
   const go = async () => {
     if (!/^https?:\/\/\S+$/i.test(url.trim())) return setBad(true);
     try {
-      await api.addUrl(url.trim());
+      await addLink(url);
       close();
     } catch {
       setBad(true);
@@ -851,11 +934,7 @@ function AddDialog() {
           <input className="mono" value={url} aria-invalid={bad} onChange={(e) => (setUrl(e.target.value), setBad(false))} onKeyDown={(e) => e.key === "Enter" && void go()} />
         </span>
       </label>
-      {bad && (
-        <p className="err-t" role="alert">
-          {t("addDlg.bad")}
-        </p>
-      )}
+      <ErrLine msg={bad && t("addDlg.bad")} />
       <div className="mfoot">
         <span className="sp" />
         <button type="button" className="fx btn btn-g" onClick={close}>

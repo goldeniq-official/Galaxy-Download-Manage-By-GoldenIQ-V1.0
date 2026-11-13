@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, errText, fileName, type Browser, type FolderCheck, type HostLimit, type Settings, type SiteLogin, type SoundEvent } from "./api";
 import { useStore } from "./store";
 import { bytes } from "./status";
-import { Icon, Tabs, Toggle } from "./ui";
+import { ErrLine, Icon, Modal, Tabs, Toggle } from "./ui";
 import { Components, rememberDir } from "./Dialogs";
 import { QueuesSection } from "./Queues";
 
@@ -25,10 +25,11 @@ export function Opt({ title, sub, children }: { title: string; sub?: string; chi
   );
 }
 
-export function Sec({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+/** one group of rows; the section's name is the dialog heading, so a group shows a small heading only when it names a sub-group */
+export function Sec({ id, title, sub, children }: { id: string; title: string; sub?: boolean; children: ReactNode }) {
   return (
     <section className="sec" id={"set-" + id} aria-label={title}>
-      <h3>{title}</h3>
+      {sub && <h3>{title}</h3>}
       <div className="card list-card">{children}</div>
     </section>
   );
@@ -54,7 +55,7 @@ function BrowserRows({ list }: { list: Browser[] }) {
       {list
         .filter((b) => b.installed || b.connected)
         .map((b) => (
-          <div className="brow" key={b.key}>
+          <div className="opt" key={b.key}>
             <Icon n="browser" lg />
             <span className="t">
               <b>{b.name}</b>
@@ -95,7 +96,6 @@ export function SettingsView() {
     ["general", "gear-six", t("set.general")],
     ["downloads", "download-simple", t("set.downloads")],
     ["connection", "plugs-connected", t("set.connection")],
-    ["speed", "gauge", t("set.speed")],
     ["queues", "queue", t("set.queues")],
     ["proxy", "globe", t("set.proxy")],
     ["logins", "hash", t("set.logins")],
@@ -106,24 +106,31 @@ export function SettingsView() {
     ["privacy", "shield-check", t("set.privacy")],
     ["about", "info", t("set.about")],
   ];
-  // one section at a time (IDM Options tabs): the page stays short and every control is a few Tabs away
+  // one dialog over the app (IDM Options, Mazer Settings): sections left, one section's rows right
   const go = (k: string) => useStore.setState({ sec: k });
+  const close = () => useStore.setState({ settingsOpen: false });
+  // opening lands on the section shown (Tasks > Scheduler opens Queues), not always on the first item
+  useEffect(() => document.querySelector<HTMLElement>(".setnav .is-selected")?.focus(), []);
+  const cur = secs.find((x) => x[0] === sec) ?? secs[0];
   return (
-    <div className="set">
-      <nav className="rail" aria-label={t("nav.settings")}>
+    <Modal label={t("nav.settings")} onClose={close} cls="setdlg">
+      <nav className="setnav" aria-label={t("nav.settings")}>
+        <h2>{t("nav.settings")}</h2>
         {secs.map(([k, ic, label]) => (
-          <button key={k} type="button" className={"fx nav" + (sec === k ? " is-selected" : "")} aria-current={sec === k ? "true" : undefined} onClick={() => go(k)}>
-            <Icon n={ic} lg fill={sec === k} />
+          <button key={k} type="button" className={"fx nav" + (cur[0] === k ? " is-selected" : "")} aria-current={cur[0] === k ? "true" : undefined} onClick={() => go(k)}>
+            <Icon n={ic} lg fill={cur[0] === k} />
             <span className="lbl">{label}</span>
           </button>
         ))}
       </nav>
-      <main className="main">
-        <div className="top">
-          <h1>{t("nav.settings")}</h1>
-        </div>
-        <div className="sbody">
-          {sec === "general" && <Sec id="general" title={t("set.look")}>
+      <div className="sethead">
+        <h2>{cur[2]}</h2>
+        <button type="button" className="fx chip" aria-label={t("d.close")} title={t("d.close")} onClick={close}>
+          <Icon n="x" />
+        </button>
+      </div>
+      <div className="sbody">
+          {cur[0] === "general" && <Sec id="general" title={t("set.look")}>
             <Opt title={t("set.lang")} sub={t("set.langS")}>
               <Tabs value={s.lang} label={t("set.lang")} items={[["km", "ខ្មែរ"], ["en", "English"]]} onChange={(v) => void save({ lang: v })} />
             </Opt>
@@ -137,7 +144,7 @@ export function SettingsView() {
               <Toggle on={s.silent} label={t("set.silent")} onChange={(v) => void save({ silent: v })} />
             </Opt>
           </Sec>}
-          {sec === "downloads" && <Sec id="downloads" title={t("set.downloads")}>
+          {cur[0] === "downloads" && <Sec id="downloads" title={t("set.downloads")}>
             <Opt title={t("set.folder")} sub={s.download_dir}>
               <button
                 type="button"
@@ -163,64 +170,55 @@ export function SettingsView() {
               <Toggle on={s.hash_sidecar} label={t("set.sidecar")} onChange={(v) => void save({ hash_sidecar: v })} />
             </Opt>
             <ScanRow />
-            <div className="opt col-opt">
-              <div className="t">
-                <b>{t("set.cats")}</b>
+          </Sec>}
+          {cur[0] === "downloads" && <Sec id="cats" title={t("set.cats")} sub>
+            {/* one grid: the column names sit once on top, every category is one aligned row */}
+            <div className="cat-grid" role="table" aria-label={t("set.cats")}>
+              <div className="cat-h" role="row">
+                <span role="columnheader">{t("info.cat")}</span>
+                <span role="columnheader">{t("set.exts")}</span>
+                <span role="columnheader">{t("set.sites")}</span>
+                <span role="columnheader">{t("d.folder")}</span>
               </div>
               {s.categories.map((c, i) => {
                 const nm = lang === "en" ? c.name_en : c.name_km;
                 const put = (k: "exts" | "sites", v: string) => void save({ categories: s.categories.map((x, j) => (j === i ? { ...x, [k]: v.split(/\s+/).filter(Boolean) } : x)) });
                 return (
-                  <div className="fld cat-row" key={c.id}>
-                    <span>{nm}</span>
-                    <div className="two even">
-                      <span className="in">
-                        <input aria-label={nm + " · " + t("set.exts")} defaultValue={c.exts.join(" ")} placeholder={t("set.exts")} onBlur={(e) => put("exts", e.target.value)} />
-                      </span>
-                      <span className="in">
-                        <input aria-label={nm + " · " + t("set.sites")} defaultValue={(c.sites ?? []).join(" ")} placeholder={t("set.sites")} onBlur={(e) => put("sites", e.target.value)} />
-                      </span>
-                    </div>
-                    <div className="row-btns tight">
-                      <button type="button" className="fx btn btn-s" aria-label={t("info.remember", { c: nm })} onClick={() => void rememberDir(c.id, false)}>
+                  <div className="cat-r" role="row" key={c.id}>
+                    <b role="cell" className="clip1">{nm}</b>
+                    <span role="cell" className="in">
+                      <input aria-label={nm + " · " + t("set.exts")} defaultValue={c.exts.join(" ")} onBlur={(e) => put("exts", e.target.value)} />
+                    </span>
+                    <span role="cell" className="in">
+                      <input aria-label={nm + " · " + t("set.sites")} defaultValue={(c.sites ?? []).join(" ")} placeholder="*.example.com" onBlur={(e) => put("sites", e.target.value)} />
+                    </span>
+                    <span role="cell" className="cat-dir">
+                      <button type="button" className="fx btn btn-s" aria-label={(c.dir ? fileName(c.dir) : t("set.catDir")) + " · " + nm} title={c.dir || t("set.catDir")} onClick={() => void rememberDir(c.id, false)}>
                         <Icon n="folder-open" />
-                        <span className="clip1" title={c.dir || undefined}>
-                          {c.dir || t("set.catDir")}
-                        </span>
+                        <span className="clip1">{c.dir ? fileName(c.dir) : t("set.catDir")}</span>
                       </button>
                       {c.dir && (
-                        <button type="button" className="fx btn btn-g" aria-label={t("info.forget") + " · " + nm} onClick={() => void rememberDir(c.id, true)}>
-                          {t("info.forget")}
+                        <button type="button" className="fx mini" aria-label={t("info.forget") + " · " + nm} title={t("info.forget")} onClick={() => void rememberDir(c.id, true)}>
+                          <Icon n="x" />
                         </button>
                       )}
-                    </div>
+                    </span>
                   </div>
                 );
               })}
             </div>
           </Sec>}
-          {sec === "connection" && <ConnectionSection />}
-          {sec === "speed" && <Sec id="speed" title={t("set.speed")}>
-            <Opt title={t("set.limit")} sub={t("set.limitS")}>
-              <span className="in short num-in">
-                <input type="number" min={1} aria-label={t("set.kbps")} defaultValue={s.limit_kbps || 512} onBlur={(e) => void save({ limit_kbps: num(e.target.value, 1, 10_000_000) })} />
-                <span className="meta">{t("set.kbps")}</span>
-              </span>
-              <Toggle on={s.limit_on} label={t("set.limit")} onChange={(v) => void save({ limit_on: v, limit_kbps: s.limit_kbps || 512 })} />
-            </Opt>
-          </Sec>}
-          {sec === "queues" && <QueuesSection />}
-          {sec === "proxy" && <ProxySection />}
-          {sec === "logins" && <LoginsSection />}
-          {sec === "sounds" && <SoundsSection />}
-          {sec === "video" && <VideoSection />}
-          {sec === "browsers" && <Sec id="browsers" title={t("set.browsers")}>
+          {cur[0] === "connection" && <ConnectionSection />}
+          {cur[0] === "queues" && <QueuesSection />}
+          {cur[0] === "proxy" && <ProxySection />}
+          {cur[0] === "logins" && <LoginsSection />}
+          {cur[0] === "sounds" && <SoundsSection />}
+          {cur[0] === "video" && <VideoSection />}
+          {cur[0] === "browsers" && <Sec id="browsers" title={t("set.browsers")}>
             <Opt title={t("set.catch")} sub={t("set.catchS")}>
               <Toggle on={s.catch_enabled} label={t("set.catch")} onChange={(v) => void save({ catch_enabled: v })} />
             </Opt>
-            <div className="opt col-opt">
-              <BrowserRows list={list} />
-            </div>
+            <BrowserRows list={list} />
             <Opt title={t("set.force")}>
               <Tabs value={s.force_key} label={t("set.force")} items={KEYS} onChange={(v) => void save({ force_key: v })} />
             </Opt>
@@ -246,11 +244,8 @@ export function SettingsView() {
                 </span>
               </label>
             </div>
-            <Opt title={t("set.video")} sub={t("set.videoS")}>
-              <Toggle on={s.video_button} label={t("set.video")} onChange={(v) => void save({ video_button: v })} />
-            </Opt>
           </Sec>}
-          {sec === "update" && <Sec id="update" title={t("set.update")}>
+          {cur[0] === "update" && <Sec id="update" title={t("set.update")}>
             {tick?.store_build ? (
               <Opt title={t("set.store")}>
                 <span />
@@ -263,7 +258,7 @@ export function SettingsView() {
                 <Opt title={t("set.channel")}>
                   <Tabs value={s.update_channel} label={t("set.channel")} items={[["stable", t("set.stable")], ["beta", t("set.beta")]]} onChange={(v) => void save({ update_channel: v })} />
                 </Opt>
-                <Opt title={t("set.checkNow")} sub={tick?.update.error ?? tick?.update.state ?? ""}>
+                <Opt title={t("set.checkNow")} sub={tick?.update.error ? t("banner.updFailed") : t(`set.upd.${tick?.update.state ?? "idle"}`, { v: tick?.update.version ?? "", defaultValue: "" })}>
                   <button type="button" className="fx btn btn-s" onClick={() => void api.updateCheck()}>
                     <Icon n="arrow-clockwise" />
                     {t("set.checkNow")}
@@ -272,7 +267,7 @@ export function SettingsView() {
               </>
             )}
           </Sec>}
-          {sec === "privacy" && <Sec id="privacy" title={t("set.privacy")}>
+          {cur[0] === "privacy" && <Sec id="privacy" title={t("set.privacy")}>
             <div className="opt">
               <p className="t why">{t("set.privacyText")}</p>
             </div>
@@ -286,7 +281,7 @@ export function SettingsView() {
               </button>
             </Opt>
           </Sec>}
-          {sec === "about" && <Sec id="about" title={t("set.about")}>
+          {cur[0] === "about" && <Sec id="about" title={t("set.about")}>
             <div className="opt">
               <img className="logo" src="/gdm-icon-256.png" alt="" width={44} height={44} />
               <div className="t">
@@ -297,9 +292,13 @@ export function SettingsView() {
             </div>
             <Opt title={t("set.license")}>
               <button type="button" className="fx btn btn-s" onClick={() => void api.openLink("license")}>
-                {t("set.license")}
+                <Icon n="link" />
+                {t("set.readLicense")}
               </button>
+            </Opt>
+            <Opt title={t("set.github")}>
               <button type="button" className="fx btn btn-s" onClick={() => void api.openLink("github")}>
+                <Icon n="link" />
                 {t("set.github")}
               </button>
               <button
@@ -310,11 +309,11 @@ export function SettingsView() {
                   setCopied(true);
                 }}
               >
-                <Icon n="copy" />
-                {copied ? t("set.copied") : t("set.share")}
+                <Icon n={copied ? "check" : "copy"} />
+                {t("set.share")}
               </button>
             </Opt>
-            <div className="opt">
+            <div className="opt top">
               <div className="t">
                 <b>{t("set.support")}</b>
                 <small>{t("set.supportS")}</small>
@@ -323,9 +322,8 @@ export function SettingsView() {
               {KHQR && <img src={KHQR} alt="KHQR" width={240} height={339} />}
             </div>
           </Sec>}
-        </div>
-      </main>
-    </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -365,6 +363,10 @@ function ConnectionSection() {
   };
   return (
     <Sec id="connection" title={t("set.connection")}>
+      <Opt title={t("set.limit")} sub={t("set.limitS")}>
+        <NumIn label={t("set.limit")} value={s.limit_kbps || 512} lo={1} hi={10_000_000} unit={t("set.kbps")} onSave={(v) => void save({ limit_kbps: v })} />
+        <Toggle on={s.limit_on} label={t("set.limit")} onChange={(v) => void save({ limit_on: v, limit_kbps: s.limit_kbps || 512 })} />
+      </Opt>
       <Opt title={t("set.total")} sub={t("set.totalS")}>
         <NumIn label={t("set.total")} value={s.total_conns} lo={1} hi={256} onSave={(v) => void save({ total_conns: v })} />
       </Opt>
@@ -467,28 +469,28 @@ function ScanRow() {
       setErr(errText(e));
     }
   };
+  // an error replaces the description line (red, announced): nothing below moves
   return (
-    <div className="opt col-opt">
+    <div className="opt">
       <div className="t">
         <b>{t("set.scan")}</b>
-        <small>{h ? fileName(h.program) + " " + h.args.join(" ") : t("set.scanS")}</small>
-      </div>
-      {err && (
-        <p className="err-t" role="alert">
-          {t(`qs.e.${err}`, { defaultValue: err })}
-        </p>
-      )}
-      <div className="row-btns tight">
-        <button type="button" className="fx btn btn-s" onClick={() => void set(true, h?.args ?? ["{file}"], false)}>
-          <Icon n="shield-check" />
-          {t("qs.choose")}
-        </button>
-        {h && (
-          <button type="button" className="fx btn btn-g" onClick={() => void set(false, [], true)}>
-            {t("qs.hookRemove")}
-          </button>
+        {err ? (
+          <small className="err-s clip1" role="alert" title={t(`qs.e.${err}`, { defaultValue: err })}>
+            {t(`qs.e.${err}`, { defaultValue: err })}
+          </small>
+        ) : (
+          <small>{h ? fileName(h.program) + " " + h.args.join(" ") : t("set.scanS")}</small>
         )}
       </div>
+      {h && (
+        <button type="button" className="fx btn btn-g" onClick={() => void set(false, [], true)}>
+          {t("qs.hookRemove")}
+        </button>
+      )}
+      <button type="button" className="fx btn btn-s" onClick={() => void set(true, h?.args ?? ["{file}"], false)}>
+        <Icon n="shield-check" />
+        {t("qs.choose")}
+      </button>
     </div>
   );
 }
@@ -574,11 +576,7 @@ function ProxySection() {
                 </div>
               )}
               <p className="meta">{auth === "basic" ? t("px.passS") : t("px.winS")}</p>
-              {msg && (
-                <p className="err-t" role="alert">
-                  {msg}
-                </p>
-              )}
+              <ErrLine msg={msg} />
               <div className="row-btns flush">
                 <button type="button" className="fx btn btn-s" onClick={() => void login(auth === "windows")}>
                   {auth === "windows" ? t("px.useWin") : t("px.save")}
@@ -655,11 +653,7 @@ function LoginsSection() {
             </span>
           </label>
         </div>
-        {err && (
-          <p className="err-t" role="alert">
-            {t(`lg.e.${err}`, { defaultValue: err })}
-          </p>
-        )}
+        <ErrLine msg={err && t(`lg.e.${err}`, { defaultValue: err })} />
         <div className="row-btns flush">
           <button type="button" className="fx btn btn-s" onClick={() => void add()}>
             <Icon n="plus" />
@@ -684,7 +678,7 @@ function SoundsSection() {
         const v = s.sounds[ev] ?? "";
         const custom = v && !v.startsWith("system:");
         return (
-          <Opt key={ev} title={t(`snd.${ev}`)} sub={custom ? fileName(v) : undefined}>
+          <Opt key={ev} title={t(`snd.${ev}`)}>
             <select className="fx sel snd" aria-label={t(`snd.${ev}`)} value={v} onChange={(e) => void save({ sounds: { ...s.sounds, [ev]: e.target.value } })}>
               <option value="">{t("snd.off")}</option>
               {SYS.map((a) => (
@@ -709,6 +703,8 @@ function SoundsSection() {
 
 function VideoSection() {
   const { t } = useTranslation();
+  const s = useStore((x) => x.settings)!;
+  const save = useStore((x) => x.saveSettings);
   const [st, setSt] = useState<{ ytdlp: boolean; ffmpeg: boolean } | null>(null);
   const load = () => void api.componentsState().then(setSt);
   useEffect(load, []);
@@ -728,6 +724,9 @@ function VideoSection() {
     <Sec id="video" title={t("set.videoSec")}>
       {row("yt-dlp", st?.ytdlp)}
       {row("FFmpeg", st?.ffmpeg)}
+      <Opt title={t("set.video")} sub={t("set.videoS")}>
+        <Toggle on={s.video_button} label={t("set.video")} onChange={(v) => void save({ video_button: v })} />
+      </Opt>
       <div className="opt col-opt">{st && st.ytdlp && st.ffmpeg ? <p className="meta flush">{t("vid.notice")}</p> : <Components onDone={load} />}</div>
     </Sec>
   );
@@ -741,7 +740,7 @@ export function Onboarding() {
   const list = useBrowsers();
   const [fc, setFc] = useState<FolderCheck | null>(null);
   useEffect(() => {
-    if (step === 3) void api.folderCheck().then(setFc);
+    if (step === 1) void api.folderCheck().then(setFc);
   }, [step, s.download_dir]);
   const finish = () => void save({ onboarded: true });
   const head = useRef<HTMLHeadingElement>(null);
@@ -774,11 +773,27 @@ export function Onboarding() {
               <Opt title={t("set.theme")}>
                 <Tabs value={s.theme} label={t("set.theme")} items={[["system", t("set.tSys")], ["light", t("set.tLight")], ["dark", t("set.tDark")]]} onChange={(v) => void save({ theme: v })} />
               </Opt>
+              <Opt title={t("set.folder")} sub={s.download_dir}>
+                <button
+                  type="button"
+                  className="fx btn btn-s"
+                  onClick={async () => {
+                    const p = await api.pickDownloadDir();
+                    if (p) useStore.setState({ settings: { ...s, download_dir: p } });
+                  }}
+                >
+                  {t("set.change")}
+                </button>
+              </Opt>
+              {fc && fc.fs && fc.fs !== "NTFS" && fc.fs !== "ReFS" && <p className="warn-t">{t("ob.fsWarn", { fs: fc.fs })}</p>}
+              {fc && fc.free > 0 && fc.free < 2 * 1024 ** 3 && <p className="warn-t">{t("ob.spaceWarn", { free: bytes(fc.free) })}</p>}
             </div>
           )}
           {step === 2 && (
             <>
-              <BrowserRows list={list} />
+              <div className="card list-card">
+                <BrowserRows list={list} />
+              </div>
               <div className="tip">
                 <Icon n="info" />
                 <span>{t("ob.tip", { force: keyName(s.force_key), bypass: keyName(s.bypass_key) })}</span>
@@ -796,20 +811,6 @@ export function Onboarding() {
               <Opt title={t("set.updMode")} sub={t("ob.updS")}>
                 <Tabs value={s.update_mode} label={t("set.updMode")} items={[["auto", t("set.updAuto")], ["notify", t("set.updNotify")], ["off", t("set.updOff")]]} onChange={(v) => void save({ update_mode: v })} />
               </Opt>
-              <Opt title={t("set.folder")} sub={s.download_dir}>
-                <button
-                  type="button"
-                  className="fx btn btn-s"
-                  onClick={async () => {
-                    const p = await api.pickDownloadDir();
-                    if (p) useStore.setState({ settings: { ...s, download_dir: p } });
-                  }}
-                >
-                  {t("set.change")}
-                </button>
-              </Opt>
-              {fc && fc.fs && fc.fs !== "NTFS" && fc.fs !== "ReFS" && <p className="warn-t">{t("ob.fsWarn", { fs: fc.fs })}</p>}
-              {fc && fc.free > 0 && fc.free < 2 * 1024 ** 3 && <p className="warn-t">{t("ob.spaceWarn", { free: bytes(fc.free) })}</p>}
             </div>
           )}
           <div className="mfoot">

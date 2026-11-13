@@ -57,7 +57,6 @@ const COMMANDS: &[&str] = &[
     "media_start",
     "components_state",
     "components_install",
-    "basket_show",
     "category_pick_dir",
     "job_set_url",
     "job_move",

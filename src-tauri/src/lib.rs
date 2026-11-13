@@ -494,19 +494,6 @@ async fn components_install(app: A<'_>) -> R<()> {
     Ok(())
 }
 
-/// Tasks > Show drop target (IDM): the small always-on-top basket window; links dropped on it go to add_url
-#[tauri::command]
-fn basket_show(app: A, on: bool) -> R<()> {
-    lock(&app.settings).basket = on;
-    app.save_settings()?;
-    let w = HANDLE.get().and_then(|h| h.get_webview_window("basket")).ok_or("no-basket")?;
-    if on {
-        w.show().map_err(|e| e.to_string())
-    } else {
-        w.hide().map_err(|e| e.to_string())
-    }
-}
-
 /// P1 #19 "remember this folder for the category": the folder comes from the native picker only
 #[tauri::command]
 fn category_pick_dir(app: A, id: String, clear: bool) -> R<Option<String>> {
@@ -1151,7 +1138,6 @@ pub fn run() {
             media_start,
             components_state,
             components_install,
-            basket_show,
             category_pick_dir,
             job_set_url,
             job_move
@@ -1199,11 +1185,6 @@ pub fn run() {
                 attach_main(&h, &w);
             }
             app.resume_interrupted();
-            if lock(&app.settings).basket {
-                if let Some(b) = h.get_webview_window("basket") {
-                    let _ = b.show();
-                }
-            }
             // I-01: clipboard monitor (reads nothing while off); a URL opens the Download Info dialog, unstarted
             let (ac, ao) = (Arc::downgrade(&app), Arc::downgrade(&app));
             clip::spawn(

@@ -23,7 +23,7 @@
 ## លក្ខខណ្ឌមុខងារតាមសំណូមពរ
 
 1. **កិច្ចសន្យាជាលាយលក្ខណ៍អក្សរ** មុនចាប់ផ្ដើម: ភាគីដែលចុះកិច្ចសន្យា, អ្វីដែលត្រូវប្រគល់, តម្លៃ និងការបង់តាមដំណាក់កាល។
-2. **កម្មសិទ្ធិ:** កូដ GDM ដែលសរសេរក្នុងសេវានេះ ជាកម្មសិទ្ធិបញ្ញារបស់ Golden IQ និង CHHIT Sungchhay ហើយចេញផ្សាយក្រោម RPL-1.5 ដូចកូដ GDM ផ្សេងទៀត។ ឯកសារ ទិន្នន័យ ឬកូដដែលអតិថិជនផ្ដល់ នៅតែជារបស់អតិថិជន។ ការបង់ថ្លៃខ្លួនឯងមិនផ្ទេរ ឬផ្ដល់កម្មសិទ្ធិទេ ដូច្នេះកិច្ចសន្យាត្រូវសរសេរវាឱ្យច្បាស់។
+2. **កម្មសិទ្ធិ:** កូដ GDM ដែលសរសេរក្នុងសេវានេះ ជាកម្មសិទ្ធិបញ្ញារបស់ Golden IQ និង Chhit Sungchhay ហើយចេញផ្សាយក្រោម RPL-1.5 ដូចកូដ GDM ផ្សេងទៀត។ ឯកសារ ទិន្នន័យ ឬកូដដែលអតិថិជនផ្ដល់ នៅតែជារបស់អតិថិជន។ ការបង់ថ្លៃខ្លួនឯងមិនផ្ទេរ ឬផ្ដល់កម្មសិទ្ធិទេ ដូច្នេះកិច្ចសន្យាត្រូវសរសេរវាឱ្យច្បាស់។
 3. **កូដត្រូវបោះពុម្ព:** កូដនៃមុខងារនេះត្រូវដាក់ជាសាធារណៈក្រោម RPL-1.5 ពេលប្រគល់ (មិនមែនរង់ចាំ release ផ្លូវការទេ) ឬមុននោះ ពេល RPL-1.5 តម្រូវ: ការប្រើសាកល្បង ឬប្រើការងារក្នុងស្ថាប័នមុនពេលប្រគល់ ក៏អាចជា Deploy ដែលមានកំណត់ពេលបោះពុម្ព និងប្រកាសតាម LICENSE ដែរ (លើកលែងតែ Research)។ អ្វីដែលបោះពុម្ពគឺ Source Code និង Required Components ពេញលេញ (§1.12, §1.16) មិនមែនតែ patch ទេ។ យើង**មិនផ្ដល់សេវា fork ឯកជន ឬ fork សម្ងាត់**ទេ ហើយមិនសន្យាថាកូដនៅជាការសម្ងាត់ ឬផ្ដល់សិទ្ធិផ្ដាច់មុខទេ។ (នេះជាដែនកំណត់នៃសេវារបស់យើង មិនមែនការដកសិទ្ធិដែល RPL-1.5 ផ្ដល់ដល់អ្នកណាម្នាក់ទេ។)
 4. **ការចូលក្នុង GDM ផ្លូវការមិនធានាទេ:** ការទទួលការងារ (acceptance) ក្នុងកិច្ចសន្យា ខុសពីការដាក់មុខងារចូលក្នុង GDM ផ្លូវការ។ ការដាក់ចូលផ្លូវការជាការសម្រេចរបស់អ្នកថែទាំ (សុវត្ថិភាព, ភាពត្រឹមត្រូវ, ចំណាប់អារម្មណ៍អ្នកប្រើទូទៅ)។
 5. **ការទទួលការងារ:** លក្ខខណ្ឌវាស់បាន (test, ឧទាហរណ៍) និងរយៈពេលពិនិត្យ សរសេរក្នុងកិច្ចសន្យា។
@@ -73,7 +73,7 @@
 ### Terms for commissioned features
 
 1. **A written agreement** before work starts: the contracting parties, the deliverables, the price and payment milestones.
-2. **Ownership:** GDM code written under the service is the intellectual property of Golden IQ and CHHIT Sungchhay and is released under RPL-1.5 like the rest of GDM. Material, data or code the client supplies stays the client's. Payment by itself does not transfer or grant ownership, so the agreement states it explicitly.
+2. **Ownership:** GDM code written under the service is the intellectual property of Golden IQ and Chhit Sungchhay and is released under RPL-1.5 like the rest of GDM. Material, data or code the client supplies stays the client's. Payment by itself does not transfer or grant ownership, so the agreement states it explicitly.
 3. **The code is published:** the feature's source is made public under RPL-1.5 at delivery, not when an official release happens, or earlier when RPL-1.5 requires it: a pilot or operational use inside an organisation before delivery can already be a Deploy with the licence's publication and notification deadlines (Research is the exception). What is published is the full Source Code and Required Components (§1.12, §1.16), not only a patch. We **do not offer private or confidential forks as a service**, and we do not promise confidentiality or exclusivity for the code. (This limits our service; it does not take away anyone's rights under RPL-1.5.)
 4. **Inclusion in official GDM is not guaranteed:** acceptance of the deliverable under the agreement is separate from merging the feature into official GDM, which is the maintainers' decision (security, correctness, value to all users).
 5. **Acceptance:** measurable criteria (tests, examples) and a review period are written in the agreement.

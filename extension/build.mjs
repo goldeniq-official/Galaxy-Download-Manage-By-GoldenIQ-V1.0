@@ -54,7 +54,7 @@ for (const [name, manifest] of Object.entries(targets)) {
   fs.cpSync(path.join(here, "static", "_locales"), path.join(out, "_locales"), { recursive: true });
   const icons = path.join(root, "src-tauri", "icons");
   fs.copyFileSync(path.join(icons, "32x32.png"), path.join(out, "icon-32.png"));
-  fs.copyFileSync(path.join(icons, "Square44x44Logo.png"), path.join(out, "icon-48.png"));
+  fs.copyFileSync(path.join(icons, "128x128.png"), path.join(out, "icon-48.png")); // no 48 px file: the browser scales the 128 down (sharper than stretching 44 px)
   fs.copyFileSync(path.join(icons, "128x128.png"), path.join(out, "icon-128.png"));
   fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
   console.log(`built ${path.relative(root, out)} (${version})`);

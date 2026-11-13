@@ -1,6 +1,6 @@
 # NOTICE — Galaxy Download Manager
 
-Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. All rights reserved except as granted by the licence below.
+Copyright (c) 2026 Golden IQ and Chhit Sungchhay. All rights reserved except as granted by the licence below.
 
 Galaxy Download Manager is licensed under the **Reciprocal Public License, Version 1.5** (SPDX: `RPL-1.5`), the full text of which is in [`LICENSE`](LICENSE). It is an OSI-approved open-source licence (approved 1 September 2009, <https://opensource.org/license/rpl-1-5>). `LICENSE` is the RPL-1.5 text with this project's attribution supplied in Exhibit B, which RPL-1.5 Section 7.1(c) allows while keeping the name RPL.
 
@@ -18,7 +18,7 @@ The Licensor does not offer Galaxy Download Manager under any other licence.
 
 This notice is set in Exhibit B of `LICENSE`. Under RPL-1.5 Section 6.4(d), it must appear in every user-visible display of the software, or of any Extension, that shows copyright, ownership or similar attribution information (for example an About screen). It must also appear in the documentation:
 
-> Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
+> Galaxy Download Manager — Copyright (c) 2026 Golden IQ and Chhit Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
 
 ## Trademarks
 
@@ -36,7 +36,7 @@ Libraries, fonts and icons included in Galaxy Download Manager stay under their 
 
 > ការពន្យល់នេះជួយឱ្យងាយយល់ប៉ុណ្ណោះ។ អត្ថបទដែលមានអានុភាពផ្លូវច្បាប់គឺ `LICENSE` (RPL-1.5 ជាភាសាអង់គ្លេស)។
 
-រក្សាសិទ្ធិ © 2026 Golden IQ និង CHHIT Sungchhay។
+រក្សាសិទ្ធិ © 2026 Golden IQ និង Chhit Sungchhay។
 
 Galaxy Download Manager ប្រើអាជ្ញាប័ណ្ណ **Reciprocal Public License 1.5 (RPL-1.5)**។ វាជាអាជ្ញាប័ណ្ណ open source ដែល OSI បានអនុម័ត។ យើងជ្រើសវា ព្រោះក្នុងចំណោម licence ដែលបានប្រៀបធៀប (AGPL-3.0, RPL-1.5) វាមានកាតព្វកិច្ចបោះពុម្ពកូដទូលាយជាងគេ ពោលគឺរួមទាំងការប្រើកំណែកែក្នុងអង្គការផងដែរ។
 
@@ -46,7 +46,7 @@ Galaxy Download Manager ប្រើអាជ្ញាប័ណ្ណ **Reciproc
 - ប្រសិនបើអ្នកដាក់កំណែកែឱ្យប្រើ (Deploy) សូម្បីតែប្រើក្នុងក្រុមហ៊ុន ឬអង្គការរបស់អ្នកប៉ុណ្ណោះ អ្នកត្រូវបោះពុម្ពកូដនៃការកែនោះក្រោម RPL-1.5 ក្នុងរយៈពេល ១ ខែ។ កូដនោះត្រូវនៅតែអាចទាញបាន ពេញមួយរយៈពេលដែលអ្នកប្រើ និងយ៉ាងហោចណាស់ ១២ ខែ ក្រោយពេលអ្នកឈប់ប្រើ (§1.2, §6.1)។ ករណីលើកលែងមានតែការស្រាវជ្រាវ (Research) និងការប្រើផ្ទាល់ខ្លួន (Personal Use) ប៉ុណ្ណោះ។
 - ច្បាប់ចម្លងកូដដែលអ្នកចែកចាយតាម §6.1 មិនអាចយកថ្លៃលើសពីថ្លៃចម្លង និងថ្លៃចែកចាយពិតប្រាកដបានទេ (§6.1)។
 - អ្នកត្រូវជូនដំណឹងទៅសហគមន៍ថាកូដរបស់អ្នកអាចទាញបាននៅកន្លែងណា (§6.4(c))។
-- កំណែកែដែល Deploy ត្រូវមានឈ្មោះផ្សេង (§6.0) ហើយត្រូវរក្សាឈ្មោះ Golden IQ និង CHHIT Sungchhay (§6.2, §6.4(d))។
+- កំណែកែដែល Deploy ត្រូវមានឈ្មោះផ្សេង (§6.0) ហើយត្រូវរក្សាឈ្មោះ Golden IQ និង Chhit Sungchhay (§6.2, §6.4(d))។
 - អាជ្ញាប័ណ្ណមិនផ្ដល់សិទ្ធិប្រើពាណិជ្ជសញ្ញា ឈ្មោះ ឬ logo GDM ទេ (§5.0) តាមកម្រិតដែលច្បាប់អនុញ្ញាត។ ការបញ្ជាក់ប្រភពដែលពិត ដូចជា "ផ្អែកលើ Galaxy Download Manager" នៅតែអនុញ្ញាត។
 
 **អ្វីដែលអាជ្ញាប័ណ្ណ open source ណាក៏មិនអាចហាមបាន:** អាជ្ញាប័ណ្ណ open source ណាក៏ដោយមិនអាចហាមការប្រើពាណិជ្ជកម្មទាំងស្រុងបានទេ (Open Source Definition ចំណុច ៦)។ RPL តម្រូវឱ្យអ្នកណាដែលកែ ហើយប្រើកំណែកែ (Deploy) ត្រូវបើកកូដរបស់ខ្លួនជាសាធារណៈ។

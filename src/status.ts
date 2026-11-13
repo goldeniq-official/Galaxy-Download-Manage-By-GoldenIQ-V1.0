@@ -4,7 +4,7 @@ import type { Live, Row } from "./api";
 
 export type Tone = "" | "info" | "done" | "warn" | "err";
 export type Action =
-  | "open" | "openFolder" | "why" | "restart" | "fresh" | "continueRisk" | "resume" | "allow" | "retry" | "openBrowser" | "newName" | "pause";
+  | "open" | "openFolder" | "why" | "restart" | "fresh" | "continueRisk" | "resume" | "allow" | "retry" | "openBrowser" | "newName" | "pause" | "findVideo";
 
 export interface View {
   key: string;
@@ -68,7 +68,7 @@ export function view(r: Row, live?: Live): View {
     case "Gone":
       return { key: "gone", tone: "err", action: "openBrowser" };
     case "Html":
-      return { key: "html", tone: "err", action: "openBrowser" };
+      return { key: "html", tone: "err", action: "openBrowser", second: "findVideo" };
     case "Forbidden":
       return privateHost(r) ? { key: "privateNet", vars: { host: privateHost(r) }, tone: "warn", action: "allow" } : { key: "insecure", tone: "err", action: "why", why: "insecure" };
     case "Tls":

@@ -79,7 +79,9 @@
     "remove": "Remove from list",
     "removeFile": "Delete file to Recycle Bin",
     "newName": "Download under a new name",
-    "info": "Details"
+    "info": "Details",
+    "findVideo": "Find video on this page",
+    "removeDone": "Remove all completed from the list"
   },
   "why": {
     "blocked": "Windows Security or your antivirus removed or refused this file. GDM never gave it its final name. If you trust the source, check Windows Security.",
@@ -103,7 +105,9 @@
     "limit": "Speed limit for this file (KB/s, 0 = none)",
     "none": "Select a download",
     "close": "Close",
-    "queue": "Queue"
+    "queue": "Queue",
+    "connsLess": "Fewer connections",
+    "connsMore": "More connections"
   },
   "info": {
     "title": "Download file info",
@@ -119,7 +123,9 @@
     "cancel": "Cancel",
     "queue": "Queue for “Download later”",
     "remember": "Remember a folder for {{c}}",
-    "forget": "Forget the folder"
+    "forget": "Forget the folder",
+    "picked": "{{n}} selected",
+    "unknownN": "{{n}} unknown size"
   },
   "addDlg": {
     "title": "Add a download",
@@ -233,7 +239,7 @@
     "privacyLink": "Privacy policy",
     "version": "Version {{v}}",
     "license": "Licence RPL-1.5",
-    "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
+    "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and Chhit Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
     "share": "Copy the GDM link",
     "copied": "Copied",
     "github": "GitHub",
@@ -260,18 +266,30 @@
     "sounds": "Sounds",
     "videoSec": "Video",
     "sites": "Sites that always go here (*.example.com)",
-    "catDir": "Remember a folder",
+    "catDir": "Choose folder",
     "sidecar": "Check the .sha256 file published next to a download",
     "sidecarS": "From the same site; a wrong hash means the file is never marked complete",
     "scan": "Scan each finished file with my antivirus program",
     "scanS": "Optional: GDM runs it with {file} after each download (Windows Security already checks every file)",
     "ua": "User-Agent (empty = GDM's own)",
     "uaDefault": "GDM's own User-Agent",
-    "uaSites": "Per site (for servers that need a browser's User-Agent)"
+    "uaSites": "Per site (for servers that need a browser's User-Agent)",
+    "readLicense": "Read the licence",
+    "upd": {
+      "idle": "",
+      "checking": "Checking…",
+      "available": "Version {{v}} is available",
+      "downloading": "Downloading version {{v}}…",
+      "verifying": "Verifying version {{v}}…",
+      "ready": "Version {{v}} is ready · installs when GDM is idle",
+      "installing": "Installing…",
+      "failed": "Update failed",
+      "store": ""
+    }
   },
   "ob": {
     "step": "Step {{n}} of 3",
-    "t1": "Language and theme",
+    "t1": "Language, theme and folder",
     "p1": "You can change these later in Settings.",
     "t2": "Connect your browser",
     "p2": "Install the extension so GDM can catch downloads from your browser.",
@@ -307,7 +325,6 @@
     "video": "Add video",
     "import": "Import",
     "export": "Export",
-    "basket": "Show drop target",
     "scheduler": "Scheduler",
     "grab": "Run site grabber"
   },
@@ -327,7 +344,9 @@
       "bad-range": "From and To must be numbers or single letters, From first",
       "too-many": "More than 100 000 addresses: make the range smaller",
       "confirm": "Tick the confirmation first"
-    }
+    },
+    "preview": "Preview",
+    "hint": "Type an address above; the addresses that will be downloaded are listed here."
   },
   "imp": {
     "title": "Import downloads",
@@ -374,7 +393,8 @@
     "installing": "Downloading and checking…",
     "installErr": "Download failed: {{e}}",
     "ok": "Installed",
-    "missing": "Not installed"
+    "missing": "Not installed",
+    "hint": "Paste the page address and press “Find videos”: the qualities you can download are listed here."
   },
   "cd": {
     "shutdown": "Shutting down in {{n}} s",
@@ -492,10 +512,6 @@
     "5": "Sat",
     "6": "Sun"
   },
-  "basket": {
-    "label": "Drop links here",
-    "hide": "Hide drop target"
-  },
   "prop": {
     "url": "Change address…",
     "urlS": "The file's validator is checked on the next run: a different file stops with “file changed”.",
@@ -575,5 +591,9 @@
       "bad-login": "The login name cannot contain : or control characters",
       "too-many": "Too many files at once (100 000 maximum)"
     }
+  },
+  "win": {
+    "min": "Minimise",
+    "max": "Maximise / restore"
   }
 }

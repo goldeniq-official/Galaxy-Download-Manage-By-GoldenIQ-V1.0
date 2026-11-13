@@ -1,11 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "X-01/X-02: only the main window, only GDM's own commands (IDs and plain values); no core, shell, fs, http or opener permissions",
+  "description": "X-01/X-02: only the main window, only GDM's own commands (IDs and plain values) plus its own title bar (drag, minimise, maximise, close); no other core, shell, fs, http or opener permissions",
   "windows": [
     "main"
   ],
   "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
     "allow-snapshot",
     "allow-tick",
     "allow-settings-get",
@@ -62,7 +67,6 @@
     "allow-media-start",
     "allow-components-state",
     "allow-components-install",
-    "allow-basket-show",
     "allow-category-pick-dir",
     "allow-job-set-url",
     "allow-job-move"

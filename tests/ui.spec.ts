@@ -102,6 +102,58 @@ test("C-03: five downloads at once = one dialog with five rows", async ({ page }
   await expect(page.locator(".modal .check")).toHaveCount(5);
 });
 
+// owner 2026-11-13: nothing may push the layout. Notices go to the fixed footer, dialogs hang from a fixed top,
+// a dialog error has a reserved line; the list and the dialog title must not move.
+test("a download can be removed from its right-click menu, and all completed ones at once (IDM Delete / Delete completed)", async ({ page }) => {
+  await open(page, "scene=states&lang=en", 1100, 700);
+  const done = await page.evaluate(() => document.querySelectorAll(".row .st.done").length);
+  await page.locator(".row").nth(3).click({ button: "right" });
+  await page.locator(".menu .mi", { hasText: /^Remove from list$/ }).click();
+  await expect.poll(async () => (await calls(page, "job_remove")).length).toBe(1);
+  await page.locator(".row").nth(3).click({ button: "right" });
+  await page.locator(".menu .mi", { hasText: "Remove all completed" }).click();
+  await expect.poll(async () => (await calls(page, "job_remove")).length).toBeGreaterThan(1);
+  expect(done).toBeGreaterThan(0);
+});
+
+test("no layout shift: a dialog error and an update notice move nothing", async ({ page }) => {
+  await open(page, "scene=states&lang=en", 1100, 700);
+  await page.locator(".top .btn-p").click();
+  const title = page.locator(".modal h2");
+  const btn = page.locator(".modal .btn-p");
+  const before = [await title.boundingBox(), await btn.boundingBox()];
+  await page.locator(".modal input").fill("ftp://x");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".modal .err-line")).toContainText("valid link");
+  expect([await title.boundingBox(), await btn.boundingBox()]).toEqual(before);
+  await open(page, "scene=states&lang=en&update=ready", 1100, 700);
+  const list = await page.locator(".list").boundingBox();
+  await open(page, "scene=states&lang=en", 1100, 700);
+  expect(await page.locator(".list").boundingBox()).toEqual(list);
+});
+
+test("a YouTube page link added by hand opens the quality list instead of downloading the HTML page", async ({ page }) => {
+  await open(page, "scene=states&lang=en", 1100, 700);
+  await page.locator(".top .btn-p").click();
+  await page.locator(".modal input").fill("https://www.youtube.com/watch?v=abc");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".modal h2")).toHaveText("Add video");
+  await expect.poll(async () => (await calls(page, "media_probe")).length).toBe(1);
+  expect(await calls(page, "add_url")).toHaveLength(0);
+});
+
+test("settings is one dialog: Esc closes it, the section rows switch inside a fixed box", async ({ page }) => {
+  await open(page, "scene=states&lang=en", 1100, 700);
+  await mainNav(page).last().click();
+  const box = await page.locator(".setdlg").boundingBox();
+  await page.locator(".setnav .nav").nth(1).click();
+  await expect(page.locator(".sethead h2")).toHaveText("Downloads");
+  expect(await page.locator(".setdlg").boundingBox()).toEqual(box);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".setdlg")).toHaveCount(0);
+  await expect(page.locator("#shell")).not.toHaveAttribute("inert", "");
+});
+
 test("X-05: keyboard list: arrows select, Delete removes, Ctrl+N opens Add", async ({ page }) => {
   await open(page, "scene=states", 1100, 700);
   await page.locator(".row").first().focus();
@@ -170,12 +222,12 @@ const G7SHOTS = path.join("docs", "evidence", "g7-shots");
 fs.mkdirSync(G7SHOTS, { recursive: true });
 const mainNav = (p: Page) => p.locator(".body > nav.rail > .nav");
 const tasks = async (p: Page, i: number) => {
-  await p.locator(".top .chip[aria-haspopup]").first().click();
+  await p.locator(".top .tb[aria-haspopup]").last().click();
   await p.locator(".menu .mi").nth(i).click();
 };
 const setSec = (i: number, more?: (p: Page) => Promise<void>) => async (p: Page) => {
   await mainNav(p).last().click();
-  await p.locator(".set .rail .nav").nth(i).click();
+  await p.locator(".setnav .nav").nth(i).click();
   if (more) await more(p);
 };
 const calls = (p: Page, cmd: string) =>
@@ -184,7 +236,8 @@ const calls = (p: Page, cmd: string) =>
 const G7: Record<string, { q: string; w: number; h: number; then?: (p: Page) => Promise<void> }> = {
   queues: { q: "scene=states", w: 1280, h: 760, then: async (p) => mainNav(p).nth(10).click() },
   rowmenu: { q: "scene=states", w: 1100, h: 700, then: async (p) => p.locator(".row").nth(6).click({ button: "right" }) },
-  tasks: { q: "scene=states", w: 1100, h: 700, then: async (p) => p.locator(".top .chip[aria-haspopup]").first().click() },
+  tasks: { q: "scene=states", w: 1100, h: 700, then: async (p) => p.locator(".top .tb[aria-haspopup]").last().click() },
+  qmenu: { q: "scene=states", w: 1100, h: 700, then: async (p) => p.locator(".top .tb[aria-haspopup]").first().click() },
   batch: {
     q: "scene=states", w: 1100, h: 700,
     then: async (p) => {
@@ -200,7 +253,7 @@ const G7: Record<string, { q: string; w: number; h: number; then?: (p: Page) => 
     q: "scene=states", w: 1100, h: 700,
     then: async (p) => {
       await p.locator(".row").nth(10).click({ button: "right" });
-      await p.locator(".menu .mi").first().click();
+      await p.locator(".menu .mi", { hasText: /Refresh download address|យកអាសយដ្ឋានទាញយកថ្មី/ }).click();
       await p.waitForSelector(".modal .btn-p", { timeout: 5000 });
     },
   },
@@ -215,19 +268,20 @@ const G7: Record<string, { q: string; w: number; h: number; then?: (p: Page) => 
   },
   countdown: { q: "scene=states&countdown=1", w: 1100, h: 700, then: async (p) => void (await p.waitForSelector(".cd")) },
   "set-connection": { q: "scene=states", w: 1100, h: 700, then: setSec(2) },
-  "set-queues": { q: "scene=states", w: 1100, h: 700, then: setSec(4) },
-  "set-queue-files": { q: "scene=states", w: 1100, h: 700, then: setSec(4, async (p) => p.locator(".sbody .tabs .tab").nth(1).click()) },
+  "set-downloads": { q: "scene=states", w: 1100, h: 700, then: setSec(1) },
+  "set-queues": { q: "scene=states", w: 1100, h: 700, then: setSec(3) },
+  "set-queue-files": { q: "scene=states", w: 1100, h: 700, then: setSec(3, async (p) => p.locator(".sbody .tabs .tab").nth(1).click()) },
   "set-proxy": {
     q: "scene=states", w: 1100, h: 700,
-    then: setSec(5, async (p) => {
+    then: setSec(4, async (p) => {
       await p.locator(".sbody .tabs").first().locator(".tab").nth(2).click();
       await p.locator(".sbody .tabs").nth(1).locator(".tab").nth(1).click();
     }),
   },
-  "set-logins": { q: "scene=states", w: 1100, h: 700, then: setSec(6) },
-  "set-sounds": { q: "scene=states", w: 1100, h: 700, then: setSec(7) },
-  "set-video": { q: "scene=states&comp=0", w: 1100, h: 700, then: setSec(8) },
-  "set-about": { q: "scene=states", w: 1100, h: 700, then: async (p) => { await mainNav(p).last().click(); await p.locator(".set .rail .nav").last().click(); } },
+  "set-logins": { q: "scene=states", w: 1100, h: 700, then: setSec(5) },
+  "set-sounds": { q: "scene=states", w: 1100, h: 700, then: setSec(6) },
+  "set-video": { q: "scene=states&comp=0", w: 1100, h: 700, then: setSec(7) },
+  "set-about": { q: "scene=states", w: 1100, h: 700, then: async (p) => { await mainNav(p).last().click(); await p.locator(".setnav .nav").last().click(); } },
 };
 
 test("G8 §21 M1: About shows the voluntary support block and loads nothing from the network", async ({ page }) => {
@@ -235,7 +289,7 @@ test("G8 §21 M1: About shows the voluntary support block and loads nothing from
   page.on("request", (r) => { if (!r.url().startsWith("http://127.0.0.1:1431/") && !r.url().startsWith("data:")) outside.push(r.url()); });
   await open(page, "scene=states&lang=en&theme=dark", 1100, 700);
   await mainNav(page).last().click();
-  await page.locator(".set .rail .nav").last().click();
+  await page.locator(".setnav .nav").last().click();
   await expect(page.getByText("Support GDM")).toBeVisible();
   await expect(page.getByText(/unlocks no feature/)).toBeVisible();
   await expect(page.locator("img[alt=KHQR]")).toBeVisible();
@@ -291,13 +345,13 @@ test("G7 batch: a pattern without * is refused with a message", async ({ page })
   await open(page, "scene=states&lang=en", 1100, 700);
   await tasks(page, 0);
   await page.locator(".modal input").nth(0).fill("https://cdn.example.org/img.jpg");
-  await expect(page.locator(".modal .err-t")).toContainText("exactly one *");
+  await expect(page.locator(".modal .err-line")).toContainText("exactly one *");
 });
 
 test("G7 refresh address: Start over is the default button, Resume disabled when not strong", async ({ page }) => {
   await open(page, "scene=states&lang=en", 1100, 700);
   await page.locator(".row").nth(10).click({ button: "right" });
-  await page.locator(".menu .mi").first().click();
+  await page.locator(".menu .mi", { hasText: "Refresh download address" }).click();
   expect(await calls(page, "refresh_start")).not.toHaveLength(0);
   await expect(page.locator(".modal .btn-p")).toHaveText("Start over", { timeout: 5000 });
   await expect(page.locator(".modal .btn-p")).toBeFocused();
@@ -312,7 +366,7 @@ test("G7 refresh address: Start over is the default button, Resume disabled when
 test("G7 refresh address: a web page instead of the file says login needed", async ({ page }) => {
   await open(page, "scene=states&lang=en&refresh=html", 1100, 700);
   await page.locator(".row").nth(10).click({ button: "right" });
-  await page.locator(".menu .mi").first().click();
+  await page.locator(".menu .mi", { hasText: "Refresh download address" }).click();
   await expect(page.locator(".modal .err-t")).toContainText("login needed", { timeout: 5000 });
   await expect(page.locator(".modal button", { hasText: "Start over" })).toHaveCount(0);
 });
@@ -330,7 +384,7 @@ test("G7 video: DRM is refused with a clear message; a page with formats lists t
   await tasks(page, 1);
   await page.locator(".modal input").fill("https://video.example.org/drm/movie");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".modal .err-t")).toContainText("protected (DRM)");
+  await expect(page.locator(".modal .err-line")).toContainText("protected (DRM)");
   await page.locator(".modal input").fill("https://video.example.org/watch?v=abc");
   await page.keyboard.press("Enter");
   await expect(page.locator(".modal [role=radio]")).toHaveCount(4);
@@ -386,7 +440,7 @@ test("G7 queue: the queue node lists files in order, the context menu removes, r
   await page.locator(".row").first().click({ button: "right" });
   await page.locator(".menu .mi", { hasText: "Remove from queue" }).click();
   await expect(page.locator(".row")).toHaveCount(2);
-  await setSec(4, async (p) => p.locator(".sbody .tabs .tab").nth(1).click())(page);
+  await setSec(3, async (p) => p.locator(".sbody .tabs .tab").nth(1).click())(page);
   await expect(page.locator(".sbody .hl-row")).toHaveCount(2);
   await page.locator(".sbody .hl-row").first().locator("button").nth(1).click();
   await expect(page.locator(".sbody .hl-row").first()).toContainText("report-q3.pdf");
@@ -396,8 +450,8 @@ test("G7 queue: the queue node lists files in order, the context menu removes, r
 
 test("G7 scheduler: Tasks > Scheduler opens queue settings; new queue; program only via the native picker", async ({ page }) => {
   await open(page, "scene=states&lang=en", 1100, 700);
-  await tasks(page, 5);
-  await expect(page.locator(".sbody h3")).toHaveText("Queues and scheduler");
+  await tasks(page, 4);
+  await expect(page.locator(".sethead h2")).toHaveText("Queues and scheduler");
   await page.locator(".sbody button", { hasText: "Choose program" }).click();
   await expect.poll(async () => (await calls(page, "hook_set")).length).toBe(1);
   expect((await calls(page, "hook_set"))[0]).toMatchObject({ queue: "main", pick: true, clear: false });
@@ -413,7 +467,7 @@ test("G7 scheduler: Tasks > Scheduler opens queue settings; new queue; program o
 
 test("G7 site login: the password is sent once and never kept in the form", async ({ page }) => {
   await open(page, "scene=states&lang=en", 1100, 700);
-  await setSec(6)(page);
+  await setSec(5)(page);
   await page.locator(".sbody input").nth(0).fill("https://dl.example.com/members/");
   await page.locator(".sbody input").nth(1).fill("me");
   await page.locator(".sbody input[type=password]").fill("s3cret");
@@ -421,27 +475,6 @@ test("G7 site login: the password is sent once and never kept in the form", asyn
   await expect(page.locator(".sbody .hl-row")).toHaveCount(2);
   await expect(page.locator(".sbody input[type=password]")).toHaveValue("");
   expect(await calls(page, "login_set")).toEqual([{ prefix: "https://dl.example.com/members/", user: "me", password: "s3cret" }]);
-});
-
-test("G7 drop basket: dropped links go to add_url (http/https only, at most 50); hide calls basket_show(false)", async ({ page }) => {
-  await page.setViewportSize({ width: 76, height: 76 });
-  await page.goto("/basket.html");
-  await page.waitForSelector(".bk");
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: path.join(G7SHOTS, "basket-km-dark.png") });
-  expect(await page.evaluate(P.rulesProbe), "rule 8").toEqual([]);
-  const axe = await new AxeBuilder({ page }).analyze();
-  expect(axe.violations.filter((x) => x.impact === "serious" || x.impact === "critical").map((x) => x.id)).toEqual([]);
-  const links = [...Array.from({ length: 60 }, (_, i) => `https://dl.example.org/f${i}.zip`), "javascript:alert(1)", "file:///C:/x"].join("\r\n");
-  await page.evaluate((l) => {
-    const dt = new DataTransfer();
-    dt.setData("text/uri-list", l);
-    document.querySelector(".bk")!.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
-  }, links);
-  await expect.poll(async () => (await calls(page, "add_url")).length, { timeout: 10_000 }).toBe(50);
-  expect((await calls(page, "add_url")).every((c) => /^https:\/\/dl\.example\.org\//.test(String(c.url)))).toBe(true);
-  await page.locator(".bk-x").click({ force: true });
-  await expect.poll(async () => calls(page, "basket_show")).toEqual([{ on: false }]);
 });
 
 test("G7 P1 #21: several links dropped on the main window each go to add_url", async ({ page }) => {

@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { api, type ImportPreview, type Live, type QueueView, type Row, type Settings, type Tick, type Toast } from "./api";
 import i18n from "./i18n";
 
-export type Nav = "all" | "active" | "unfinished" | "done" | `cat:${string}` | `q:${string}` | "settings";
+export type Nav = "all" | "active" | "unfinished" | "done" | `cat:${string}` | `q:${string}`;
 /** the one G7 dialog open at a time */
 export type Dlg = { k: "batch" } | { k: "video"; url?: string } | { k: "import"; pv: ImportPreview } | { k: "refresh"; id: string } | { k: "url"; id: string } | { k: "grab" };
 
@@ -25,7 +25,8 @@ interface S {
   dlg: Dlg | null;
   /** a queue's "when done" countdown (toast kind "countdown"): queue id + action */
   countdown: { id: string; action: string } | null;
-  /** Settings section shown (Tasks > Scheduler opens "queues") */
+  /** Settings dialog open, and its section (Tasks > Scheduler opens "queues") */
+  settingsOpen: boolean;
   sec: string;
   setQ: (q: string) => void;
   setNav: (n: Nav) => void;
@@ -58,6 +59,7 @@ export const useStore = create<S>((set, get) => ({
   queues: [],
   dlg: null,
   countdown: null,
+  settingsOpen: false,
   sec: "general",
   setQ: (q) => {
     set({ q });
@@ -78,7 +80,7 @@ export const useStore = create<S>((set, get) => ({
   },
   refreshQueues: async () => set({ queues: await api.queueList() }),
   setDlg: (dlg) => set({ dlg }),
-  openSettings: (sec) => set({ nav: "settings", sec }),
+  openSettings: (sec) => set({ settingsOpen: true, sec }),
   notify: (kind, name) => set({ toasts: [...get().toasts, { n: -Date.now(), kind, id: "", name, dangerous: false }].slice(-4) }),
 }));
 

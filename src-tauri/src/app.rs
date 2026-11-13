@@ -149,8 +149,6 @@ pub struct Settings {
     pub site_agents: Vec<SiteAgent>,
     /// P1 #10: check `<file>.sha256` published next to a download (same origin)
     pub hash_sidecar: bool,
-    /// the drop basket is shown (Tasks > Show drop target)
-    pub basket: bool,
     /// site logins (P-01): address prefix + user; the password is in Credential Manager only
     pub site_logins: Vec<crate::creds::SiteLogin>,
     /// sound per event (complete | failed | queue): "" = off, "system:<alias>" = built-in, else a WAV path
@@ -194,7 +192,6 @@ impl Default for Settings {
             host_limits: vec![],
             site_logins: vec![],
             proxy: ProxySettings::default(),
-            basket: false,
             user_agent: String::new(),
             site_agents: vec![],
             hash_sidecar: true,

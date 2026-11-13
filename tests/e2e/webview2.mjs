@@ -30,8 +30,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const app = spawn(path.join(inst, "gdm.exe"), [], { env: { ...process.env, GDM_DATA: data, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=9339 ${EXTRA}`.trim() }, stdio: "ignore" });
 await sleep(6000);
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9339");
-// the main window (G7 adds the drop-basket window: basket.html)
-const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools") && !p.url().includes("basket"));
+// the main window (skip DevTools pages)
+const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools"));
 check(!!page, `WebView2 page found (${page?.url()})`);
 await page.setViewportSize({ width: 1280, height: 760 }).catch(() => {});
 if (MODE) {

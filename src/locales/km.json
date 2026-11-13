@@ -79,7 +79,9 @@
     "remove": "លុបចេញពីបញ្ជី",
     "removeFile": "លុបឯកសារទៅ Recycle Bin",
     "newName": "ទាញជាឈ្មោះថ្មី",
-    "info": "ព័ត៌មាន"
+    "info": "ព័ត៌មាន",
+    "findVideo": "រកវីដេអូលើទំព័រនេះ",
+    "removeDone": "លុបដែលបានបញ្ចប់ទាំងអស់ចេញពីបញ្ជី"
   },
   "why": {
     "blocked": "Windows Security ឬ antivirus បានលុប ឬបដិសេធឯកសារនេះ។ GDM មិនបានដាក់ឈ្មោះចុងក្រោយលើវាទេ។ បើអ្នកទុកចិត្តប្រភព សូមពិនិត្យក្នុង Windows Security។",
@@ -103,7 +105,9 @@
     "limit": "កំណត់ល្បឿនឯកសារនេះ (KB/s, 0 = គ្មាន)",
     "none": "ជ្រើសឯកសារមួយ",
     "close": "បិទ",
-    "queue": "ជួរ"
+    "queue": "ជួរ",
+    "connsLess": "បន្ថយការតភ្ជាប់",
+    "connsMore": "បន្ថែមការតភ្ជាប់"
   },
   "info": {
     "title": "ព័ត៌មានឯកសារដែលនឹងទាញ",
@@ -119,7 +123,9 @@
     "cancel": "បោះបង់",
     "queue": "ជួរសម្រាប់ «ទាញយកពេលក្រោយ»",
     "remember": "ចងចាំថតមួយសម្រាប់ {{c}}",
-    "forget": "លែងចងចាំថត"
+    "forget": "លែងចងចាំថត",
+    "picked": "បានជ្រើស {{n}}",
+    "unknownN": "{{n}} មិនដឹងទំហំ"
   },
   "addDlg": {
     "title": "បន្ថែមការទាញយក",
@@ -217,12 +223,12 @@
     "installExt": "ដំឡើង extension",
     "connected": "បានភ្ជាប់",
     "notInstalled": "មិនបានរកឃើញ",
-    "updMode": "Update",
+    "updMode": "របៀបធ្វើបច្ចុប្បន្នភាព",
     "updAuto": "ស្វ័យប្រវត្តិ",
     "updNotify": "ជូនដំណឹង",
     "updOff": "បិទ",
     "updModeS": "ស្វ័យប្រវត្តិ: ពិនិត្យរាល់ថ្ងៃ ទាញនៅខាងក្រោយ ដំឡើងពេល GDM ទំនេរ",
-    "channel": "Channel",
+    "channel": "ប្រភេទកំណែ",
     "stable": "Stable",
     "beta": "Beta",
     "checkNow": "ពិនិត្យឥឡូវ",
@@ -233,7 +239,7 @@
     "privacyLink": "គោលការណ៍ឯកជនភាព",
     "version": "កំណែ {{v}}",
     "license": "អាជ្ញាប័ណ្ណ RPL-1.5",
-    "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
+    "attribution": "Galaxy Download Manager — Copyright (c) 2026 Golden IQ and Chhit Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
     "share": "ចម្លង link ទៅ GDM",
     "copied": "បានចម្លង",
     "github": "GitHub",
@@ -260,18 +266,30 @@
     "sounds": "សំឡេង",
     "videoSec": "វីដេអូ",
     "sites": "គេហទំព័រដែលតែងមកទីនេះ (*.example.com)",
-    "catDir": "ចងចាំថតមួយ",
+    "catDir": "ជ្រើសថត",
     "sidecar": "ពិនិត្យឯកសារ .sha256 ដែលបោះពុម្ពនៅជាប់ការទាញយក",
     "sidecarS": "ពីគេហទំព័រដដែល បើ hash ខុស ឯកសារនឹងមិនដែលត្រូវសម្គាល់ថាបានបញ្ចប់ទេ",
     "scan": "ស្កេនឯកសារនីមួយៗដែលទាញរួចដោយកម្មវិធី antivirus របស់ខ្ញុំ",
     "scanS": "ជម្រើសបន្ថែម៖ GDM ដំណើរការវាជាមួយ {file} ក្រោយការទាញយកនីមួយៗ (Windows Security ពិនិត្យគ្រប់ឯកសាររួចហើយ)",
     "ua": "User-Agent (ទទេ = របស់ GDM)",
     "uaDefault": "User-Agent របស់ GDM",
-    "uaSites": "តាមគេហទំព័រ (សម្រាប់ server ដែលត្រូវការ User-Agent របស់ browser)"
+    "uaSites": "តាមគេហទំព័រ (សម្រាប់ server ដែលត្រូវការ User-Agent របស់ browser)",
+    "readLicense": "អានអាជ្ញាប័ណ្ណ",
+    "upd": {
+      "idle": "",
+      "checking": "កំពុងពិនិត្យ…",
+      "available": "មានកំណែថ្មី {{v}}",
+      "downloading": "កំពុងទាញកំណែ {{v}}…",
+      "verifying": "កំពុងផ្ទៀងផ្ទាត់កំណែ {{v}}…",
+      "ready": "កំណែ {{v}} រួចរាល់ · នឹងដំឡើងពេល GDM ទំនេរ",
+      "installing": "កំពុងដំឡើង…",
+      "failed": "Update បរាជ័យ",
+      "store": ""
+    }
   },
   "ob": {
     "step": "ជំហាន {{n}} នៃ ៣",
-    "t1": "ភាសា និងពណ៌ផ្ទៃ",
+    "t1": "ភាសា ពណ៌ផ្ទៃ និងថតរក្សាទុក",
     "p1": "អ្នកអាចប្ដូរវាពេលក្រោយក្នុងការកំណត់។",
     "t2": "ភ្ជាប់ browser របស់អ្នក",
     "p2": "ដំឡើង extension ដើម្បីឱ្យ GDM ចាប់ការទាញយកពី browser។",
@@ -307,7 +325,6 @@
     "video": "បន្ថែមវីដេអូ",
     "import": "នាំចូល",
     "export": "នាំចេញ",
-    "basket": "បង្ហាញប្រអប់ទម្លាក់ link",
     "scheduler": "កាលវិភាគ",
     "grab": "ចាប់ពីគេហទំព័រ"
   },
@@ -327,7 +344,9 @@
       "bad-range": "«ពី» និង «ដល់» ត្រូវជាលេខ ឬអក្សរតែមួយ ហើយ «ពី» ត្រូវមកមុន",
       "too-many": "លើស ១០០ ០០០ អាសយដ្ឋាន៖ សូមបង្រួមចន្លោះ",
       "confirm": "សូមធីកការបញ្ជាក់ជាមុនសិន"
-    }
+    },
+    "preview": "មើលជាមុន",
+    "hint": "វាយអាសយដ្ឋានខាងលើ ហើយបញ្ជីអាសយដ្ឋានដែលនឹងទាញនឹងបង្ហាញនៅទីនេះ។"
   },
   "imp": {
     "title": "នាំចូលការទាញយក",
@@ -374,7 +393,8 @@
     "installing": "កំពុងទាញយក និងពិនិត្យ…",
     "installErr": "ទាញយកមិនបាន៖ {{e}}",
     "ok": "បានដំឡើង",
-    "missing": "មិនទាន់ដំឡើង"
+    "missing": "មិនទាន់ដំឡើង",
+    "hint": "បិទភ្ជាប់អាសយដ្ឋានទំព័រ ហើយចុច «ស្វែងរកវីដេអូ»៖ គុណភាពដែលអាចទាញបាននឹងបង្ហាញនៅទីនេះ។"
   },
   "cd": {
     "shutdown": "កុំព្យូទ័រនឹងបិទក្នុង {{n}} វិនាទីទៀត",
@@ -492,10 +512,6 @@
     "5": "សៅរ៍",
     "6": "អាទិត្យ"
   },
-  "basket": {
-    "label": "ទម្លាក់ link នៅទីនេះ",
-    "hide": "លាក់ប្រអប់ទម្លាក់"
-  },
   "prop": {
     "url": "ប្ដូរអាសយដ្ឋាន…",
     "urlS": "សញ្ញាផ្ទៀងផ្ទាត់ឯកសារនឹងត្រូវពិនិត្យពេលទាញលើកក្រោយ៖ បើជាឯកសារផ្សេង វានឹងឈប់ដោយ «ឯកសារបានប្ដូរ»។",
@@ -575,5 +591,9 @@
       "bad-login": "ឈ្មោះចូលមិនអាចមាន : ឬតួអក្សរបញ្ជា",
       "too-many": "ឯកសារច្រើនពេកក្នុងពេលតែមួយ (អតិបរមា 100 000)"
     }
+  },
+  "win": {
+    "min": "បង្រួម",
+    "max": "ពង្រីក / ស្ដារ"
   }
 }

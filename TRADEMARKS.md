@@ -2,7 +2,7 @@
 
 The code of Galaxy Download Manager is open source under RPL-1.5 (see [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md)). The **names and logo are not**. This policy explains how they may be used. It follows the model of Firefox and Rust: the code is free to study, use and change, while the name tells users which builds come from the original project.
 
-The marks: "Galaxy Download Manager", "GDM" (for download software), "Golden IQ", and the Galaxy Download Manager logo. They are claimed by Golden IQ and CHHIT Sungchhay (the Licensor). RPL-1.5 Section 5.0 grants no right to them.
+The marks: "Galaxy Download Manager", "GDM" (for download software), "Golden IQ", and the Galaxy Download Manager logo. They are claimed by Golden IQ and Chhit Sungchhay (the Licensor). RPL-1.5 Section 5.0 grants no right to them.
 
 ## Allowed without asking
 

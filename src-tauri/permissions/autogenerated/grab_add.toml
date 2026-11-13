@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-grab-add"
+description = "Enables the grab_add command without any pre-configured scope."
+commands.allow = ["grab_add"]
+
+[[permission]]
+identifier = "deny-grab-add"
+description = "Denies the grab_add command without any pre-configured scope."
+commands.deny = ["grab_add"]

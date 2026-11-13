@@ -46,7 +46,6 @@ let settings: Settings = {
   quota_mb: 0,
   quota_hours: 1,
   proxy: { mode: "none", http: "", socks: "", bypass: ["<local>"], auth: "none", user: "", auth_host: "" },
-  basket: false,
   sounds: { complete: "system:SystemAsterisk", failed: "", queue: "C:\\Windows\\Media\\chimes.wav" },
   user_agent: "",
   site_agents: [{ host: "*.mirror.example.net", ua: "Wget/1.25" }],
@@ -377,9 +376,6 @@ export async function mock(cmd: string, args: Record<string, unknown>): Promise<
       rev++;
       return j.id;
     }
-    case "basket_show":
-      settings.basket = Boolean(args.on);
-      return null;
     default:
       return null;
   }

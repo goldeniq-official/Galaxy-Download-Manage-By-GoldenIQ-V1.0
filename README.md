@@ -51,4 +51,4 @@ GDM is a Windows download manager that is free for everyone (companies, schools 
 
 **Support GDM:** GDM is free for everyone, including businesses, schools and government. Support is voluntary: it unlocks no feature, gives no priority in support or feature decisions, and buys no product or service. Scan the KHQR (ABA) in the Khmer section above with your banking app (it is also on the app's About page). Organisations that want help with deployment or training: [docs/services.md](docs/services.md). Sponsors: [docs/sponsors.md](docs/sponsors.md).
 
-Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
+Galaxy Download Manager — Copyright (c) 2026 Golden IQ and Chhit Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0

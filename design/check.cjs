@@ -145,9 +145,9 @@ async function focusContrast(diffPage, restB64, focB64) {
     const load = async s => { const i = await createImageBitmap(await (await fetch("data:image/png;base64," + s)).blob()); const c = new OffscreenCanvas(i.width, i.height); const x = c.getContext("2d"); x.drawImage(i, 0, 0); return x.getImageData(0, 0, i.width, i.height); };
     const A = await load(a), Bm = await load(b);
     const L = (d, i) => { const f = v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }; return .2126 * f(d[i]) + .7152 * f(d[i + 1]) + .0722 * f(d[i + 2]); };
-    let n3 = 0, max = 1;
-    for (let i = 0; i < A.data.length; i += 4) { const l1 = L(A.data, i), l2 = L(Bm.data, i); const c = (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05); if (c >= 3) n3++; if (c > max) max = c; }
-    return { px3: n3, max: +max.toFixed(2) };
+    let n3 = 0, nv = 0, max = 1;
+    for (let i = 0; i < A.data.length; i += 4) { const l1 = L(A.data, i), l2 = L(Bm.data, i); const c = (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05); if (c >= 3) n3++; if (c >= 1.08) nv++; if (c > max) max = c; }
+    return { px3: n3, pxv: nv, max: +max.toFixed(2) };
   }, [restB64, focB64]);
 }
 const CAP = 80;
@@ -159,7 +159,7 @@ async function focusRun(page, diffPage) {
   for (; i < CAP; i++) {
     await page.keyboard.press("Tab");
     const info = await page.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null;
-      const field = e.tagName === "INPUT"; const t = field ? (e.closest(".fld, .search") || e) : e; const r = t.getBoundingClientRect();
+      const typed = e.tagName === "INPUT" || e.tagName === "TEXTAREA"; const field = typed || e.getAttribute("role") === "row"; const t = typed ? (e.closest(".fld, .search") || e) : e; const r = t.getBoundingClientRect();
       return { tag: e.tagName.toLowerCase(), label: (e.getAttribute("aria-label") || e.value || e.textContent || "").trim().slice(0, 30), x: r.x, y: r.y, w: r.width, h: r.height, field }; });
     if (!info) break;
     const key = Math.round(info.x) + "," + Math.round(info.y) + info.label;
@@ -172,7 +172,10 @@ async function focusRun(page, diffPage) {
     await page.evaluate(() => window.__f.focus({ preventScroll: true }));   // keyboard modality stays, so :focus-visible returns
     const c = await focusContrast(diffPage, rest.toString("base64"), foc.toString("base64"));
     const need = 4 * (info.w + info.h);            // area of a 2 CSS px thick perimeter (WCAG 2.4.13), at DPR 1
-    res.push({ key, ...info, ...c, need, ok: c.px3 >= need ? "pass" : "FAIL" });   // owner Q2: fields use the .40 plate, same rule
+    // owner 2026-11-13 (replaces Q2's plate for fields): a field's own fill brightens a little (Mazer). A field passes when
+    // its fill visibly changes over at least half its box; a field whose focus changes nothing still fails. Buttons keep 3:1.
+    const ok = info.field ? c.pxv >= 0.5 * info.w * info.h : c.px3 >= need;
+    res.push({ key, ...info, ...c, need: info.field ? Math.round(0.5 * info.w * info.h) : need, ok: ok ? "pass" : "FAIL" });
   }
   if (!res.length) res.push({ label: "(no tab stops)", ok: "FAIL" });
   if (i === CAP) res.push({ label: "(tab cap reached)", ok: "FAIL" });

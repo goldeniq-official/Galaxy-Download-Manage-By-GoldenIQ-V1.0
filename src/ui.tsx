@@ -2,6 +2,8 @@
 // Small primitives. State is shown by fill and colour only (owner rule 8, D6): no outline, ring or glow.
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as RKE, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { PH } from "./icons";
 
 export function Icon({ n, lg, fill }: { n: string; lg?: boolean; fill?: boolean }) {
@@ -19,11 +21,22 @@ export function Toggle({ on, label, onChange, disabled }: { on: boolean; label: 
   return <button type="button" className="fx toggle" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)} />;
 }
 
+/** a radio group: one Tab stop (the checked one), arrows/Home/End move and choose (WAI-ARIA radio group) */
 export function Tabs<T extends string>({ value, items, label, onChange }: { value: T; items: [T, string][]; label: string; onChange: (v: T) => void }) {
+  const at = Math.max(0, items.findIndex(([k]) => k === value));
+  const onKey = (e: RKE<HTMLDivElement>) => {
+    const n = items.length;
+    const i = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % n : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at - 1 + n) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+    if (i < 0) return;
+    e.preventDefault();
+    const group = e.currentTarget; // React clears currentTarget once the handler returns
+    onChange(items[i][0]);
+    requestAnimationFrame(() => (group.children[i] as HTMLElement | undefined)?.focus());
+  };
   return (
-    <div className="tabs" role="radiogroup" aria-label={label}>
-      {items.map(([k, text]) => (
-        <button key={k} type="button" className="fx tab" role="radio" aria-checked={value === k} onClick={() => onChange(k)}>
+    <div className="tabs" role="radiogroup" aria-label={label} onKeyDown={onKey}>
+      {items.map(([k, text], i) => (
+        <button key={k} type="button" className="fx tab" role="radio" aria-checked={value === k} tabIndex={i === at ? 0 : -1} onClick={() => onChange(k)}>
           {text}
         </button>
       ))}
@@ -31,25 +44,76 @@ export function Tabs<T extends string>({ value, items, label, onChange }: { valu
   );
 }
 
+function win() {
+  try {
+    return getCurrentWindow();
+  } catch {
+    return null; // the browser test build has no Tauri window
+  }
+}
+
+/** GDM's own title bar (Mazer AppHeader): drag anywhere on it, double-click maximises; the window buttons sit in one
+ *  glass pill and stay usable above every dialog. Not Tab stops, like a Windows title bar's (Win+arrows, Alt+F4). */
+export function TitleBar() {
+  const { t } = useTranslation();
+  return (
+    <header className="hdr" data-tauri-drag-region>
+      <img src="/gdm-icon-256.png" alt="" width={22} height={22} />
+      <b>Galaxy Download Manager</b>
+      <span className="sp" data-tauri-drag-region />
+      <div className="wctl">
+        <button type="button" tabIndex={-1} aria-label={t("win.min")} title={t("win.min")} onClick={() => void win()?.minimize()}>
+          <Icon n="minus" />
+        </button>
+        <button type="button" tabIndex={-1} aria-label={t("win.max")} title={t("win.max")} onClick={() => void win()?.toggleMaximize()}>
+          <Icon n="square" />
+        </button>
+        <button type="button" tabIndex={-1} className="close" aria-label={t("d.close")} title={t("d.close")} onClick={() => void win()?.close()}>
+          <Icon n="x" />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/** one fixed line for an error: never wraps, never moves what is below; the full text is the tooltip */
+export function ErrLine({ msg }: { msg?: string | false | null }) {
+  return (
+    <p className="err-line clip1" role="alert" title={msg || undefined}>
+      {msg || ""}
+    </p>
+  );
+}
+
+// dialogs can stack (Settings, then a download's Info dialog): the app stays inert until the last one closes
+let open = 0;
+const FOCUSABLE = "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex='0']";
+
 /** modal with focus moved in on open and returned on close (P1 #22), Esc closes */
-export function Modal({ label, onClose, children, wide }: { label: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export function Modal({ label, onClose, children, wide, tall, cls }: { label: string; onClose: () => void; children: ReactNode; wide?: boolean; tall?: boolean; cls?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const back = document.activeElement as HTMLElement | null;
     const app = document.getElementById("shell");
+    open++;
     app?.setAttribute("inert", "");
-    const first = ref.current?.querySelector<HTMLElement>("input, select, textarea, button");
-    first?.focus();
+    [...(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].find((el) => !el.dataset.sentinel)?.focus();
     return () => {
-      app?.removeAttribute("inert");
+      if (--open === 0) app?.removeAttribute("inert");
       back?.focus?.();
     };
   }, []);
+  // Tab past either end wraps inside the dialog (two sentinels)
+  const wrap = (last: boolean) => {
+    const all = [...(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => !el.dataset.sentinel);
+    (last ? all[all.length - 1] : all[0])?.focus();
+  };
   return (
-    <div className="scrim" onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      <div ref={ref} className={"modal" + (wide ? " wide" : "")} role="dialog" aria-modal="true" aria-label={label}>
+    <div className="scrim" onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), onClose())}>
+      <div ref={ref} className={"modal" + (wide ? " wide" : "") + (tall ? " tall" : "") + (cls ? " " + cls : "")} role="dialog" aria-modal="true" aria-label={label}>
+        <span tabIndex={0} data-sentinel="1" onFocus={() => wrap(true)} />
         {children}
-        <span tabIndex={0} onFocus={() => ref.current?.querySelector<HTMLElement>("input, select, textarea, button:not([disabled])")?.focus()} />
+        <span tabIndex={0} data-sentinel="1" onFocus={() => wrap(false)} />
       </div>
     </div>
   );

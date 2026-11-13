@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-grab-progress"
+description = "Enables the grab_progress command without any pre-configured scope."
+commands.allow = ["grab_progress"]
+
+[[permission]]
+identifier = "deny-grab-progress"
+description = "Denies the grab_progress command without any pre-configured scope."
+commands.deny = ["grab_progress"]

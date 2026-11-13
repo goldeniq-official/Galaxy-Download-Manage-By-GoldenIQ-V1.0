@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-grab-cancel"
+description = "Enables the grab_cancel command without any pre-configured scope."
+commands.allow = ["grab_cancel"]
+
+[[permission]]
+identifier = "deny-grab-cancel"
+description = "Denies the grab_cancel command without any pre-configured scope."
+commands.deny = ["grab_cancel"]

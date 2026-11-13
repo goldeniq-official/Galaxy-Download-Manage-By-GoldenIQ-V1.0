@@ -7,7 +7,7 @@ import type { TFunction } from "i18next";
 import { api, errText, type Batch, type BatchPreview, type Candidate, type ImportPreview, type Probe, type Queue } from "./api";
 import { useStore } from "./store";
 import { bytes } from "./status";
-import { Icon, Modal } from "./ui";
+import { ErrLine, Icon, Modal } from "./ui";
 import { GrabberDialog } from "./Grabber";
 
 /** the two built-in queues are named in the user's language; user queues keep their own name */
@@ -132,22 +132,25 @@ function BatchDialog() {
           </span>
         </label>
       </div>
-      {err && (
-        <p className="err-t" role="alert">
-          {errMsg(t, "batch.e", err)}
-        </p>
-      )}
-      {pv && !err && (
-        <>
-          <span className="lab">{t("batch.count", { n: pv.count.toLocaleString("en-US") })}</span>
-          <div className="url lines">
+      <ErrLine msg={err && errMsg(t, "batch.e", err)} />
+      {/* the preview area is always there (fixed dialog): before typing it says what will appear in it */}
+      <span className="lab">{pv && !err ? t("batch.count", { n: pv.count.toLocaleString("en-US") }) : t("batch.preview")}</span>
+      <div className="url lines grow">
+        {pv && !err ? (
+          <>
             {pv.first.map((u) => (
               <div key={u} className="clip1" title={u}>
                 {u}
               </div>
             ))}
             {pv.count > pv.first.length && <div>…</div>}
-          </div>
+          </>
+        ) : (
+          <div className="meta">{t("batch.hint")}</div>
+        )}
+      </div>
+      {pv && !err && (
+        <>
           {pv.needs_confirm && (
             <button type="button" className="fx check" role="checkbox" aria-checked={ok} onClick={() => setOk(!ok)}>
               <i>{ok && <Icon n="check" />}</i>
@@ -211,11 +214,7 @@ function ImportDialog({ pv }: { pv: ImportPreview }) {
         </button>
       )}
       <QueueSelect value={queue} onChange={setQueue} label={t("batch.queue")} none />
-      {err && (
-        <p className="err-t" role="alert">
-          {errText(err)}
-        </p>
-      )}
+      <ErrLine msg={err && errText(err)} />
       <div className="mfoot">
         <span className="sp" />
         <button type="button" className="fx btn btn-g" onClick={close}>
@@ -265,7 +264,7 @@ function RefreshDialog({ id }: { id: string }) {
   const ck = c?.check;
   const good = c && !c.error && ck;
   return (
-    <Modal label={t("ref.title")} onClose={() => void decide("cancel")} wide>
+    <Modal label={t("ref.title")} onClose={() => void decide("cancel")} wide tall>
       <h2>{t("ref.title")}</h2>
       {job && (
         <p className="meta clip1" title={job.name}>
@@ -310,11 +309,7 @@ function RefreshDialog({ id }: { id: string }) {
           </button>
         </div>
       )}
-      {err && (
-        <p className="err-t" role="alert">
-          {err}
-        </p>
-      )}
+      <ErrLine msg={err} />
       <div className="mfoot">
         <span className="sp" />
         <button type="button" className="fx btn btn-g" onClick={() => void decide("cancel")}>
@@ -370,11 +365,7 @@ function UrlDialog({ id }: { id: string }) {
         </span>
       </label>
       <p className="meta">{t("prop.urlS")}</p>
-      {err && (
-        <p className="err-t" role="alert">
-          {err}
-        </p>
-      )}
+      <ErrLine msg={err} />
       <div className="mfoot">
         <span className="sp" />
         <button type="button" className="fx btn btn-g" onClick={close}>
@@ -481,19 +472,23 @@ function VideoDialog({ initial }: { initial?: string }) {
           {t("vid.find")}
         </button>
       </div>
-      {busy && <Spinner text={t("vid.busy")} />}
-      {err && (
-        <p className="err-t" role="alert">
-          {known.includes(err) ? t(`vid.e.${err}`) : t("vid.err", { e: err })}
-        </p>
+      {busy ? (
+        <Spinner text={t("vid.busy")} />
+      ) : (
+        <ErrLine msg={err && (known.includes(err) ? t(`vid.e.${err}`) : t("vid.err", { e: err }))} />
       )}
       {err === "need-component" && <Components onDone={() => void find()} />}
+      {!pr && err !== "need-component" && (
+        <div className="url lines grow">
+          <div className="meta">{t("vid.hint")}</div>
+        </div>
+      )}
       {pr && (
         <>
           <span className="lab clip1" title={pr.title}>
             {pr.title}
           </span>
-          <div className="batch" role="radiogroup" aria-label={t("vid.quality")}>
+          <div className="batch grow" role="radiogroup" aria-label={t("vid.quality")}>
             {pr.choices.map((c, i) => (
               <button key={i} type="button" className="fx check" role="radio" aria-checked={pick === i} onClick={() => setPick(i)}>
                 <i>{pick === i && <Icon n="check" />}</i>

@@ -36,7 +36,7 @@ export interface Settings {
   show_info: boolean; video_button: boolean; clipboard: boolean; update_mode: string; update_channel: string; silent: boolean;
   autostart: boolean; columns: string[]; categories: Category[];
   queues: Queue[]; total_conns: number; host_limits: HostLimit[]; quota_mb: number; quota_hours: number;
-  proxy: Proxy; basket: boolean; sounds: Partial<Record<SoundEvent, string>>;
+  proxy: Proxy; sounds: Partial<Record<SoundEvent, string>>;
   user_agent: string; site_agents: { host: string; ua: string }[]; hash_sidecar: boolean;
   /** read-only here: written only by hook_set (queue ids and "scan") */
   hooks?: Record<string, Hook>;
@@ -113,7 +113,7 @@ export const api = {
   browsers: () => call<Browser[]>("browsers"),
   updateCheck: () => call<void>("update_check"),
   updateRestart: () => call<void>("update_restart"),
-  // G7: queues + scheduler (F08), import/export/batch (I-0x), refresh address, logins, proxy, sounds, video (F07), basket
+  // G7: queues + scheduler (F08), import/export/batch (I-0x), refresh address, logins, proxy, sounds, video (F07)
   queueList: () => call<QueueView[]>("queue_list"),
   queuePut: (ids: string[], queue: string | null) => call<void>("queue_put", { ids, queue }),
   queueStart: (id: string) => call<void>("queue_start", { id }),
@@ -144,7 +144,6 @@ export const api = {
   componentsInstall: () => call<void>("components_install"),
   mediaProbe: (url: string) => call<Probe>("media_probe", { url }),
   mediaStart: (token: string, choice: number) => call<void>("media_start", { token, choice }),
-  basketShow: (on: boolean) => call<void>("basket_show", { on }),
   categoryPickDir: (id: string, clear: boolean) => call<string | null>("category_pick_dir", { id, clear }),
   jobSetUrl: (id: string, url: string) => call<void>("job_set_url", { id, url }),
   jobMove: (id: string) => call<string | null>("job_move", { id }),

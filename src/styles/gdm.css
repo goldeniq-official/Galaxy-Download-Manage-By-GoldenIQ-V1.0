@@ -3,23 +3,30 @@
    Owner rule 8 / D6: no border, outline, ring or glow; states use fill and colour only. */
 textarea { font: inherit; color: inherit; border: 0; outline: none; resize: vertical; background: transparent; width: 100%; line-height: 1.6; padding: 7px 0; caret-color: var(--accent); }
 #root { height: 100%; }
-.win { grid-template-rows: 1fr; padding-top: 8px; }
+.win { grid-template-rows: 1fr; }
 .rail .sp { flex: 1; }
 .main { grid-template-rows: 1fr; grid-template-columns: minmax(0, 1fr); }
 .main.split { grid-template-columns: minmax(0, 1fr) 340px; }
 .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .col .list { flex: 1; }
-.set .main { display: flex; flex-direction: column; }
-.set .sbody { flex: 1; }
-.empty { padding: 40px 12px; text-align: center; color: var(--tx-muted); }
 .ext.danger { background: var(--err-wash); color: var(--err); }
 .danger { color: var(--err); }
 .btn-g.danger:hover { background: var(--err-wash); }
 [aria-disabled="true"] { opacity: .6; cursor: default; }
-select.sel { appearance: none; -webkit-appearance: none; }
+select.sel { appearance: none; -webkit-appearance: none; padding-inline-end: 34px; text-overflow: ellipsis; }
+/* appearance:none removed the native arrow: draw one, a dropdown must look like a dropdown. Longhands, so hover/focus fills keep it. */
+select.sel, select.sel:hover, select.sel.fx:focus-visible { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239198a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; background-size: 11px 8px; }
 select.sel option { background: var(--shell); color: var(--tx-1); }
 .modal.wide { width: 640px; }
-.modal { max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; }
+/* dialogs hang from a fixed top (.scrim): when content grows only the bottom moves, never the title or the fields.
+   Dialogs whose content changes a lot (.tall) have a fixed height: footer pinned at the bottom, body scrolls. */
+.modal { max-width: calc(100vw - 32px); max-height: calc(100vh - clamp(16px, 9vh, 72px) - 16px); overflow: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; }
+.modal > * { flex: none; }
+.modal > .mfoot { margin-top: auto; padding-top: 20px; }
+.modal.tall { height: min(620px, calc(100vh - clamp(16px, 9vh, 72px) - 16px)); }
+/* one reserved line for a dialog error: it appears without moving anything */
+.err-line { min-height: 1.7em; margin: 6px 0 0; font-size: 12px; color: var(--err); }
+.err-line.clip1 { height: 2.2em; }   /* ErrLine: exactly one line (Khmer line box + .2em clip1 padding), so a long error never moves anything */
 .batch { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto; margin-top: 8px; }
 .batch .check { margin-top: 0; width: 100%; }
 .batch .check .clip1 { flex: 1; min-width: 0; }
@@ -27,11 +34,9 @@ select.sel option { background: var(--shell); color: var(--tx-1); }
 .warn-t { color: var(--warn); font-size: 12px; margin: 8px 16px; }
 .err-t { color: var(--err); font-size: 12px; margin: 8px 0 0; }
 .logo { border-radius: var(--r-md); flex: none; }
-.num-in { width: 140px; }
 .num-in input { font-family: var(--f-mono), var(--f-khmer), monospace; }
 .col-opt { flex-direction: column; align-items: stretch; }
 .wide-fld { margin-top: 4px; }
-.cat-row { margin-top: 6px; }
 .big-st { margin-top: 10px; }
 .big-st .tx2 { font-size: 12.5px; }
 .st.warn .tx2 { color: var(--warn); } .st.err .tx2 { color: var(--err); } .st.done .tx2 { color: var(--done); } .st.info .tx2 { color: var(--accent); }
@@ -40,7 +45,10 @@ select.sel option { background: var(--shell); color: var(--tx-1); }
 .pane.drawer { position: absolute; top: 0; bottom: 0; inset-inline-end: 0; width: min(360px, 100%); z-index: var(--z-menu); background: var(--sunk); box-shadow: var(--shadow-modal); padding: 12px; }
 .pane .fld .in input { min-width: 0; }
 
-.banner { display: flex; align-items: center; gap: 10px; margin: 0 18px 10px; padding: 8px 12px; border-radius: var(--r-md); background: var(--accent-wash); color: var(--tx-2); font-size: 12.5px; }
+/* notices live in the fixed-height footer (one slot), so the list never moves when one appears */
+.banner { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; height: 28px; padding: 0 4px 0 10px; border-radius: var(--r-pill); background: var(--accent-wash); color: var(--tx-2); font-size: 12px; }
+.banner > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.banner .act { margin: 0; white-space: nowrap; }
 .banner .ico { color: var(--accent); }
 .banner.warn { background: rgba(245,165,36,.14); } .banner.warn .ico { color: var(--warn); }
 .banner.sec { background: rgba(245,165,36,.18); }
@@ -121,7 +129,8 @@ span.bar { display: block; }
 .opt > .sel { width: auto; flex: none; }
 .days { display: flex; flex-wrap: wrap; gap: 4px 6px; }
 .days .check { margin-top: 0; }
-.cd { flex: none; margin: 8px 16px 0; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-lg); background: linear-gradient(135deg, #b45309, #92400e); color: #fff; box-shadow: var(--shadow-card); }  /* in the flow above the window: covers nothing; white >= 5:1 on both stops */
+/* shutdown countdown: floats over the top of the window, never pushes the app down; white 6.1:1 on the fill */
+.cd { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); z-index: var(--z-tooltip); display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-lg); background: #8f4508; color: #fff; box-shadow: var(--shadow-modal); }
 .cd .tt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .cd .tt b { font-size: 15px; font-weight: 700; }
 .cd .tt span { font-size: 12px; }
@@ -134,10 +143,93 @@ span.bar { display: block; }
 [aria-sort="ascending"] .colh .ico { transform: rotate(180deg); }
 .row-btns.tight { margin-top: 8px; }
 .row-btns .btn .clip1 { max-width: 260px; }
-.cat-row .two { margin-top: 0; }
 /* the countdown banner sits above the window in the flow */
 #root { display: flex; flex-direction: column; }
 #root > .win { flex: 1; height: auto; min-height: 0; }
 .fld-row { display: flex; align-items: flex-end; gap: 10px; }
 .fld-row > .fld { flex: 1; min-width: 0; }
 .toast.video-link > .ico { color: var(--accent); }
+
+/* ---------- UX audit 2026-11-13: fixed geometry (nothing jumps), one Settings dialog, labelled toolbar ---------- */
+.modal > [data-sentinel] { position: absolute; width: 0; height: 0; overflow: hidden; }
+.mfoot .btn-p { min-width: 112px; }          /* a primary whose label carries a count keeps its width */
+.err-s { color: var(--err); }
+.step button:disabled { opacity: .4; cursor: default; }
+
+/* toolbar: every control 40 px tall, words when wide, a square icon button when narrow */
+.tb { font-weight: 600; }
+.tb.icon { width: 40px; padding: 0; }
+.tb .ico + span { margin-inline-start: -2px; }
+
+/* footer: fixed height; the total speed has a fixed width so the pill beside it never slides */
+.foot .spd b { display: inline-block; min-width: 9ch; }
+.foot > .sp { display: flex; min-width: 0; }
+
+/* empty list: one caption + the way forward, centred in the list */
+.empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 72px 12px; text-align: center; color: var(--tx-muted); }
+.empty p { margin: 0; font-size: 13px; }
+/* details pane with nothing selected: a quiet centred hint, no empty card */
+.pane.none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--tx-muted); text-align: center; }
+.pane.none p { margin: 0; }
+
+/* Settings: one dialog over the app (IDM Options, Mazer Settings). Fixed size: switching sections never resizes it. */
+.modal.setdlg { width: min(1040px, calc(100vw - 32px)); height: min(720px, calc(100vh - clamp(16px, 9vh, 72px) - 16px)); padding: 0; overflow: hidden; display: grid; grid-template-columns: minmax(170px, 232px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.setnav { grid-row: 1 / 3; display: flex; flex-direction: column; gap: 2px; padding: 18px 10px; overflow: auto; background: var(--row); }
+.setnav h2 { margin: 0 0 10px; padding: 0 12px; font-size: 18px; font-weight: 700; color: var(--tx-1); }
+.setnav .nav { height: 40px; flex: none; }
+.setnav .nav .lbl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sethead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 10px 24px; }
+.sethead h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--tx-1); }
+.setdlg .sbody { padding: 0 20px 20px 24px; scrollbar-gutter: stable; }
+.setdlg .sec:first-child h3 { margin-top: 0; }
+
+/* Settings > Downloads: categories as one aligned grid, column names once on top */
+.cat-grid { display: grid; grid-template-columns: minmax(80px, .6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(150px, .8fr); gap: 8px 10px; align-items: center; padding: 12px 16px 14px; }
+.cat-h, .cat-r { display: contents; }
+.cat-h > span { font-size: 12px; font-weight: 600; color: var(--tx-3); }
+.cat-r > b { font-weight: 600; color: var(--tx-1); }
+.cat-dir { display: flex; gap: 6px; min-width: 0; }
+.cat-dir .btn { flex: 1; min-width: 0; justify-content: flex-start; }
+.opt > .ico.lg { color: var(--tx-3); }
+.win:has(> .ob) { padding-top: 0; }
+.top .search { width: auto; flex: 1 1 260px; min-width: 140px; }
+/* a read-only value beside a field has the field's height */
+.fld > .url.clip1 { margin-top: 0; height: 40px; line-height: 24px; padding: 8px 12px; border-radius: var(--r-md); }
+/* one quiet scrollbar everywhere: 8 px, rounded thumb, no arrow buttons */
+::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-button { display: none; }
+.setdlg .card { box-shadow: none; }
+/* details pane: the card fills the pane and its actions sit at the bottom, two equal columns, always in the same place */
+.split .pane:not(.none) { display: flex; flex-direction: column; }
+.split .pane > .card { flex: 1 0 auto; display: flex; flex-direction: column; }
+.pane .card > .row-btns { margin-top: auto; padding-top: 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.pane .card > .row-btns .btn { width: 100%; min-width: 0; padding-inline: 10px; white-space: normal; text-align: center; line-height: 1.4; }
+/* fixed dialogs: the preview/result area takes the free height, so there is no empty gap above the buttons */
+.modal > .grow { min-height: 176px; }
+.opt.top { align-items: flex-start; }
+/* toasts float over the list's bottom corner, above the footer: never over the details pane's action buttons */
+.toasts { bottom: 56px; }
+@media (min-width: 1180px) { .toasts { inset-inline-end: 372px; } }
+/* on the selected row's blue wash the muted grey drops under 4.5:1: one step brighter there */
+.row.is-selected .nm small { color: var(--tx-3); }
+.setnav .nav { color: var(--tx-3); } .setnav .nav.is-selected { color: var(--tx-1); }
+
+/* ---------- title bar (Mazer AppHeader): drag region, logo + name, one glass pill of round window buttons ---------- */
+.hdr { flex: none; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--shell); position: relative; z-index: var(--z-titlebar); user-select: none; }
+.hdr > img, .hdr > b { pointer-events: none; }
+.hdr > b { font-size: 13px; font-weight: 700; color: var(--tx-1); white-space: nowrap; }
+.hdr > .sp { flex: 1; align-self: stretch; }
+.wctl { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 3px; border-radius: var(--r-pill); background: var(--glass-chip); backdrop-filter: var(--blur-chip); }
+.wctl > button { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: transparent; color: var(--tx-3); cursor: pointer; transition: background-color var(--motion-hover) var(--ease-out), color var(--motion-hover) var(--ease-out); }
+.wctl > button:hover { background: var(--glass-chip-hover); color: var(--tx-1); }
+.wctl > button.close:hover { background: #ef4444; color: #fff; }
+.wctl .ico { width: 15px; height: 15px; }
+.wctl > button:nth-child(2) .ico { width: 13px; height: 13px; }
+/* glass chips: the toolbar's secondary buttons and round chips are frosted like Mazer's */
+.btn-s, .chip { background: var(--glass-chip); backdrop-filter: var(--blur-chip); }
+.btn-s:hover, .chip:hover { background: var(--glass-chip-hover); }
+@media (max-width: 479px) { .hdr > b { display: none; } }
+@media (forced-colors: active) { .wctl > button { border: 1px solid ButtonText; } }
+/* a unit inside a field (KB/s, MB, hours) reads at text contrast on the field fill */
+.in > .meta { color: var(--tx-3); }

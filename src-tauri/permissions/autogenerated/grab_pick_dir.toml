@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-grab-pick-dir"
+description = "Enables the grab_pick_dir command without any pre-configured scope."
+commands.allow = ["grab_pick_dir"]
+
+[[permission]]
+identifier = "deny-grab-pick-dir"
+description = "Denies the grab_pick_dir command without any pre-configured scope."
+commands.deny = ["grab_pick_dir"]

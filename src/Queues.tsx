@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, errText, fileName, type Queue, type Schedule } from "./api";
 import { useStore } from "./store";
-import { Icon, Tabs, Toggle } from "./ui";
+import { ErrLine, Icon, Tabs, Toggle } from "./ui";
 import { qName } from "./Dialogs";
 import { NumIn, Opt, Sec } from "./Settings";
 
@@ -274,11 +274,7 @@ export function QueuesSection() {
               </span>
             </label>
             <p className="meta">{t("qs.argsS")}</p>
-            {hookErr && (
-              <p className="err-t" role="alert">
-                {t(`qs.e.${hookErr}`, { defaultValue: hookErr })}
-              </p>
-            )}
+            <ErrLine msg={hookErr && t(`qs.e.${hookErr}`, { defaultValue: hookErr })} />
             <div className="row-btns flush">
               <button type="button" className="fx btn btn-s" onClick={() => void hook(true, argList(argsRef.current?.value ?? ""))}>
                 <Icon n="folder-open" />
