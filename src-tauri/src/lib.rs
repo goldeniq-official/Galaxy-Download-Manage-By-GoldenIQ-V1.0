@@ -1123,7 +1123,13 @@ pub fn run() {
         std::process::exit(cli::main(m));
     }
     let background = argv.iter().any(|a| a == "--background");
-    let app = match App::open(&app::data_dir()) {
+    let data = app::data_dir();
+    #[cfg(unix)]
+    if let Err(e) = app::private_dir(&data) {
+        eprintln!("GDM cannot use its data folder: {e}");
+        std::process::exit(1);
+    }
+    let app = match App::open(&data) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("GDM cannot open its data folder: {e}");

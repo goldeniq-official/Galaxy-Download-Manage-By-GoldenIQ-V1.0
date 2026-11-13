@@ -6,7 +6,7 @@ GDM គ្មាន telemetry គ្មាន account គ្មាន ID អ្�
 
 | អ្វី | កន្លែងរក្សា | ចេញពីកុំព្យូទ័រ? |
 |---|---|---|
-| បញ្ជីការទាញយក (link, ឈ្មោះ, ថត, ស្ថានភាព, SHA-256, queue) | `%LOCALAPPDATA%\GoldenIQ.GalaxyDownloadManager\gdm.db` + backup ៧ ថ្ងៃ | ទេ |
+| បញ្ជីការទាញយក (link, ឈ្មោះ, ថត, ស្ថានភាព, SHA-256, queue) | `%LOCALAPPDATA%\GoldenIQ.GalaxyDownloadManager\gdm.db` (macOS: `~/Library/Application Support/GoldenIQ.GalaxyDownloadManager`, Linux: `~/.local/share/GoldenIQ.GalaxyDownloadManager`, ថតឯកជន 0700) + backup ៧ ថ្ងៃ | ទេ |
 | ការកំណត់ (រួមទាំង queue, proxy, ឈ្មោះអ្នកប្រើ site login, ផ្លូវកម្មវិធីដែលអ្នកជ្រើសឱ្យរត់ពេលបញ្ចប់) | `…\settings.json` ក្នុងថតដដែល | ទេ |
 | ពាក្យសម្ងាត់ site login និង proxy | Windows Credential Manager (`GDM/site/…`, `GDM/proxy`) តែប៉ុណ្ណោះ; មិនដែលក្នុង settings, DB ឬឯកសារ export | ផ្ញើតែទៅ site/proxy ដែលអ្នកកំណត់វាសម្រាប់ |
 | Cookie/Authorization ដែល extension ផ្ញើសម្រាប់ link មួយ | memory តែប៉ុណ្ណោះ, ផ្ញើតែទៅ origin របស់ link នោះ | តែទៅ site ដែលអ្នកកំពុងទាញ |
@@ -40,7 +40,7 @@ GitHub និង server ដែលអ្នកទាញពី ឃើញ IP រប
 
 GDM has no telemetry, no account, no user ID and no ads.
 
-- **Stored on your PC only:** the download list (links, names, folders, states, SHA-256, queues) in `%LOCALAPPDATA%\GoldenIQ.GalaxyDownloadManager\gdm.db` with 7 daily backups, and `settings.json` next to it (queues, proxy, site-login user names, the program you chose to run when a queue finishes).
+- **Stored on your PC only:** the download list (links, names, folders, states, SHA-256, queues) in `%LOCALAPPDATA%\GoldenIQ.GalaxyDownloadManager\gdm.db` (macOS: `~/Library/Application Support/GoldenIQ.GalaxyDownloadManager`, Linux: `~/.local/share/GoldenIQ.GalaxyDownloadManager`, a private 0700 folder) with 7 daily backups, and `settings.json` next to it (queues, proxy, site-login user names, the program you chose to run when a queue finishes).
 - **Site-login and proxy passwords** live only in Windows Credential Manager (`GDM/site/…`, `GDM/proxy`), never in the settings, the database or an export, and are sent only to the site folder or proxy you set them for.
 - **Cookies/Authorization** that the extension passes for a link live in memory only and are sent only to that link's own origin.
 - **Clipboard monitor** (off by default): GDM reads at most 8 KiB of text and keeps it only when it is a single http(s) link with a caught file type (or a YouTube video page when the video component is installed). Content that its program marks as "do not keep in clipboard history" (password managers) is never read. Nothing is stored or logged.

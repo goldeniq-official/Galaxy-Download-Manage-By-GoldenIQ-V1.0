@@ -256,9 +256,37 @@ pub fn ext_of(name: &str) -> String {
 /// the per-user data folder (db, settings, backups): %LOCALAPPDATA%\<identifier>, the folder the NSIS
 /// uninstaller's "delete the application data" box removes (T-03: the user chooses; downloads stay)
 pub fn data_dir() -> PathBuf {
-    std::env::var_os("GDM_DATA").map(PathBuf::from).unwrap_or_else(|| {
-        std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("GoldenIQ.GalaxyDownloadManager")
-    })
+    const ID: &str = "GoldenIQ.GalaxyDownloadManager";
+    if let Some(d) = std::env::var_os("GDM_DATA") {
+        return PathBuf::from(d);
+    }
+    // never the shared temp folder: on Linux /tmp is shared by every user, who could plant settings (hooks)
+    #[cfg(windows)]
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    #[cfg(target_vendor = "apple")]
+    let base = std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library").join("Application Support"));
+    #[cfg(all(unix, not(target_vendor = "apple")))]
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")));
+    base.unwrap_or_else(|| PathBuf::from(".")).join(ID)
+}
+
+/// macOS / Linux: the data folder is created 0700 and must belong to this user (settings hold hooks that run
+/// programs); a folder someone else made is refused, never used
+#[cfg(unix)]
+pub fn private_dir(dir: &Path) -> Result<(), String> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+    std::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir).map_err(|e| e.to_string())?;
+    let m = std::fs::symlink_metadata(dir).map_err(|e| e.to_string())?;
+    if !m.is_dir() || m.uid() != unsafe { libc::geteuid() } {
+        return Err(format!("{} is not a folder of this user", dir.display()));
+    }
+    if m.mode() & 0o077 != 0 {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[derive(Serialize, Clone, Debug)]
