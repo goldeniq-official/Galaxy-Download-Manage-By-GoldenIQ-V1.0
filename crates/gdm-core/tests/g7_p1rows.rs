@@ -8,6 +8,7 @@ use gdm_core::{Fail, Unverified};
 async fn p1_10_sha256_sidecar_checks_the_file() {
     let fx = gdm_fixture::Fixture::start("127.0.0.1:0").await;
     let t = engine("sha", quick());
+    t.engine.hash_sidecar.store(true, std::sync::atomic::Ordering::Relaxed);
     let (id, ok) = t.get(&fx.url("/p/300000/5/0/good.iso")).await;
     let o = ok.unwrap();
     assert_eq!(t.engine.job(&id).unwrap().sha256_expected.as_deref(), Some(o.sha256.as_str()));
