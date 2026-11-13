@@ -164,7 +164,7 @@ impl App {
             let title = p.info.title.clone();
             match me.media_job(&p, &c).await {
                 Ok(name) => me.push_toast("complete", "", &name),
-                Err(e) => me.push_toast("failed", "", &format!("{title}: {e}")),
+                Err(e) => me.push_toast("error", "", &format!("{title}: {e}")),
             }
             me.bump();
         });

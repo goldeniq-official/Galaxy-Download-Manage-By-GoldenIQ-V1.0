@@ -313,7 +313,7 @@ impl App {
             if let Some(h) = hook {
                 let file = last_file.unwrap_or_else(|| std::path::PathBuf::from(&lock(&self.settings).download_dir));
                 if let Err(e) = crate::hook::run(&h, &file) {
-                    self.push_toast("failed", &def.id, &format!("hook: {e}"));
+                    self.push_toast("error", &def.id, &format!("hook: {e}"));
                 }
             }
         }
@@ -369,7 +369,7 @@ impl App {
             r
         };
         if let Err(e) = r {
-            self.push_toast("failed", &def.id, &format!("{action}: {e}")); // a refused power action is reported
+            self.push_toast("error", &def.id, &format!("{action}: {e}")); // a refused power action is reported
         }
         self.bump();
     }

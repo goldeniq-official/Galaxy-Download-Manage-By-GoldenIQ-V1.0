@@ -599,7 +599,7 @@ impl App {
             let scan = lock(&self.settings).hooks.get("scan").cloned();
             if let Some(h) = scan {
                 if let Err(e) = crate::hook::run(&h, &o.path) {
-                    self.push_toast("failed", id, &format!("scanner: {e}"));
+                    self.push_toast("error", id, &format!("scanner: {e}"));
                 }
             }
         }
@@ -612,7 +612,11 @@ impl App {
             Ok(o) => Some((if o.protection == gdm_core::finalize::Protection::Protected { "complete" } else { "unprotected" }, o.name.clone())),
             Err(Fail::Blocked(_)) => self.engine.job(id).ok().map(|j| ("blocked", j.name)),
             Err(Fail::HashMismatch) => self.engine.job(id).ok().map(|j| ("failed", j.name)),
-            Err(_) => None,
+            // any other stop (disk full, gone, login, timeout...) is said too: with the window in the tray the user
+            // would otherwise never learn that a long download stopped. A pause never reaches here (task aborted).
+            Err(Fail::Io(m)) if m.contains("already running") => None,
+            Err(Fail::NeedsDecision(_)) => None, // the row asks in place
+            Err(_) => self.engine.job(id).ok().map(|j| ("error", j.name)),
         };
         lock(&self.pending).retain(|p| p != id || r.is_err());
         if let Some((kind, name)) = toast {

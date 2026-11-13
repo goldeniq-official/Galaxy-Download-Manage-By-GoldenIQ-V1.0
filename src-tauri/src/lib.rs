@@ -624,7 +624,11 @@ fn job_start(app: A, id: String, decision: Option<String>) -> R<()> {
         Some("continue") => Unverified::Continue,
         _ => Unverified::Ask,
     };
-    app.engine.job(&id).map_err(|e| e.code())?;
+    let job = app.engine.job(&id).map_err(|e| e.code())?;
+    // a finished download is never "started" again: the engine would refuse and the row would turn Failed
+    if job.state == "complete" || job.state == "unprotected" {
+        return Ok(());
+    }
     app.inner().start(&id, d);
     Ok(())
 }
@@ -637,6 +641,20 @@ async fn job_pause(app: A<'_>, id: String) -> R<()> {
 
 #[tauri::command]
 async fn job_remove(app: A<'_>, id: String, delete_file: bool) -> R<()> {
+    // removing an unfinished download deletes its .part: one key press must not throw away hours (IDM asks too)
+    let j = app.engine.job(&id).map_err(|e| e.code())?;
+    if j.state != "complete" && j.state != "unprotected" && j.done > 0 {
+        let mb = format!("{:.1} MB", j.done as f64 / 1e6);
+        let text = if lock(&app.settings).lang != "en" {
+            format!("លុប \"{}\" ចេញពីបញ្ជី?\n\nផ្នែកដែលបានទាញរួច ({mb}) នឹងត្រូវលុបចោល។", j.name)
+        } else {
+            format!("Remove \"{}\" from the list?\n\nThe part already downloaded ({mb}) will be deleted.", j.name)
+        };
+        let yes = tauri::async_runtime::spawn_blocking(move || os::confirm("Galaxy Download Manager", &text)).await.unwrap_or(false);
+        if !yes {
+            return Ok(());
+        }
+    }
     app.inner().clone().remove(&id, delete_file).await
 }
 
@@ -731,9 +749,14 @@ async fn pause_all(app: A<'_>) -> R<()> {
 
 #[tauri::command]
 fn resume_all(app: A) -> R<()> {
+    resume_paused(app.inner())
+}
+
+/// toolbar and tray "Resume all": every download the user paused (one that stopped on an error keeps its reason)
+fn resume_paused(app: &Arc<App>) -> R<()> {
     for r in app.rows(None)? {
         if r.row.state == "paused" && r.row.error_code.is_none() {
-            app.inner().start(&r.row.id, Unverified::Ask);
+            app.start(&r.row.id, Unverified::Ask);
         }
     }
     Ok(())
@@ -913,11 +936,11 @@ async fn install_update(app: &Arc<App>) {
     }
 }
 
-fn tray_labels(lang: &str) -> [&'static str; 5] {
+fn tray_labels(lang: &str) -> [&'static str; 6] {
     if lang == "en" {
-        ["Open GDM", "Pause all", "Speed limit on", "Speed limit off", "Quit"]
+        ["Open GDM", "Pause all", "Speed limit on", "Speed limit off", "Quit", "Resume all"]
     } else {
-        ["បើក GDM", "ផ្អាកទាំងអស់", "បើកការកំណត់ល្បឿន", "បិទការកំណត់ល្បឿន", "ចាកចេញ"]
+        ["បើក GDM", "ផ្អាកទាំងអស់", "បើកការកំណត់ល្បឿន", "បិទការកំណត់ល្បឿន", "ចាកចេញ", "បន្តទាំងអស់"]
     }
 }
 
@@ -931,6 +954,7 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
         h,
         &[
             &MenuItem::with_id(h, "open", l[0], true, None::<&str>)?,
+            &MenuItem::with_id(h, "resume", l[5], true, None::<&str>)?,
             &MenuItem::with_id(h, "pause", l[1], true, None::<&str>)?,
             &MenuItem::with_id(h, "limit", if on { l[3] } else { l[2] }, true, None::<&str>)?,
             &MenuItem::with_id(h, "quit", l[4], true, None::<&str>)?,
@@ -1056,20 +1080,39 @@ fn notifier(h: AppHandle, app: &Arc<App>) {
     let a2 = Arc::downgrade(app);
     *lock(&app.notify) = Some(Box::new(move |t: &app::Toast| {
         use tauri_plugin_notification::NotificationExt;
-        let visible = h.get_webview_window("main").and_then(|w| w.is_visible().ok()).unwrap_or(false);
-        if visible {
-            return; // the in-app toast shows it
+        // the in-app toast shows it only when the window is really in front (minimized still counts as "visible")
+        let seen = h
+            .get_webview_window("main")
+            .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(true) && w.is_focused().unwrap_or(false));
+        if seen {
+            return;
         }
         let km = a2.upgrade().map(|a| lock(&a.settings).lang != "en").unwrap_or(true);
-        let title = match (t.kind.as_str(), km) {
-            ("blocked", true) => "ត្រូវ antivirus រារាំង",
-            ("blocked", false) => "Blocked by antivirus",
-            ("failed", true) => "ការផ្ទៀងផ្ទាត់មិនត្រូវ",
-            ("failed", false) => "Verification failed",
-            (_, true) => "បានទាញ",
-            (_, false) => "Downloaded",
+        // the same words as the in-app toast (locales toast.*); kinds that need the window to act on are not sent
+        let (title, body) = match (t.kind.as_str(), km) {
+            ("complete" | "unprotected", true) => ("បានទាញ", t.name.as_str()),
+            ("complete" | "unprotected", false) => ("Downloaded", t.name.as_str()),
+            ("blocked", true) => ("ត្រូវ antivirus រារាំង", t.name.as_str()),
+            ("blocked", false) => ("Blocked by antivirus", t.name.as_str()),
+            ("failed", true) => ("ការផ្ទៀងផ្ទាត់មិនត្រូវ", t.name.as_str()),
+            ("failed", false) => ("Verification failed", t.name.as_str()),
+            ("error", true) => ("មិនអាចធ្វើបានទេ", t.name.as_str()),
+            ("error", false) => ("Could not finish", t.name.as_str()),
+            ("queue-done", true) => ("ជួរបានបញ្ចប់", ""),
+            ("queue-done", false) => ("Queue finished", ""),
+            ("info", km) => {
+                let msg = match (t.name.as_str(), km) {
+                    ("quota-reached", true) => "អស់កូតាទាញយកហើយ៖ ការទាញយកត្រូវផ្អាករហូតដល់ចប់រយៈពេល",
+                    ("quota-reached", false) => "Download quota reached: downloads are paused until the period ends",
+                    ("action-skipped", true) => "ការបិទ ឬដេកកុំព្យូទ័រត្រូវបានបោះបង់ ព្រោះនៅមានការទាញយកកំពុងដំណើរការ",
+                    ("action-skipped", false) => "The shutdown or sleep was cancelled because downloads are still running",
+                    _ => return, // e.g. sync waiting on a metered connection: nothing to do about it now
+                };
+                ("Galaxy Download Manager", msg)
+            }
+            _ => return,
         };
-        let _ = h.notification().builder().title(title).body(&t.name).show();
+        let _ = h.notification().builder().title(title).body(body).show();
     }));
 }
 
@@ -1201,10 +1244,22 @@ pub fn run() {
                         }
                         let _ = a2.save_settings();
                         a2.apply_limit();
+                        a2.bump(); // the window re-reads its settings (the footer pill shows the new state)
                         let _ = rebuild_tray(h, &a2);
+                    }
+                    "resume" => {
+                        let _ = resume_paused(&a2);
                     }
                     "quit" => quit(h, a2.clone()),
                     _ => {}
+                })
+                .on_tray_icon_event({
+                    let a3 = app.clone();
+                    move |_, ev| {
+                        if matches!(ev, tauri::tray::TrayIconEvent::DoubleClick { .. }) {
+                            show_main(&a3, false);
+                        }
+                    }
                 })
                 .build(&h)?;
             rebuild_tray(&h, &app)?;

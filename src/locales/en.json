@@ -17,6 +17,7 @@
   },
   "search": "Search name or link",
   "add": "Add",
+  "resumeAll": "Resume all",
   "pauseAll": "Pause all",
   "cols": {
     "name": "Name",

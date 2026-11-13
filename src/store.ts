@@ -113,7 +113,11 @@ export async function boot() {
       const cd = t.toasts.filter((x) => x.kind === "countdown").pop();
       if (cd) set({ countdown: { id: cd.id, action: cd.name } });
       set({ tick: t, live, toasts: [...st.toasts, ...t.toasts.filter((x) => x.kind !== "countdown")].slice(-4) });
-      if (t.rev !== st.rev) await st.refresh();
+      if (t.rev !== st.rev) {
+        await st.refresh();
+        // settings changed outside this window (tray speed limit) bump rev too
+        set({ settings: await api.settingsGet() });
+      }
       // queue membership changes bump rev; running/stopped and countdowns do not: every 2 s is enough
       if (t.rev !== st.rev || t.toasts.length || ++n % 4 === 0) await st.refreshQueues();
     } catch {

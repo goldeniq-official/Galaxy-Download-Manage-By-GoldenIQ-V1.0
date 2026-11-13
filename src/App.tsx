@@ -420,6 +420,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
             <Icon n="plus" />
             {t("add")}
           </button>
+          <ToolBtn ic="play" label={t("resumeAll")} words={words} onClick={() => void api.resumeAll()} />
           <ToolBtn ic="pause" label={t("pauseAll")} words={words} onClick={() => void api.pauseAll()} />
           <ToolBtn ic="queue" label={t("nav.queues")} words={words} menu onClick={(e) => queueMenu(e.currentTarget)} />
           <ToolBtn ic="list-bullets" label={t("tasks.menu")} words={words} menu onClick={(e) => tasks(e.currentTarget)} />
