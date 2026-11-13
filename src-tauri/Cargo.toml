@@ -28,6 +28,7 @@ gdm-core = { path = "../crates/gdm-core" }
 gdm-bridge = { path = "../crates/gdm-bridge" }
 gdm-auth = { path = "../crates/gdm-auth" }
 gdm-media = { path = "../crates/gdm-media" }
+webview2-com = "0.39"
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"

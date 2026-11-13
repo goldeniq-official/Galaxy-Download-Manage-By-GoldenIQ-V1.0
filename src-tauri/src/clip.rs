@@ -34,6 +34,18 @@ pub fn pick(text: &str, exts: &[String]) -> Option<String> {
     exts.iter().any(|e| e.eq_ignore_ascii_case(ext)).then(|| u.to_string())
 }
 
+/// §04 YouTube row: a copied video page (youtube.com / youtu.be, exact host or subdomain by parsed host)
+pub fn pick_video(text: &str) -> Option<String> {
+    let t = text.trim();
+    if t.len() > gdm_bridge::MAX_URL || t.contains(char::is_whitespace) {
+        return None;
+    }
+    let u = url::Url::parse(t).ok()?;
+    let h = u.host_str()?.to_ascii_lowercase();
+    let video = ["youtube.com", "youtu.be"].iter().any(|d| h == *d || h.ends_with(&format!(".{d}")));
+    (matches!(u.scheme(), "http" | "https") && u.username().is_empty() && video && u.path().len() > 1).then(|| u.to_string())
+}
+
 /// what the clipboard holds right now, if the monitor may read it (None = excluded, empty, or not text)
 fn read_allowed() -> Option<String> {
     unsafe {
@@ -77,8 +89,10 @@ fn read_allowed() -> Option<String> {
     }
 }
 
-pub type OnUrl = Box<dyn Fn(String) + Send>;
-pub type Enabled = Box<dyn Fn() -> Option<Vec<String>> + Send>;
+/// (url, is a video page)
+pub type OnUrl = Box<dyn Fn(String, bool) + Send>;
+/// the caught extensions + whether video pages count (yt-dlp installed) when the monitor is on
+pub type Enabled = Box<dyn Fn() -> Option<(Vec<String>, bool)> + Send>;
 
 /// run the monitor on its own thread for the life of the process. `enabled()` returns the caught extensions
 /// when the monitor is on (None = off: nothing is opened or read).
@@ -101,7 +115,7 @@ pub fn spawn(enabled: Enabled, on_url: OnUrl) {
                 DispatchMessageW(&msg);
                 continue;
             }
-            let Some(exts) = enabled() else { continue };
+            let Some((exts, video)) = enabled() else { continue };
             let seq = GetClipboardSequenceNumber();
             if seq == last_seq {
                 continue;
@@ -121,10 +135,12 @@ pub fn spawn(enabled: Enabled, on_url: OnUrl) {
             }
             let text = read_allowed();
             let _ = CloseClipboard();
-            if let Some(u) = text.as_deref().and_then(|t| pick(t, &exts)) {
+            let file = text.as_deref().and_then(|t| pick(t, &exts)).map(|u| (u, false));
+            let page = if video { text.as_deref().and_then(pick_video).map(|u| (u, true)) } else { None };
+            if let Some((u, is_video)) = file.or(page) {
                 if u != last_url {
                     last_url = u.clone();
-                    on_url(u);
+                    on_url(u, is_video);
                 }
             }
         }
@@ -153,6 +169,10 @@ mod tests {
             "123456",
         ] {
             assert!(pick(no, &exts()).is_none(), "{no}");
+        }
+        assert!(pick_video("https://www.youtube.com/watch?v=abc").is_some() && pick_video("https://youtu.be/abc").is_some());
+        for no in ["https://youtube.com.evil.net/watch", "https://notyoutube.com/x", "https://youtu.be/", "hunter2"] {
+            assert!(pick_video(no).is_none(), "{no}");
         }
     }
 
@@ -206,7 +226,7 @@ mod tests {
         let saved = unsafe { current() };
         let (tx, rx) = std::sync::mpsc::channel::<String>();
         let tx = std::sync::Mutex::new(tx);
-        spawn(Box::new(|| Some(["zip"].map(String::from).to_vec())), Box::new(move |u| tx.lock().unwrap().send(u).unwrap()));
+        spawn(Box::new(|| Some((["zip"].map(String::from).to_vec(), false))), Box::new(move |u, _| tx.lock().unwrap().send(u).unwrap()));
         std::thread::sleep(std::time::Duration::from_millis(300));
         let before = TEXT_READS.load(Ordering::Relaxed);
         unsafe { put("https://e.com/secret-vault-export.zip", true) };

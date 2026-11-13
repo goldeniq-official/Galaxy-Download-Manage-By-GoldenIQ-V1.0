@@ -857,6 +857,81 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// the main window's behaviour: closing hides it (§07); a WebView2 process failure rebuilds it (council G7,
+/// ADR-1: the engine keeps downloading through a WebView crash, the window must come back too)
+fn attach_main(h: &AppHandle, w: &tauri::WebviewWindow) {
+    let w2 = w.clone();
+    w.on_window_event(move |e| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+            api.prevent_close(); // closing the window is not quitting (§07): GDM stays in the tray
+            let _ = w2.hide();
+        }
+    });
+    let h2 = h.clone();
+    let _ = w.with_webview(move |pw| unsafe {
+        use webview2_com::ProcessFailedEventHandler;
+        let Ok(core) = pw.controller().CoreWebView2() else { return };
+        let mut token = 0i64;
+        let h3 = h2.clone();
+        let _ = core.add_ProcessFailed(
+            &ProcessFailedEventHandler::create(Box::new(move |_, _| {
+                let h4 = h3.clone();
+                let _ = h3.run_on_main_thread(move || rebuild_main(&h4));
+                Ok(())
+            })),
+            &mut token,
+        );
+    });
+}
+
+fn wv_log(h: &AppHandle, m: &str) {
+    if let Some(a) = h.try_state::<Arc<App>>() {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(a.data.join("webview.log")) {
+            let _ = writeln!(f, "{} {m}", gdm_core::store::now());
+        }
+    }
+}
+
+static REBUILDS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// a new main window from the same config; it reads all state from the engine again (no job is touched)
+fn rebuild_main(h: &AppHandle) {
+    use std::sync::atomic::Ordering;
+    if REBUILDS.fetch_add(1, Ordering::SeqCst) > 20 {
+        return; // a WebView that keeps dying: stop trying (downloads continue; the tray still works)
+    }
+    let visible = h.get_webview_window("main").and_then(|w| w.is_visible().ok()).unwrap_or(false);
+    wv_log(h, "process failed: rebuilding the main window");
+    if let Some(w) = h.get_webview_window("main") {
+        let _ = w.destroy();
+    }
+    // the label is free only once the old window is gone (destroy is asynchronous)
+    let h2 = h.clone();
+    std::thread::spawn(move || {
+        for _ in 0..50 {
+            if h2.get_webview_window("main").is_none() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let h3 = h2.clone();
+        let _ = h2.run_on_main_thread(move || {
+            let Some(cfg) = h3.config().app.windows.iter().find(|c| c.label == "main").cloned() else { return };
+            match tauri::WebviewWindowBuilder::from_config(&h3, &cfg).and_then(|b| b.build()) {
+                Ok(w) => {
+                    attach_main(&h3, &w);
+                    if visible {
+                        let _ = w.show();
+                    }
+                    wv_log(&h3, "main window rebuilt");
+                }
+                Err(e) => wv_log(&h3, &format!("rebuild failed: {e}")),
+            }
+        });
+    });
+}
+
 /// "exit GDM when the queue is done" and the CLI /q
 pub fn request_quit() {
     if let Some(h) = HANDLE.get() {
@@ -1023,13 +1098,7 @@ pub fn run() {
                 if !background {
                     let _ = w.show();
                 }
-                let w2 = w.clone();
-                w.on_window_event(move |e| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = e {
-                        api.prevent_close(); // closing the window is not quitting (§07): GDM stays in the tray
-                        let _ = w2.hide();
-                    }
-                });
+                attach_main(&h, &w);
             }
             app.resume_interrupted();
             if lock(&app.settings).basket {
@@ -1042,12 +1111,18 @@ pub fn run() {
             clip::spawn(
                 Box::new(move || {
                     ac.upgrade().and_then(|a| {
+                        let video = components::has(&a.data, "yt-dlp.exe");
                         let s = lock(&a.settings);
-                        s.clipboard.then(|| s.catch_exts.clone())
+                        s.clipboard.then(|| (s.catch_exts.clone(), video))
                     })
                 }),
-                Box::new(move |u| {
+                Box::new(move |u, is_video| {
                     if let Some(a) = ao.upgrade() {
+                        if is_video {
+                            // a copied video page: ask in the app (quality flow), never start by itself
+                            a.push_toast("video-link", "", &u);
+                            return;
+                        }
                         if let Ok(id) = a.add_and_start(&u, None, None, vec![], false, false) {
                             lock(&a.pending).push(id);
                             show_main(&a, true);

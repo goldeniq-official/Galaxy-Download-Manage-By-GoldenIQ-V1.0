@@ -61,6 +61,14 @@ try {
   "killed $($wv.Count) WebView2 processes at $(Get-Date -Format o)"
   Start-Sleep -Seconds 2
   Check "gdm.exe alive after the WebView crash" (-not $gdmProc.HasExited) "exited"
+  # the window comes back: new WebView2 processes under gdm.exe (ProcessFailed => window rebuilt)
+  $deadline = (Get-Date).AddSeconds(20); $back = @()
+  while ($back.Count -eq 0 -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 500
+    $back = @(Descendants $gdmProc.Id | Where-Object { $_.Name -eq "msedgewebview2.exe" -and -not ($wv.ProcessId -contains $_.ProcessId) })
+  }
+  $wvlog = Join-Path $env:GDM_DATA "webview.log"
+  Check "WebView rebuilt after the crash (new WebView2 processes)" ($back.Count -gt 0) ("no new WebView2 process; log: " + $(if (Test-Path $wvlog) { Get-Content $wvlog -Raw } else { "none" }))
   $rowA = Wait-Done "adr1-a.bin" 120
   Check "download A finished after the WebView crash" ($null -ne $rowA) "not complete"
   & curl.exe -sS -o (Join-Path $root "ref-a.bin") ($urlA -replace "&trate=6000000", "")
