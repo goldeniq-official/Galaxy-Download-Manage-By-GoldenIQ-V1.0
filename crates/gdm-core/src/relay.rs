@@ -22,6 +22,8 @@ pub enum Route {
     Http(String, ProxyAuth),
     /// SOCKS5 proxy (host:port) and optional user/password (RFC 1929)
     Socks5(String, Option<(String, String)>),
+    /// no safe route: refuse (e.g. a PAC answer Windows cannot honour), never fall back to direct
+    Block(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -296,6 +298,7 @@ impl Relay {
         };
         match r {
             Route::Direct => conn(ip.to_string()).await,
+            Route::Block(why) => Err(format!("no safe route: {why}")),
             Route::Http(proxy, auth) => {
                 let authority = ip.to_string(); // "1.2.3.4:443" or "[::1]:443"
                 self.log.lock().unwrap_or_else(|p| p.into_inner()).push(authority.clone());

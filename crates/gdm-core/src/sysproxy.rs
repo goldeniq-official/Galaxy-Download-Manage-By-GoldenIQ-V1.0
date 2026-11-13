@@ -105,27 +105,74 @@ pub fn pac_routes(pac_url: Option<&str>, auto_detect: bool, dest: &str, auth: &P
     }
 }
 
-/// the router for "use the system proxy": manual proxy + bypass, or PAC/WPAD per host (cached 5 minutes);
-/// a PAC that cannot be fetched or run => DIRECT (like browsers), recorded in the relay's routes
+/// the PAC script's own text (<= 1 MiB, 10 s), fetched once by GDM to see what Windows will not tell it
+fn pac_text(url: &str) -> Option<String> {
+    let u = url::Url::parse(url).ok()?;
+    if !matches!(u.scheme(), "http" | "https") {
+        return None;
+    }
+    // the PAC host is the user's own configuration: it may be on the LAN
+    let policy = Arc::new(crate::net::Policy { allow_private: u.host_str().map(|h| vec![h.to_string()]).unwrap_or_default() });
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().ok()?;
+        rt.block_on(async move {
+            let c = crate::net::client(policy, false, Duration::from_secs(10)).ok()?;
+            let mut r = tokio::time::timeout(Duration::from_secs(10), c.get(u).send()).await.ok()?.ok()?;
+            let mut b = Vec::new();
+            while let Some(ch) = r.chunk().await.ok()? {
+                if b.len() + ch.len() > 1 << 20 {
+                    return None;
+                }
+                b.extend_from_slice(&ch);
+            }
+            Some(String::from_utf8_lossy(&b).into_owned())
+        })
+    })
+    .join()
+    .ok()
+    .flatten()
+}
+
+/// PAC/WPAD routes per host (cached 5 minutes). WinHTTP turns a PAC "SOCKS" answer into DIRECT (measured in
+/// g7_pac): when the script names SOCKS at all, a DIRECT answer is refused instead (fail closed, council G7),
+/// and the user is told to set the SOCKS proxy by hand. A script that cannot be read counts as naming SOCKS.
+pub fn pac_router(pac_url: Option<String>, auto_detect: bool, auth: ProxyAuth) -> Router {
+    let socks_in_pac = match &pac_url {
+        Some(u) => pac_text(u).is_none_or(|t| t.to_ascii_uppercase().contains("SOCKS")),
+        None => false, // WPAD: the script location is found by Windows only (documented limit)
+    };
+    let cache: Mutex<HashMap<String, (Instant, Vec<Route>)>> = Mutex::new(HashMap::new());
+    Arc::new(move |u: &url::Url| {
+        // a tunnel shows only scheme://host:port/ (council G7: per-URL PAC rules on the path cannot apply)
+        let key = format!("{}://{}/", u.scheme(), u.host_str().unwrap_or(""));
+        if let Some((t, r)) = cache.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
+            if t.elapsed() < Duration::from_secs(300) {
+                return r.clone();
+            }
+        }
+        let mut r = pac_routes(pac_url.as_deref(), auto_detect, u.as_str(), &auth).unwrap_or_else(|| vec![Route::Direct]);
+        if socks_in_pac {
+            r = r
+                .into_iter()
+                .map(|x| if x == Route::Direct { Route::Block("pac-socks: set the SOCKS proxy in Settings".into()) } else { x })
+                .collect();
+        }
+        cache.lock().unwrap_or_else(|p| p.into_inner()).insert(key, (Instant::now(), r.clone()));
+        r
+    })
+}
+
+/// the router for "use the system proxy": manual proxy + bypass, or PAC/WPAD per host
 pub fn system_router(auth: ProxyAuth) -> Router {
     let cfg = ie_config();
-    let cache: Mutex<HashMap<String, (Instant, Vec<Route>)>> = Mutex::new(HashMap::new());
+    let pac = (cfg.pac_url.is_some() || cfg.auto_detect).then(|| pac_router(cfg.pac_url.clone(), cfg.auto_detect, auth.clone()));
     Arc::new(move |u: &url::Url| {
         let host = u.host_str().unwrap_or("");
         if crate::relay::bypassed(&cfg.bypass, host) {
             return vec![Route::Direct];
         }
-        if cfg.pac_url.is_some() || cfg.auto_detect {
-            // a tunnel shows only scheme://host:port/ (council G7: per-URL PAC rules on the path cannot apply)
-            let key = format!("{}://{}/", u.scheme(), u.host_str().unwrap_or(""));
-            if let Some((t, r)) = cache.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
-                if t.elapsed() < Duration::from_secs(300) {
-                    return r.clone();
-                }
-            }
-            let r = pac_routes(cfg.pac_url.as_deref(), cfg.auto_detect, u.as_str(), &auth).unwrap_or_else(|| vec![Route::Direct]);
-            cache.lock().unwrap_or_else(|p| p.into_inner()).insert(key, (Instant::now(), r.clone()));
-            return r;
+        if let Some(p) = &pac {
+            return p(u);
         }
         match &cfg.proxy {
             Some(p) => parse_list(p, u.scheme(), &auth),

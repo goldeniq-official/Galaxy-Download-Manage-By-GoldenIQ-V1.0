@@ -37,4 +37,9 @@ async fn pac_script_routes_per_host() {
     let s = go("https://x.socks.test/").await.unwrap();
     assert!(s.is_some(), "PAC answered");
     eprintln!("WinHTTP for a SOCKS PAC answer: {s:?}");
+
+    // fail closed (council G7): the script names SOCKS, so the DIRECT that WinHTTP returns for it is refused
+    let r = gdm_core::sysproxy::pac_router(Some(url.clone()), false, ProxyAuth::None);
+    let socks_route = tokio::task::spawn_blocking(move || r(&url::Url::parse("https://x.socks.test/").unwrap())).await.unwrap();
+    assert!(matches!(socks_route.as_slice(), [Route::Block(_)]), "{socks_route:?}");
 }
