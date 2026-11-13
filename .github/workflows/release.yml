@@ -6,8 +6,8 @@
 # ONE SIGNED latest.json naming every platform (U-01; each GDM checks its own key, update::platform_key, before
 # Tauri's updater runs), attests build provenance, and creates a DRAFT GitHub release the owner publishes.
 # Code signing: Windows Authenticode via SignPath when accepted (D8); macOS is ad-hoc signed until the owner
-# decides on an Apple Developer ID (notarization, $99/year): until then macOS users open it with right-click >
-# Open the first time. Linux packages are unsigned (sha256 + attestation).
+# decides on an Apple Developer ID (notarization, $99/year): until then macOS users allow it once in System Settings >
+# Privacy & Security > Open Anyway (macOS 15 removed right-click > Open). Linux packages are unsigned (sha256 + attestation).
 name: release
 on:
   push:
@@ -55,7 +55,7 @@ jobs:
           rustup default "$RUST_VERSION"
           rustup target add ${{ matrix.target }}
       - name: version in the tag == version in the app
-        run: test "v$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$GITHUB_REF_NAME"
+        run: test "v$(node scripts/version.mjs)" = "$GITHUB_REF_NAME" # the one version (tauri.conf.json has none)
       - name: build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -68,7 +68,7 @@ jobs:
           cp "target/${{ matrix.target }}/release/gdm-bridge$ext" "src-tauri/binaries/gdm-bridge-${{ matrix.target }}$ext"
           [ "$RUNNER_OS" = Windows ] && node scripts/nsis-khmer.mjs
           pnpm ext
-          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
       - name: collect (installers + the updater artifact and its minisign signature)
         run: |
           v="${GITHUB_REF_NAME#v}"; a="${{ matrix.arch }}"; b="target/${{ matrix.target }}/release/bundle"
@@ -77,7 +77,11 @@ jobs:
           case "$RUNNER_OS" in
             Windows)
               s=$(one "$b/nsis/*-setup.exe"); cp "$s" "out/GDM_${v}_$a-setup.exe"; cp "$s.sig" "out/GDM_${v}_$a-setup.exe.sig"
-              echo "GDM_${v}_$a-setup.exe" > out/updater-$a.txt ;;
+              echo "GDM_${v}_$a-setup.exe" > out/updater-$a.txt
+              # GDM Setup: the designed window people download; this exact NSIS installer is inside (the updater,
+              # winget and the uninstaller keep using NSIS itself)
+              GDM_SETUP_PAYLOAD="$(cygpath -w "$PWD/$s")" cargo build -p gdm-setup --release --locked --target ${{ matrix.target }}
+              cp "target/${{ matrix.target }}/release/gdm-setup.exe" "out/GDM-Setup_${v}_$a.exe" ;;
             macOS)
               cp "$(one "$b/dmg/*.dmg")" "out/GDM_${v}_$a.dmg"
               t=$(one "$b/macos/*.app.tar.gz"); cp "$t" "out/GDM_${v}_$a.app.tar.gz"; cp "$t.sig" "out/GDM_${v}_$a.app.tar.gz.sig"

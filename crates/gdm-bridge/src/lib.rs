@@ -13,10 +13,19 @@ pub const MAX_COOKIE: usize = 32 * 1024;
 pub const MAX_LINKS: usize = 500;
 pub const MAX_UA: usize = 512;
 
-/// Chrome Web Store / Edge Add-ons / unpacked (key in extension/manifest) ids, and the Firefox id (B-01).
-/// The store ids are added here when the owner publishes the extension (release notes).
-pub const CHROME_IDS: &[&str] = &["khgpllebdmknoollimkfkggepiembabi"];
-pub const FIREFOX_IDS: &[&str] = &["gdm@goldeniq.dev"];
+/// Extension ids (B-01). The stores assign their own: the owner fills CWS_ID / EDGE_ID when the store item
+/// is reserved (uploaded, not yet published), BEFORE building the app that ships with it. Both the bridge
+/// allow-list and the app's "Install extension" links read them; an empty id is never allowed.
+pub const DEV_ID: &str = "khgpllebdmknoollimkfkggepiembabi"; // unpacked build (key in extension/build.mjs)
+pub const CWS_ID: &str = ""; // Chrome Web Store (also Brave, Vivaldi, Opera with its Chrome add-on)
+pub const EDGE_ID: &str = ""; // Edge Add-ons
+pub const FIREFOX_IDS: &[&str] = &["gdm@goldeniq.dev"]; // fixed in the manifest, AMO keeps it
+
+pub mod browsers;
+
+pub fn chrome_ids() -> impl Iterator<Item = &'static str> {
+    [DEV_ID, CWS_ID, EDGE_ID].into_iter().filter(|i| !i.is_empty())
+}
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "t", rename_all = "lowercase", deny_unknown_fields)]
@@ -129,7 +138,7 @@ pub fn parse(b: &[u8]) -> Result<Msg, String> {
 pub fn caller(args: &[String]) -> Option<String> {
     let a1 = args.get(1)?;
     if let Some(id) = a1.strip_prefix("chrome-extension://").and_then(|s| s.strip_suffix('/')) {
-        return CHROME_IDS.contains(&id).then(|| a1.clone());
+        return chrome_ids().any(|i| i == id).then(|| a1.clone());
     }
     if a1.to_ascii_lowercase().ends_with(".json") {
         let id = args.get(2)?;
@@ -232,7 +241,8 @@ mod tests {
     #[test]
     fn b01_caller_allow_list() {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert!(caller(&a(&["gdm-bridge", &format!("chrome-extension://{}/", CHROME_IDS[0])])).is_some());
+        assert!(caller(&a(&["gdm-bridge", &format!("chrome-extension://{DEV_ID}/")])).is_some());
+        assert!(caller(&a(&["gdm-bridge", "chrome-extension:///"])).is_none(), "an unset store id is never allowed");
         assert!(caller(&a(&["gdm-bridge", "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"])).is_none());
         assert!(caller(&a(&["gdm-bridge", "C:\\x\\firefox.json", FIREFOX_IDS[0]])).is_some());
         assert!(caller(&a(&["gdm-bridge", "C:\\x\\firefox.json", "evil@x"])).is_none());

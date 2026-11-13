@@ -1557,6 +1557,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gdm-setup"
+version = "0.9.0"
+dependencies = [
+ "embed-resource",
+ "gdm-bridge",
+ "serde_json",
+ "tao",
+ "windows 0.61.3",
+ "wry",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

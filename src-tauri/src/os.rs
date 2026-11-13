@@ -12,18 +12,18 @@ use windows::Win32::UI::Shell::ShellExecuteW;
 #[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-/// links the UI may open, by key only
-pub fn link(key: &str) -> Option<&'static str> {
+/// links the UI may open, by key only. Store links go to GDM's own listing once its id is set (gdm-bridge).
+pub fn link(key: &str) -> Option<String> {
+    if let Some(u) = gdm_bridge::browsers::store_url(key) {
+        return Some(u);
+    }
     Some(match key {
-        "store-chrome" => "https://chromewebstore.google.com/search/Galaxy%20Download%20Manager",
-        "store-edge" => "https://microsoftedge.microsoft.com/addons/search/Galaxy%20Download%20Manager",
-        "store-firefox" => "https://addons.mozilla.org/firefox/search/?q=Galaxy%20Download%20Manager",
-        "github" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0",
-        "releases" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases",
-        "license" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/blob/main/LICENSE",
-        "privacy" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/blob/main/PRIVACY.md",
+        "github" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0".into(),
+        "releases" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases".into(),
+        "license" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/blob/main/LICENSE".into(),
+        "privacy" => "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/blob/main/PRIVACY.md".into(),
         #[cfg(windows)]
-        "windows-security" => "windowsdefender://threat/",
+        "windows-security" => "windowsdefender://threat/".into(),
         _ => return None,
     })
 }
@@ -53,7 +53,7 @@ fn shell_open(target: &str, verb: &str) -> Result<(), String> {
 }
 
 pub fn open_link(key: &str) -> Result<(), String> {
-    shell_open(link(key).ok_or("unknown link")?, "open")
+    shell_open(&link(key).ok_or("unknown link")?, "open")
 }
 
 /// a job's source page (J5 refresh, "login needed"): from the database, http(s) only, never a file: or custom scheme
@@ -104,40 +104,7 @@ pub fn open_folder(path: &Path) -> Result<(), String> {
     c.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// browsers GDM knows (J2.2): macOS applications / Linux commands on PATH
-#[cfg(unix)]
-pub fn browsers() -> Vec<(&'static str, &'static str, bool)> {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    let app = |names: &[&str]| names.iter().any(|n| Path::new("/Applications").join(n).is_dir() || home.join("Applications").join(n).is_dir());
-    let path: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
-    let cmd = |names: &[&str]| names.iter().any(|n| path.iter().any(|d| d.join(n).is_file()));
-    let mac = cfg!(target_vendor = "apple");
-    let has = |a: &[&str], c: &[&str]| if mac { app(a) } else { cmd(c) };
-    vec![
-        ("chrome", "Chrome", has(&["Google Chrome.app"], &["google-chrome", "google-chrome-stable"])),
-        ("edge", "Edge", has(&["Microsoft Edge.app"], &["microsoft-edge", "microsoft-edge-stable"])),
-        ("firefox", "Firefox", has(&["Firefox.app"], &["firefox"])),
-        ("brave", "Brave", has(&["Brave Browser.app"], &["brave-browser", "brave"])),
-        ("vivaldi", "Vivaldi", has(&["Vivaldi.app"], &["vivaldi", "vivaldi-stable"])),
-        ("opera", "Opera", has(&["Opera.app"], &["opera"])),
-    ]
-}
-
-/// browsers GDM knows (J2.2): (key, display name, exe candidates under the usual roots)
-#[cfg(windows)]
-pub fn browsers() -> Vec<(&'static str, &'static str, bool)> {
-    let roots: Vec<PathBuf> =
-        ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"].iter().filter_map(|v| std::env::var_os(v).map(PathBuf::from)).collect();
-    let has = |rel: &[&str]| roots.iter().any(|r| rel.iter().any(|p| r.join(p).is_file()));
-    vec![
-        ("chrome", "Chrome", has(&[r"Google\Chrome\Application\chrome.exe"])),
-        ("edge", "Edge", has(&[r"Microsoft\Edge\Application\msedge.exe"])),
-        ("firefox", "Firefox", has(&[r"Mozilla Firefox\firefox.exe"])),
-        ("brave", "Brave", has(&[r"BraveSoftware\Brave-Browser\Application\brave.exe"])),
-        ("vivaldi", "Vivaldi", has(&[r"Vivaldi\Application\vivaldi.exe"])),
-        ("opera", "Opera", has(&[r"Programs\Opera\opera.exe", r"Opera\opera.exe"])),
-    ]
-}
+pub use gdm_bridge::browsers::browsers;
 
 /// volume checks for the download folder (onboarding step 3, plan-ux §4): filesystem and free bytes
 pub fn folder_check(dir: &Path) -> (String, u64) {
