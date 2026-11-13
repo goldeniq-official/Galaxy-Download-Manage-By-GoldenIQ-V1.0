@@ -183,6 +183,68 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
     }
 
+    /// the install path (council G7 final #5): a real minisign signature (throwaway test key; only its public
+    /// key is in the repo) is accepted; a changed byte, an expired manifest and a signed manifest naming a file
+    /// GDM does not know are refused
+    #[test]
+    fn m05_signed_manifest_accepted_forgery_expiry_and_unknown_names_refused() {
+        const PUB: &str = include_str!("../tests/components/test.pub.b64");
+        let body = include_bytes!("../tests/components/components.json");
+        let sig = include_str!("../tests/components/components.json.sig");
+        let m = verify(body, sig, PUB, 1_800_000_000).unwrap();
+        assert_eq!(m.components[0].files[0].name, "yt-dlp.exe");
+        let mut forged = body.to_vec();
+        let i = forged.iter().position(|&b| b == b'f').unwrap();
+        forged[i] = b'e';
+        assert_eq!(verify(&forged, sig, PUB, 1_800_000_000).unwrap_err(), "signature");
+        assert_eq!(verify(body, sig, PUB, 1_900_000_000).unwrap_err(), "expired");
+        assert_eq!(verify(body, sig, crate::update::PUBKEY, 1_800_000_000).unwrap_err(), "signature", "another key");
+        let bad = include_bytes!("../tests/components/bad-name.json");
+        let bad_sig = include_str!("../tests/components/bad-name.json.sig");
+        assert_eq!(verify(bad, bad_sig, PUB, 1_800_000_000).unwrap_err(), "bad-manifest", "evil.dll is not a component file");
+    }
+
+    /// ffmpeg arrives as a zip: only the listed inner paths are extracted (Windows tar.exe), each must match its
+    /// signed hash, and an inner path that climbs out ("..", absolute, drive) is refused before extracting
+    #[test]
+    fn zip_install_extracts_only_listed_files_and_refuses_escaping_paths() {
+        use sha2::Digest;
+        let d = std::env::temp_dir().join(format!("gdm-zip-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let src = d.join("src").join("pkg").join("bin");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("ffmpeg.exe"), b"fake ffmpeg").unwrap();
+        std::fs::write(src.join("ffprobe.exe"), b"fake ffprobe").unwrap();
+        std::fs::write(src.join("extra.dll"), b"not listed").unwrap();
+        let zip = d.join("pkg.zip");
+        let tar = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join(r"System32\tar.exe");
+        assert!(std::process::Command::new(&tar).arg("-a").arg("-cf").arg(&zip).arg("-C").arg(d.join("src")).arg("pkg").status().unwrap().success());
+        let bytes = std::fs::read(&zip).unwrap();
+        let h = |b: &[u8]| gdm_core::finalize::hex(&sha2::Sha256::digest(b));
+        let file = |n: &str, path: &str, body: &[u8]| ComponentFile { name: n.into(), path: Some(path.into()), sha256: h(body) };
+        let mut c = Component {
+            name: "ffmpeg".into(),
+            version: "t".into(),
+            url: "https://x/ffmpeg.zip".into(),
+            sha256: h(&bytes),
+            size: bytes.len() as u64,
+            files: vec![file("ffmpeg.exe", "pkg/bin/ffmpeg.exe", b"fake ffmpeg"), file("ffprobe.exe", "pkg/bin/ffprobe.exe", b"fake ffprobe")],
+        };
+        let data = d.join("data");
+        install(&data, &c, &bytes).unwrap();
+        assert!(has(&data, "ffmpeg.exe") && has(&data, "ffprobe.exe"));
+        let names: Vec<String> = std::fs::read_dir(dir(&data)).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        assert!(!names.iter().any(|n| n.contains("extra")), "only listed files: {names:?}");
+        for evil in ["../x.exe", "pkg/../../x.exe", r"C:\Windows\x.exe", "/etc/x"] {
+            c.files[0].path = Some(evil.into());
+            assert_eq!(install(&data, &c, &bytes).unwrap_err(), "bad-manifest", "{evil}");
+        }
+        c.files[0].path = Some("pkg/bin/ffmpeg.exe".into());
+        c.files[0].sha256 = "0".repeat(64);
+        assert!(install(&data, &c, &bytes).unwrap_err().starts_with("hash-mismatch"), "an extracted file must match its signed hash");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
     #[test]
     fn manifest_needs_our_signature() {
         let body = br#"{"v":1,"expires":99999999999,"components":[]}"#;
