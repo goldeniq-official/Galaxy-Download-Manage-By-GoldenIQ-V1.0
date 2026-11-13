@@ -1082,7 +1082,8 @@ fn crash_log(path: std::path::PathBuf) {
             chrono::Utc::now().to_rfc3339(),
             env!("CARGO_PKG_VERSION"),
             info.location().map(|l| l.to_string()).unwrap_or_default(),
-            redact(&msg).chars().take(500).collect::<String>()
+            // a bug in the redaction must never panic inside the panic hook (that aborts): withhold instead
+            std::panic::catch_unwind(|| redact(&msg)).unwrap_or_else(|_| "<message withheld>".into()).chars().take(500).collect::<String>()
         );
         if std::fs::metadata(&path).is_ok_and(|m| m.len() > 256 * 1024) {
             let _ = std::fs::rename(&path, path.with_extension("log.old"));
@@ -1102,18 +1103,26 @@ fn redact(s: &str) -> String {
     if ["password", "token", "authorization", "cookie", "secret", "query: some", "username:"].iter().any(|k| low.contains(k)) {
         return "<message withheld: may contain a secret>".into();
     }
-    // every "scheme://..." anywhere (quoted, in brackets, any scheme) keeps only its host
-    let stop = |c: char| c.is_whitespace() || "\"'<>()[]{},;`".contains(c);
+    // every "scheme://..." anywhere (quoted, in brackets, any scheme) keeps only its host; the link runs to the
+    // next whitespace (a comma or quote inside a query must not let the rest of it through)
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     while let Some(i) = rest.find("://") {
-        let start = rest[..i].rfind(|c: char| !(c.is_ascii_alphanumeric() || "+.-".contains(c))).map_or(0, |p| p + 1);
+        // the scheme: the ASCII letters/digits/+.- right before "://" (char-boundary safe: they are all 1 byte)
+        let scheme_len = rest[..i].chars().rev().take_while(|c| c.is_ascii_alphanumeric() || "+.-".contains(*c)).count();
+        let start = i - scheme_len;
         out.push_str(&rest[..start]);
         let scheme = &rest[start..i];
         let after = &rest[i + 3..];
-        let end = after.find(stop).unwrap_or(after.len());
+        let end = after.find(char::is_whitespace).unwrap_or(after.len());
         let authority = after[..end].split(['/', '?', '#']).next().unwrap_or("");
-        let host = authority.rsplit('@').next().unwrap_or(""); // never user:password@
+        let host: String = authority // never user:password@, never a trailing quote or bracket
+            .rsplit('@')
+            .next()
+            .unwrap_or("")
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || ".-:[]".contains(*c))
+            .collect();
         out.push_str(&format!("{scheme}://{host}/…"));
         rest = &after[end..];
     }
@@ -1425,7 +1434,9 @@ mod crash_tests {
     #[test]
     fn links_in_a_panic_message_keep_only_their_host() {
         assert_eq!(super::redact("bad https://u:p@x.com/a?t=abc here"), "bad https://x.com/… here");
-        assert_eq!(super::redact("in \"https://x.com/a?sig=1\", and (ftp://h:21/f)"), "in \"https://x.com/…\", and (ftp://h:21/…)");
+        assert_eq!(super::redact("in \"https://x.com/a?sig=1\", and (ftp://h:21/f)"), "in \"https://x.com/… and (ftp://h:21/…");
+        assert_eq!(super::redact("https://x.com/a,b?sig=1,2 end"), "https://x.com/… end"); // a comma does not end it
+        assert_eq!(super::redact("ទាញ៖https://x.com/a?q=1"), "ទាញ៖https://x.com/…"); // Khmer right before: no panic
         assert_eq!(super::redact("Url { scheme: \"https\", query: Some(\"t=1\") }"), "<message withheld: may contain a secret>");
         assert_eq!(super::redact("bad token=xyz"), "<message withheld: may contain a secret>");
         assert_eq!(super::redact("plain text"), "plain text");

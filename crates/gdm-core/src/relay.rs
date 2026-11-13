@@ -231,7 +231,7 @@ impl Relay {
             if !rest.is_empty() {
                 up.write_all(&rest).await?;
             }
-            let _ = tokio::io::copy_bidirectional(&mut s, &mut up).await;
+            pump(&mut s, &mut up, Duration::from_secs(120), Duration::from_secs(10)).await;
         } else {
             // plain http: exactly one bodiless request went upstream; anything else the client sends on this
             // connection is never forwarded (it would carry this relay's Proxy-Authorization). The response
@@ -453,6 +453,30 @@ async fn connect_once(t: &mut TcpStream, authority: &str, auth: Option<&str>) ->
 }
 
 /// the process-wide relay reqwest clients use when the user configured a proxy (None = direct, as before)
+/// Both directions of a tunnel. It ends after `idle` with no byte either way, or `grace` after one side closed:
+/// when GDM drops a stalled connection the server side may never close, and a tunnel waiting on it forever
+/// would hold one of the MAX_TUNNELS slots until every proxied download stalls.
+async fn pump(a: &mut TcpStream, b: &mut TcpStream, idle: Duration, grace: Duration) {
+    let (mut ar, mut aw) = a.split();
+    let (mut br, mut bw) = b.split();
+    let (mut x, mut y) = (vec![0u8; 64 * 1024], vec![0u8; 64 * 1024]);
+    let (mut a_open, mut b_open) = (true, true);
+    while a_open || b_open {
+        let wait = if a_open && b_open { idle } else { grace };
+        tokio::select! {
+            r = ar.read(&mut x), if a_open => match r {
+                Ok(n) if n > 0 => if bw.write_all(&x[..n]).await.is_err() { return },
+                _ => { a_open = false; let _ = bw.shutdown().await; }
+            },
+            r = br.read(&mut y), if b_open => match r {
+                Ok(n) if n > 0 => if aw.write_all(&y[..n]).await.is_err() { return },
+                _ => { b_open = false; let _ = aw.shutdown().await; }
+            },
+            _ = tokio::time::sleep(wait) => return,
+        }
+    }
+}
+
 static RELAY: Mutex<Option<Arc<Relay>>> = Mutex::new(None);
 
 pub fn set_global(r: Option<Arc<Relay>>) {
@@ -486,4 +510,45 @@ pub fn bypassed(list: &[String], host: &str) -> bool {
             None => p == h || (p.starts_with('*') && h.ends_with(p.trim_start_matches('*'))),
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn pair() -> (TcpStream, TcpStream) {
+        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let c = TcpStream::connect(l.local_addr().unwrap()).await.unwrap();
+        (c, l.accept().await.unwrap().0)
+    }
+
+    #[tokio::test]
+    async fn tunnel_ends_when_the_client_left_and_the_server_stays_silent() {
+        // client <-> (a | relay | b) <-> silent server
+        let (client, mut a) = pair().await;
+        let (mut b, _server) = pair().await; // the server never sends and never closes
+        drop(client); // GDM dropped a stalled connection
+        let t = std::time::Instant::now();
+        tokio::time::timeout(Duration::from_secs(5), pump(&mut a, &mut b, Duration::from_secs(60), Duration::from_millis(300)))
+            .await
+            .expect("tunnel ended after the grace time, not never");
+        assert!(t.elapsed() < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn tunnel_passes_bytes_both_ways() {
+        let (mut client, mut a) = pair().await;
+        let (mut b, mut server) = pair().await;
+        let h = tokio::spawn(async move { pump(&mut a, &mut b, Duration::from_secs(5), Duration::from_millis(300)).await });
+        client.write_all(b"ping").await.unwrap();
+        let mut buf = [0u8; 4];
+        server.read_exact(&mut buf).await.unwrap();
+        assert_eq!(&buf, b"ping");
+        server.write_all(b"pong").await.unwrap();
+        client.read_exact(&mut buf).await.unwrap();
+        assert_eq!(&buf, b"pong");
+        drop(client);
+        drop(server);
+        tokio::time::timeout(Duration::from_secs(3), h).await.unwrap().unwrap();
+    }
 }
