@@ -88,6 +88,34 @@ pub struct Format {
     pub has_drm: bool,
     /// Without Cookie / Authorization / Proxy-Authorization (M-08) and without control characters.
     pub http_headers: Vec<(String, String)>,
+    /// DASH (`http_dash_segments`): init + media segments in order, resolved against `fragment_base_url`; every
+    /// one an http(s) URL without userinfo, at most `MAX_SEGMENTS`. Empty when any fragment fails a check (the
+    /// format is then not offered) and for every other protocol.
+    pub fragments: Vec<url::Url>,
+}
+
+/// yt-dlp's fragment list for a DASH format (hostile input): all-or-nothing
+fn dash_fragments(v: &Value) -> Vec<url::Url> {
+    let base = s(v, "fragment_base_url").and_then(|b| http_url(&b));
+    let Some(list) = v.get("fragments").and_then(Value::as_array) else { return vec![] };
+    if list.is_empty() || list.len() > crate::MAX_SEGMENTS {
+        return vec![];
+    }
+    let mut out = Vec::with_capacity(list.len());
+    for f in list {
+        let u = match (s(f, "url"), s(f, "path"), &base) {
+            (Some(u), _, _) => http_url(&u),
+            (None, Some(p), Some(b)) if !p.starts_with('-') && !p.chars().any(|c| c.is_control()) => {
+                b.join(&p).ok().and_then(|u| http_url(u.as_str()))
+            }
+            _ => None,
+        };
+        match u {
+            Some(u) => out.push(u),
+            None => return vec![],
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -129,6 +157,7 @@ fn format(v: &Value) -> Option<Format> {
         filesize: size("filesize").or_else(|| size("filesize_approx")),
         has_drm: v.get("has_drm") == Some(&Value::Bool(true)),
         http_headers: headers,
+        fragments: if s(v, "protocol").as_deref() == Some("http_dash_segments") { dash_fragments(v) } else { vec![] },
     })
 }
 
@@ -197,12 +226,19 @@ fn best<'a>(it: impl Iterator<Item = &'a Format>, key: impl Fn(&Format) -> u8) -
     it.max_by(|a, b| (key(a), a.tbr.unwrap_or(0.0)).partial_cmp(&(key(b), b.tbr.unwrap_or(0.0))).unwrap_or(std::cmp::Ordering::Equal))
 }
 
-/// Quality list for the popup (M-06). Never offers DRM formats. Offers progressive http(s) and
-/// HLS (`m3u8`, `m3u8_native`: GDM fetches HLS itself); DASH (`http_dash_segments`), `f4m`, `ism`
-/// and every other protocol are left out in v1.0 because GDM has no fetcher for them.
+/// Quality list for the popup (M-06). Never offers DRM formats. Offers progressive http(s), HLS (`m3u8`,
+/// `m3u8_native`) and DASH (`http_dash_segments` with a checked fragment list): GDM fetches both itself;
+/// `f4m`, `ism` and every other protocol are left out because GDM has no fetcher for them.
 pub fn choices(info: &Info) -> Vec<Choice> {
-    let ok: Vec<&Format> =
-        info.formats.iter().filter(|f| !f.has_drm && matches!(f.protocol.as_str(), "http" | "https" | "m3u8" | "m3u8_native")).collect();
+    let ok: Vec<&Format> = info
+        .formats
+        .iter()
+        .filter(|f| {
+            !f.has_drm
+                && (matches!(f.protocol.as_str(), "http" | "https" | "m3u8" | "m3u8_native")
+                    || (f.protocol == "http_dash_segments" && !f.fragments.is_empty()))
+        })
+        .collect();
     let audio: Vec<&Format> = ok.iter().copied().filter(|f| is_none(&f.vcodec) && !is_none(&f.acodec)).collect();
     let best_audio = |p: &[&str]| best(audio.iter().copied().filter(|f| has(&f.acodec, p)), |_| 0);
     let video: Vec<&Format> = ok.iter().copied().filter(|f| !is_none(&f.vcodec) && f.height.is_some()).collect();
@@ -266,6 +302,27 @@ pub fn choices(info: &Info) -> Vec<Choice> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// DASH (IDM parity): offered only with a fully checked fragment list (the shape yt-dlp writes for a real .mpd)
+    #[test]
+    fn dash_fragments_all_or_nothing() {
+        let d = |frags: &str| {
+            parse_info(&format!(
+                r#"{{"title":"t","formats":[{{"format_id":"v","ext":"mp4","url":"https://cdn/x.mpd","protocol":"http_dash_segments","vcodec":"avc1","acodec":"mp4a","height":480,"fragment_base_url":"https://cdn/a/./","fragments":{frags}}}]}}"#
+            ))
+            .unwrap()
+        };
+        let i = d(r#"[{"path":"v/init.mp4"},{"path":"v/1.m4s","duration":4},{"url":"https://cdn2/abs/2.m4s"}]"#);
+        let f = &i.formats[0].fragments;
+        assert_eq!(f.iter().map(|u| u.as_str()).collect::<Vec<_>>(), ["https://cdn/a/v/init.mp4", "https://cdn/a/v/1.m4s", "https://cdn2/abs/2.m4s"]);
+        assert_eq!(choices(&i).len(), 1, "DASH with fragments is offered");
+        for bad in
+            [r#"[{"url":"file:///C:/x"}]"#, r#"[{"path":"v/1.m4s"},{"url":"https://u:p@cdn/x"}]"#, r#"[{"path":"-o"}]"#, r#"[]"#, r#"[{"x":1}]"#]
+        {
+            let i = d(bad);
+            assert!(i.formats[0].fragments.is_empty() && choices(&i).is_empty(), "{bad}");
+        }
+    }
 
     #[test]
     fn unknown_height_gets_one_best_choice() {

@@ -6,6 +6,8 @@
 //!     M-08: netstat sampled while it runs); GDM fetches the segments; ffmpeg remuxes; ffprobe sees both streams.
 //!  2. separate video + audio (M-06): GDM downloads both with its engine, ffmpeg muxes local files only, the
 //!     result has 1 video + 1 audio stream.
+//!  3. DASH (IDM parity): a real .mpd made by ffmpeg (SegmentTemplate, separate video and audio); yt-dlp lists the
+//!     fragments, GDM fetches init + segments itself, ffmpeg muxes, ffprobe sees 1 video + 1 audio.
 use gdm_app::app::{lock, App};
 use gdm_app::components::{self, Component, ComponentFile};
 use std::path::{Path, PathBuf};
@@ -116,6 +118,41 @@ async fn f07_real_components_hls_page_and_dash_pair() {
     );
     ffmpeg(&b, &gen, &["-f", "lavfi", "-i", "testsrc=d=2:s=320x240:r=25", "-an", "-c:v", "mpeg4", "video.mp4"]);
     ffmpeg(&b, &gen, &["-f", "lavfi", "-i", "sine=d=2", "-vn", "-c:a", "aac", "audio.m4a"]);
+    ffmpeg(
+        &b,
+        &gen,
+        &[
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=d=4:s=320x240:r=25",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=d=4",
+            "-map",
+            "0:v",
+            "-map",
+            "1:a",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
+            "-f",
+            "dash",
+            "-seg_duration",
+            "1",
+            "-use_template",
+            "1",
+            "-use_timeline",
+            "0",
+            "-init_seg_name",
+            "dinit-$RepresentationID$.m4s",
+            "-media_seg_name",
+            "dseg-$RepresentationID$-$Number%05d$.m4s",
+            "d.mpd",
+        ],
+    );
     let fx = gdm_fixture::Fixture::start("127.0.0.1:0").await;
     for e in std::fs::read_dir(&gen).unwrap().flatten() {
         fx.add_blob(&e.file_name().to_string_lossy(), std::fs::read(e.path()).unwrap());
@@ -177,6 +214,24 @@ async fn f07_real_components_hls_page_and_dash_pair() {
     assert_eq!(kind("video"), 1, "{streams}");
     assert_eq!(kind("audio"), 1, "{streams}");
     assert!(name.starts_with("Pair test") && (name.ends_with(".mp4") || name.ends_with(".mkv")), "{name}");
+
+    // 3. DASH: yt-dlp reads the .mpd (through the relay), GDM fetches the fragments, ffmpeg muxes
+    let probe = a.media_probe(&fx.url("/static/d.mpd")).await.unwrap();
+    let pending = lock(&a.media).remove(&probe.token).unwrap();
+    let dash = pending.info.formats.iter().filter(|f| f.protocol == "http_dash_segments").collect::<Vec<_>>();
+    assert!(dash.len() >= 2 && dash.iter().all(|f| f.fragments.len() >= 4), "video + audio with init + segments: {dash:?}");
+    let c = pending.choices.iter().find(|c| c.video_id.is_some() && c.audio_id.is_some()).cloned().expect("a DASH video+audio choice");
+    let name = a.media_job(&pending, &c).await.unwrap();
+    let out = std::path::PathBuf::from(&lock(&a.settings).download_dir).join("Video").join(&name);
+    let probe = std::process::Command::new(b.join("ffprobe.exe"))
+        .args(["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0"])
+        .arg(&out)
+        .output()
+        .unwrap();
+    let streams = String::from_utf8_lossy(&probe.stdout).to_string();
+    let kind = |k: &str| streams.lines().filter(|l| l.split(',').next().is_some_and(|c| c.trim() == k)).count();
+    assert_eq!((kind("video"), kind("audio")), (1, 1), "DASH result {name}: {streams}");
+    eprintln!("DASH result: {name}");
     drop(a);
     let _ = std::fs::remove_dir_all(&d);
 }

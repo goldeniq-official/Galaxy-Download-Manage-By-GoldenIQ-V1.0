@@ -223,6 +223,7 @@ async function sendLinks(urls: string[], referrer: string | null, storeId?: stri
 const STREAM = /\.(m3u8|mpd|mp4|webm|m4v|mov)$/i;
 const streams = new Map<number, { url: string; kind: string }[]>();
 const players = new Map<number, number>();
+const top = new Map<number, string>(); // tab -> the page it shows
 let videoSites = new Set<string>();
 const loadVideoSites = () =>
   chrome.storage.local.get("videoSites").then((v) => (videoSites = new Set(Array.isArray(v.videoSites) ? (v.videoSites as string[]) : [])));
@@ -239,16 +240,20 @@ chrome.webRequest.onBeforeRequest.addListener(
     if (d.tabId < 0) return undefined;
     if (d.type === "main_frame") {
       streams.delete(d.tabId); // a new page: its streams start over
+      top.set(d.tabId, d.url); // each redirect hop fires again: the last one is the page the tab shows
       return undefined;
     }
-    const page = (d as { documentUrl?: string }).documentUrl ?? d.initiator ?? "";
+    // the site is the TAB's page (what the user turned on in the popup), not the frame that asked: players are
+    // often iframes from another host (a news site embedding a CDN player). Fallback after a worker restart.
+    const frame = (d as { documentUrl?: string }).documentUrl ?? d.initiator ?? "";
+    const page = top.get(d.tabId) ?? frame;
     let path = "";
     try {
       path = new URL(d.url).pathname;
     } catch {
       return undefined;
     }
-    if (!STREAM.test(path) || !videoSites.has(hostOf(page)) || onYouTube(page) || d.url.length > 8192) return undefined;
+    if (!STREAM.test(path) || !videoSites.has(hostOf(page)) || onYouTube(page) || onYouTube(frame) || d.url.length > 8192) return undefined;
     const list = streams.get(d.tabId) ?? [];
     if (!list.some((s) => s.url === d.url) && list.length < 20) {
       list.push({ url: d.url, kind: path.match(STREAM)![1].toLowerCase() });
@@ -262,6 +267,10 @@ chrome.webRequest.onBeforeRequest.addListener(
 chrome.tabs.onRemoved.addListener((id) => {
   streams.delete(id);
   players.delete(id);
+  top.delete(id);
+});
+chrome.tabs.onUpdated.addListener((id, info) => {
+  if (info.url) top.set(id, info.url);
 });
 
 chrome.runtime.onMessage.addListener((m, sender) => {

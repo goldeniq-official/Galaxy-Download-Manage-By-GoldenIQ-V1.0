@@ -193,6 +193,10 @@ impl App {
                 let path = parts.join(format!("{tag}.{ext}"));
                 if f.protocol.starts_with("m3u8") {
                     self.hls_fetch(&f.url, &path, &p.page).await?;
+                } else if f.protocol == "http_dash_segments" {
+                    // DASH: yt-dlp read the .mpd; GDM fetches init + segments itself, like HLS
+                    let client = Self::media_client(&p.page)?;
+                    Self::fetch_segments(&client, f.fragments.iter().cloned(), &path).await?;
                 } else {
                     self.stream_fetch(&f.url, &parts, &format!("{tag}.{ext}"), &p.page).await?;
                 }
@@ -240,10 +244,43 @@ impl App {
 
     /// HLS (unencrypted) fetched by GDM itself: playlist + segments through the engine's network policy;
     /// M-03 limits in the parser; encrypted => unsupported in v1.0; DRM => refused
-    async fn hls_fetch(&self, url: &str, out: &Path, page: &str) -> Result<(), String> {
-        use tokio::io::AsyncWriteExt;
+    /// the client for playlists and segments: GDM's network policy (W-02), the page's own host may be on the LAN
+    fn media_client(page: &str) -> Result<gdm_core::reqwest::Client, String> {
         let host = url::Url::parse(page).ok().and_then(|u| u.host_str().map(String::from)).unwrap_or_default();
-        let client = gdm_core::net::client(Arc::new(gdm_core::net::Policy { allow_private: vec![host] }), false, Duration::from_secs(30))?;
+        gdm_core::net::client(Arc::new(gdm_core::net::Policy { allow_private: vec![host] }), false, Duration::from_secs(30))
+    }
+
+    /// init + segments, in order, into one file (HLS and DASH); M-03/E-03 bounds per segment and in total, and
+    /// never into the 1 GB free-space reserve
+    async fn fetch_segments(client: &gdm_core::reqwest::Client, urls: impl Iterator<Item = url::Url>, out: &Path) -> Result<(), String> {
+        use tokio::io::AsyncWriteExt;
+        const MAX_SEGMENT: u64 = 256 << 20;
+        let dir = out.parent().unwrap_or(Path::new("."));
+        let total_cap = (20u64 << 30).min(gdm_core::fsx::free_space(dir).saturating_sub(gdm_core::seg::RESERVE));
+        let mut total = 0u64;
+        let mut f = tokio::fs::File::create(out).await.map_err(|e| e.to_string())?;
+        for s in urls {
+            let mut r = client.get(s).send().await.map_err(|e| e.to_string())?;
+            if !r.status().is_success() {
+                return Err(format!("segment http {}", r.status()));
+            }
+            let mut seg = 0u64;
+            while let Some(ch) = r.chunk().await.map_err(|e| e.to_string())? {
+                seg += ch.len() as u64;
+                total += ch.len() as u64;
+                if seg > MAX_SEGMENT || total > total_cap {
+                    drop(f);
+                    let _ = tokio::fs::remove_file(out).await;
+                    return Err("too-large".into());
+                }
+                f.write_all(&ch).await.map_err(|e| e.to_string())?;
+            }
+        }
+        f.sync_all().await.map_err(|e| e.to_string())
+    }
+
+    async fn hls_fetch(&self, url: &str, out: &Path, page: &str) -> Result<(), String> {
+        let client = Self::media_client(page)?;
         let get_text = |u: url::Url| {
             let c = client.clone();
             async move {
@@ -274,31 +311,7 @@ impl App {
                     if !endlist {
                         return Err("live".into());
                     }
-                    // M-03/E-03 bounds: per segment and in total, and never into the 1 GB free-space reserve
-                    const MAX_SEGMENT: u64 = 256 << 20;
-                    let dir = out.parent().unwrap_or(Path::new("."));
-                    let total_cap = (20u64 << 30).min(gdm_core::fsx::free_space(dir).saturating_sub(gdm_core::seg::RESERVE));
-                    let mut total = 0u64;
-                    let mut f = tokio::fs::File::create(out).await.map_err(|e| e.to_string())?;
-                    for s in init.into_iter().chain(segments) {
-                        let mut r = client.get(s).send().await.map_err(|e| e.to_string())?;
-                        if !r.status().is_success() {
-                            return Err(format!("segment http {}", r.status()));
-                        }
-                        let mut seg = 0u64;
-                        while let Some(ch) = r.chunk().await.map_err(|e| e.to_string())? {
-                            seg += ch.len() as u64;
-                            total += ch.len() as u64;
-                            if seg > MAX_SEGMENT || total > total_cap {
-                                drop(f);
-                                let _ = tokio::fs::remove_file(out).await;
-                                return Err("too-large".into());
-                            }
-                            f.write_all(&ch).await.map_err(|e| e.to_string())?;
-                        }
-                    }
-                    f.sync_all().await.map_err(|e| e.to_string())?;
-                    return Ok(());
+                    return Self::fetch_segments(&client, init.into_iter().chain(segments), out).await;
                 }
             }
         }
