@@ -248,6 +248,9 @@ impl App {
             let c = client.clone();
             async move {
                 let mut r = c.get(u).send().await.map_err(|e| e.to_string())?;
+                if !r.status().is_success() {
+                    return Err(format!("playlist http {}", r.status()));
+                }
                 let mut b = Vec::new();
                 while let Some(ch) = r.chunk().await.map_err(|e| e.to_string())? {
                     if b.len() + ch.len() > gdm_media::MAX_TEXT {
@@ -271,13 +274,26 @@ impl App {
                     if !endlist {
                         return Err("live".into());
                     }
+                    // M-03/E-03 bounds: per segment and in total, and never into the 1 GB free-space reserve
+                    const MAX_SEGMENT: u64 = 256 << 20;
+                    let dir = out.parent().unwrap_or(Path::new("."));
+                    let total_cap = (20u64 << 30).min(gdm_core::fsx::free_space(dir).saturating_sub(gdm_core::seg::RESERVE));
+                    let mut total = 0u64;
                     let mut f = tokio::fs::File::create(out).await.map_err(|e| e.to_string())?;
                     for s in init.into_iter().chain(segments) {
                         let mut r = client.get(s).send().await.map_err(|e| e.to_string())?;
                         if !r.status().is_success() {
                             return Err(format!("segment http {}", r.status()));
                         }
+                        let mut seg = 0u64;
                         while let Some(ch) = r.chunk().await.map_err(|e| e.to_string())? {
+                            seg += ch.len() as u64;
+                            total += ch.len() as u64;
+                            if seg > MAX_SEGMENT || total > total_cap {
+                                drop(f);
+                                let _ = tokio::fs::remove_file(out).await;
+                                return Err("too-large".into());
+                            }
                             f.write_all(&ch).await.map_err(|e| e.to_string())?;
                         }
                     }
@@ -291,8 +307,17 @@ impl App {
 
     async fn mux(&self, inputs: &[PathBuf], out: &Path, cwd: &Path) -> Result<(), String> {
         let mut args: Vec<String> = ["-hide_banner", "-nostdin", "-loglevel", "error", "-protocol_whitelist", "file,pipe"].map(String::from).to_vec();
+        // each input's demuxer is pinned from the name GDM gave it and only these demuxers may run, so
+        // hls/concat/image2/... (which can open other local files) are never reached (security review G7)
+        args.extend(["-format_whitelist", "mpegts,mov,mp4,m4a,matroska,webm"].map(String::from));
         for i in inputs {
-            args.extend(["-i".to_string(), i.display().to_string()]);
+            let demux = match i.extension().and_then(|e| e.to_str()).unwrap_or("") {
+                "ts" => "mpegts",
+                "mp4" | "m4a" => "mov",
+                "mkv" | "webm" => "matroska",
+                e => return Err(format!("unsupported-input {e}")),
+            };
+            args.extend(["-f".to_string(), demux.to_string(), "-i".to_string(), i.display().to_string()]);
         }
         if inputs.len() == 2 {
             args.extend(["-map", "0:v:0", "-map", "1:a:0"].map(String::from));
