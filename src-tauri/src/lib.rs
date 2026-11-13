@@ -855,7 +855,7 @@ async fn check_update_inner(h: &AppHandle, app: &Arc<App>, manual: bool) {
     }
     let res = async {
         let up = h.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?.ok_or("no update")?;
-        if !m.binds("windows-x86_64", &up.version, up.download_url.as_str(), &up.signature) {
+        if !m.binds(&update::platform_key(), &up.version, up.download_url.as_str(), &up.signature) {
             return Err(format!("refused: the updater's {} is not the installer the signed manifest names ({})", up.version, m.version));
         }
         set_update(|u| u.state = update::State::Verifying);

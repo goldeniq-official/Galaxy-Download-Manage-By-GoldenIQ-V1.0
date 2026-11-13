@@ -53,6 +53,16 @@ pub struct Manifest {
     pub platforms: std::collections::BTreeMap<String, Platform>,
 }
 
+/// this build's key in latest.json, as Tauri names it ("windows-x86_64", "windows-aarch64", "darwin-aarch64",
+/// "linux-x86_64"...): an ARM64 build must check ITS installer, not the x64 one
+pub fn platform_key() -> String {
+    let os = match std::env::consts::OS {
+        "macos" => "darwin",
+        o => o,
+    };
+    format!("{os}-{}", std::env::consts::ARCH)
+}
+
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Platform {
     pub url: String,
@@ -262,6 +272,10 @@ mod tests {
         assert!(!m.binds("windows-x86_64", "0.9.1", &p.url, "other-signature"));
         assert!(!m.binds("windows-x86_64", "0.9.2", &p.url, &p.signature));
         assert!(!m.binds("windows-aarch64", "0.9.1", &p.url, &p.signature));
+        #[cfg(all(windows, target_arch = "x86_64"))]
+        assert_eq!(platform_key(), "windows-x86_64");
+        #[cfg(all(windows, target_arch = "aarch64"))]
+        assert_eq!(platform_key(), "windows-aarch64");
     }
     #[test]
     fn u06_held_installer_cannot_be_swapped_and_tampering_is_seen() {

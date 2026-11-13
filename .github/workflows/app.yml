@@ -72,6 +72,11 @@ jobs:
           New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
           Copy-Item target/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe
       - run: cargo clippy -p galaxy-download-manager --all-targets --locked -- -D warnings
+      - name: Windows ARM64 compiles (release builds it by cross-compiling; ring needs the image's clang)
+        run: |
+          rustup target add aarch64-pc-windows-msvc
+          Copy-Item src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe src-tauri/binaries/gdm-bridge-aarch64-pc-windows-msvc.exe
+          cargo check --workspace --target aarch64-pc-windows-msvc --locked
       - name: app tests (U-01 manifest, C-01 glob) + bridge (B-01, B-02, B-03)
         run: cargo test -p galaxy-download-manager -p gdm-bridge --locked
       - name: Store (MSIX) build compiles without the updater (§07)
@@ -95,6 +100,10 @@ jobs:
           pnpm exec playwright install chromium
           $chrome = Get-ChildItem "$env:LOCALAPPDATA\ms-playwright\chromium-*\chrome-win64\chrome.exe" | Select-Object -First 1
           node tests/e2e/extension.mjs $chrome.FullName
+          if ($LASTEXITCODE) { exit 1 }
+          node tests/e2e/ext-handoff.mjs $chrome.FullName
+          if ($LASTEXITCODE) { exit 1 }
+          node tests/e2e/ext-video.mjs $chrome.FullName
           if ($LASTEXITCODE) { exit 1 }
           Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force
           node tests/e2e/webview2.mjs "$env:LOCALAPPDATA\Galaxy Download Manager" $env:GDM_DATA docs/evidence/g6-shots

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: RPL-1.5
-# Release (§15): the owner pushes a tag vX.Y.Z; this builds the per-user NSIS installer, signs the updater
-# artifacts with minisign (secret only in the "release" environment, reviewer = owner), writes a SIGNED
-# latest.json (U-01: version, channel, expires; GDM verifies it before Tauri's updater runs), attests build
-# provenance, and creates a DRAFT GitHub release. The owner reviews and publishes. Authenticode via SignPath is
-# added when SignPath accepts the project (D8); until then the installer is unsigned (sha256 + attestation).
+# Release (§15): the owner pushes a tag vX.Y.Z; this builds the per-user NSIS installers for Windows x64 and
+# Windows ARM64 (ARM64 cross-compiled on the same x64 runner: no ARM runner needed, public or private repo),
+# signs the updater artifacts with minisign (secret only in the "release" environment, reviewer = owner), writes
+# ONE SIGNED latest.json naming both (U-01: version, channel, expires; each GDM checks its own platform key,
+# update::platform_key, before Tauri's updater runs), attests build provenance, and creates a DRAFT GitHub
+# release. The owner reviews and publishes. Authenticode via SignPath is added when SignPath accepts the project
+# (D8); until then the installers are unsigned (sha256 + attestation).
 name: release
 on:
   push:
@@ -13,6 +15,63 @@ env:
   RUST_VERSION: "1.97.1"
 jobs:
   build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-pc-windows-msvc, arch: x64, key: windows-x86_64 }
+          - { target: aarch64-pc-windows-msvc, arch: arm64, key: windows-aarch64 }
+    runs-on: windows-2025
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 11.15.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - name: toolchain (ring needs clang for aarch64-pc-windows-msvc; the runner image has LLVM)
+        run: |
+          rustup toolchain install $env:RUST_VERSION --profile minimal; rustup default $env:RUST_VERSION
+          rustup target add ${{ matrix.target }}
+          clang --version
+      - name: version in the tag == version in the app
+        shell: bash
+        run: test "v$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$GITHUB_REF_NAME"
+      - name: build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cargo build -p gdm-bridge --release --locked --target ${{ matrix.target }}
+          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-${{ matrix.target }}.exe
+          node scripts/nsis-khmer.mjs
+          pnpm ext
+          pnpm tauri build --target ${{ matrix.target }}
+      - name: collect
+        shell: pwsh
+        run: |
+          $v = $env:GITHUB_REF_NAME.TrimStart('v')
+          $setup = Get-ChildItem target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $name = "GDM_${v}_${{ matrix.arch }}-setup.exe"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $setup.FullName "out/$name"; Copy-Item "$($setup.FullName).sig" "out/$name.sig"
+          if ('${{ matrix.arch }}' -eq 'x64') { Compress-Archive extension/dist/chrome out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox out/gdm-extension-firefox-$v.zip }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: out-${{ matrix.arch }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
     runs-on: windows-2025
     environment: release
     permissions:
@@ -30,35 +89,27 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
-      - run: rustup toolchain install $env:RUST_VERSION --profile minimal; rustup default $env:RUST_VERSION
-      - name: version in the tag == version in the app
-        shell: bash
-        run: test "v$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$GITHUB_REF_NAME"
-      - name: build
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          cargo build -p gdm-bridge --release --locked
-          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
-          Copy-Item target/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe
-          node scripts/nsis-khmer.mjs
-          pnpm ext
-          pnpm tauri build
-      - name: signed latest.json (U-01) + sha256 sums
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: out-*
+          path: out
+          merge-multiple: true
+      - name: signed latest.json (U-01, one entry per platform) + sha256 sums
         shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $v = $env:GITHUB_REF_NAME.TrimStart('v')
-          $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
-          $name = "GDM_${v}_x64-setup.exe"
-          New-Item -ItemType Directory -Force out | Out-Null
-          Copy-Item $setup.FullName "out/$name"; Copy-Item "$($setup.FullName).sig" "out/$name.sig"
-          Compress-Archive extension/dist/chrome out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox out/gdm-extension-firefox-$v.zip
+          $base = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME"
+          $platforms = [ordered]@{}
+          foreach ($p in @(@{ key = 'windows-x86_64'; arch = 'x64' }, @{ key = 'windows-aarch64'; arch = 'arm64' })) {
+            $name = "GDM_${v}_$($p.arch)-setup.exe"
+            if (-not (Test-Path "out/$name.sig")) { throw "missing $name" }
+            $platforms[$p.key] = @{ signature = (Get-Content "out/$name.sig" -Raw).Trim(); url = "$base/$name" }
+          }
           $notes = Get-Content docs/release/notes-$v.json -Raw | ConvertFrom-Json
-          $m = [ordered]@{ version = $v; channel = $(if ($v -match '-') { 'beta' } else { 'stable' }); expires = [int][double]::Parse((Get-Date).AddDays(90).ToUniversalTime().Subtract([datetime]'1970-01-01').TotalSeconds); security = [bool]$notes.security; notes_km = $notes.km; notes_en = $notes.en; notes = $notes.en; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = @{ 'windows-x86_64' = @{ signature = (Get-Content "out/$name.sig" -Raw).Trim(); url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$name" } } }
+          $m = [ordered]@{ version = $v; channel = $(if ($v -match '-') { 'beta' } else { 'stable' }); expires = [int][double]::Parse((Get-Date).AddDays(90).ToUniversalTime().Subtract([datetime]'1970-01-01').TotalSeconds); security = [bool]$notes.security; notes_km = $notes.km; notes_en = $notes.en; notes = $notes.en; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = $platforms }
           $m | ConvertTo-Json -Depth 5 -Compress | Set-Content -NoNewline -Encoding utf8NoBOM out/latest.json
           pnpm tauri signer sign out/latest.json
           Get-ChildItem out -File | Where-Object Name -notmatch '\.sig$' | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content out/SHA256SUMS.txt
