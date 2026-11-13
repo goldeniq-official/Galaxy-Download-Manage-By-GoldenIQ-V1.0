@@ -49,6 +49,27 @@ Site grabber (មើល `docs/decisions.md` 2026-11-13 G9)។ មូលហេត
 - Playwright: ប៊ូតុង `aria-disabled` មិនអាចចុច (រង់ចាំរហូត timeout) ⇒ test ពិនិត្យ attribute ជំនួស។
 - IDM 6.43 កំពុងរត់: ក្រោយ Playwright ពិនិត្យ window IDMan ⇒ គ្មានផ្ទាំងលោតសល់។
 
+### CI: ការដំណើរការជំហាន CI ឡើងវិញក្នុងម៉ាស៊ីន (CI ពិតត្រូវរង់ចាំ push របស់ម្ចាស់)
+
+CI ពិតមិនអាចរត់បានទេ ដោយគ្មាន push (ច្បាប់ ២: ម្ចាស់ push តែម្នាក់ឯង)។ ដើម្បីឱ្យជិតបំផុត ពាក្យបញ្ជា CI ដដែល (`core.yml` + `app.yml`, Rust 1.97.1) ត្រូវបានដំណើរការលើ **worktree ស្អាតនៃ HEAD `4edb413`** (គ្មានការកែមិនទាន់ commit របស់ session ផ្សេង)។ Log ពេញ: `g9-logs/ci-local-replay.log`, `g9-logs/ci-local-replay-app.log`។
+
+| ជំហាន CI | លទ្ធផល |
+|---|---|
+| core: គ្មាន TLS bypass (grep) | exit 0 |
+| core: `cargo fmt --all -- --check` | exit 0 |
+| core: `cargo clippy --workspace --exclude galaxy-download-manager --all-targets --locked -- -D warnings` | exit 0 |
+| core: `cargo test --workspace --exclude galaxy-download-manager --locked` (រួម **g9_grabber 24**) | exit 0, គ្មាន FAILED |
+| app: `pnpm build` + build/ដាក់ sidecar `gdm-bridge` | exit 0 |
+| app: `cargo clippy -p galaxy-download-manager --all-targets --locked -- -D warnings` | exit 0 |
+| app: `cargo test -p galaxy-download-manager -p gdm-bridge --locked` | exit 0 (30 + bridge) |
+| app: `cargo check --features store` | exit 0 |
+| app: `eslint src tests extension`, `tsc --noEmit`, `tsc -p extension` | exit 0 |
+| app: `playwright test` (suite ទាំងមូល, រួម **grabber 22**) | 183 passed, 1 failed ⇒ មើលខាងក្រោម |
+
+ការដំណើរការលើកទី ១ មានបរាជ័យ ២ ដែលកើតពីវិធីដំណើរការឡើងវិញ មិនមែនពីកូដទេ: (1) app crate ត្រូវការ sidecar `binaries/gdm-bridge-*.exe` ដែល app.yml build ក្នុងជំហានមុន ហើយលើកទី ១ ខ្ញុំរំលងជំហាននោះ ⇒ ដំណើរការជំហាននោះ រួចហើយ clippy/test ឆ្លង; (2) test G8 M1 កំណត់ origin `127.0.0.1:1431` ជាប់ ប៉ុន្តែ server ត្រូវដាក់លើ port 1443 (ព្រោះ 1431 ប្រហែលជាប្រើដោយ session ផ្សេង) ⇒ ប្ដូរ port ក្នុងច្បាប់ចម្លងប៉ុណ្ណោះ ⇒ **1 passed**។ ដូច្នេះ suite ទាំងមូល = 184/184។ ក្រោយដំណើរការ: គ្មានផ្ទាំង IDM លោតសល់។
+
+**ស្ថានភាព done-condition "កាតឆ្លងក្នុង CI":** ឆ្លងក្នុងការដំណើរការជំហាន CI ឡើងវិញក្នុងម៉ាស៊ីន។ ការរត់លើ GitHub Actions ពិតនៅ **រង់ចាំ** `git push` របស់ម្ចាស់។
+
 ## ៥. Council (ច្បាប់ ៦)
 
 - **ផែនការ r1** (`codex exec -s read-only`): Codex ស្នើ module ៦, dependency `scraper`/`regex`/robots crate, persistence project, concurrency 4, redirect ដោយដៃ, credential តាម origin, typed តែ host ដែលវាយ, `.. ⇒ _..` ជាមួយ handle តាមកម្រិត, ការធ្វើ test ច្បាស់។
