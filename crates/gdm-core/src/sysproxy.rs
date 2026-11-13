@@ -34,6 +34,8 @@ pub struct IeConfig {
     pub pac_url: Option<String>,
     pub proxy: Option<String>,
     pub bypass: Vec<String>,
+    /// a configured proxy GDM cannot use safely (e.g. TLS to the proxy): block, never fall back to plaintext
+    pub unsupported: Option<String>,
 }
 
 /// the current user's Internet Options proxy settings
@@ -48,6 +50,7 @@ pub fn ie_config() -> IeConfig {
         pac_url: take(c.lpszAutoConfigUrl),
         proxy: take(c.lpszProxy),
         bypass: take(c.lpszProxyBypass).map(|b| b.split([';', ' ']).filter(|x| !x.is_empty()).map(String::from).collect()).unwrap_or_default(),
+        unsupported: None,
     }
 }
 
@@ -61,33 +64,39 @@ pub fn ie_config() -> IeConfig {
 #[cfg(unix)]
 fn env_config(get: &dyn Fn(&str) -> Option<String>) -> IeConfig {
     let var = |k: &str| get(&k.to_ascii_lowercase()).or_else(|| get(&k.to_ascii_uppercase())).filter(|v| !v.trim().is_empty());
-    // "http://user@host:3128/" -> "host:3128" (credentials never come from the environment: the Proxy settings own them)
-    let hp = |v: String| {
+    // "http://user@host:3128/" -> ("http", "host:3128"): the scheme is kept (a TLS proxy is never spoken to in
+    // plaintext); credentials never come from the environment (the Proxy settings own them)
+    let parse = |v: String| {
         let v = v.trim().to_string();
-        let rest = v.split_once("://").map(|(_, r)| r.to_string()).unwrap_or(v);
+        let (scheme, rest) = v.split_once("://").map(|(s, r)| (s.to_ascii_lowercase(), r.to_string())).unwrap_or(("http".into(), v));
         let rest = rest.rsplit_once('@').map(|(_, h)| h.to_string()).unwrap_or(rest);
-        rest.trim_end_matches('/').to_string()
+        (scheme, rest.trim_end_matches('/').to_string())
     };
-    let mut list = vec![];
+    let mut list: Vec<String> = vec![];
+    let mut unsupported = None;
+    let mut add = |list: &mut Vec<String>, for_scheme: &str, v: String| {
+        let (scheme, hp) = parse(v);
+        match scheme.as_str() {
+            "http" => list.push(format!("{for_scheme}={hp}")),
+            "socks" | "socks5" | "socks5h" => list.push(format!("socks={hp}")),
+            s => unsupported = Some(format!("proxy scheme {s}:// is not supported: set the proxy in Settings")),
+        }
+    };
     if let Some(v) = var("http_proxy") {
-        list.push(format!("http={}", hp(v)));
+        add(&mut list, "http", v);
     }
     if let Some(v) = var("https_proxy") {
-        list.push(format!("https={}", hp(v)));
+        add(&mut list, "https", v);
     }
     if let Some(v) = var("all_proxy") {
-        let socks = v.trim_start().to_ascii_lowercase().starts_with("socks");
-        let h = hp(v);
-        if socks {
-            list.push(format!("socks={h}"));
-        } else {
-            for s in ["http", "https"] {
-                if !list.iter().any(|x| x.starts_with(&format!("{s}="))) {
-                    list.push(format!("{s}={h}"));
-                }
-            }
+        if !list.iter().any(|x| x.starts_with("http=")) {
+            add(&mut list, "http", v.clone());
+        }
+        if !list.iter().any(|x| x.starts_with("https=") || x.starts_with("socks=")) {
+            add(&mut list, "https", v);
         }
     }
+    list.dedup();
     let bypass = var("no_proxy")
         .map(|b| {
             b.split(',')
@@ -98,7 +107,7 @@ fn env_config(get: &dyn Fn(&str) -> Option<String>) -> IeConfig {
                 .collect()
         })
         .unwrap_or_default();
-    IeConfig { auto_detect: false, pac_url: None, proxy: (!list.is_empty()).then(|| list.join(";")), bypass }
+    IeConfig { auto_detect: false, pac_url: None, proxy: (!list.is_empty()).then(|| list.join(";")), bypass, unsupported }
 }
 
 /// "PROXY a:1; SOCKS b:2; DIRECT" or WinHTTP's "a:1;b:2" / "http=a:1;https=b:2" => routes for `scheme`
@@ -228,9 +237,15 @@ pub fn pac_router(pac_url: Option<String>, auto_detect: bool, auth: ProxyAuth) -
 
 /// the router for "use the system proxy": manual proxy + bypass, or PAC/WPAD per host
 pub fn system_router(auth: ProxyAuth) -> Router {
-    let cfg = ie_config();
+    system_router_from(ie_config(), auth)
+}
+
+fn system_router_from(cfg: IeConfig, auth: ProxyAuth) -> Router {
     let pac = (cfg.pac_url.is_some() || cfg.auto_detect).then(|| pac_router(cfg.pac_url.clone(), cfg.auto_detect, auth.clone()));
     Arc::new(move |u: &url::Url| {
+        if let Some(why) = &cfg.unsupported {
+            return vec![Route::Block(why.clone())];
+        }
         let host = u.host_str().unwrap_or("");
         if crate::relay::bypassed(&cfg.bypass, host) {
             return vec![Route::Direct];
@@ -260,6 +275,9 @@ mod tests {
         assert!(crate::relay::bypassed(&c.bypass, "a.corp.local") && crate::relay::bypassed(&c.bypass, "localhost"));
         assert!(!crate::relay::bypassed(&c.bypass, "corp.local.evil.com"));
         assert_eq!(env(&[("all_proxy", "socks5://s:1080")]).proxy.as_deref(), Some("socks=s:1080"));
+        let tls = env(&[("https_proxy", "https://p:443")]);
+        assert!(tls.unsupported.is_some() && tls.proxy.is_none(), "a TLS proxy is refused, never used in plaintext");
+        assert!(matches!(system_router_from(tls, ProxyAuth::None)(&url::Url::parse("https://e.com/").unwrap())[0], Route::Block(_)));
         assert_eq!(env(&[]).proxy, None);
         assert!(matches!(pac_routes(Some("http://wpad/x.pac"), false, "https://e.com/", &ProxyAuth::None).unwrap()[0], Route::Block(_)));
     }

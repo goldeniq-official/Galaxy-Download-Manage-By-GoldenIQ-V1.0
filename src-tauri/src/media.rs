@@ -356,7 +356,11 @@ impl App {
             n += 1;
             name = gdm_core::name::with_counter(&base, n);
         }
-        let _ = gdm_core::fsx::attachment_save(out, &name, page, None);
+        if let (Some(parent), Some(leaf)) = (out.parent(), out.file_name().and_then(|l| l.to_str())) {
+            if let Ok(d) = gdm_core::fsx::Dir::open(parent) {
+                let _ = gdm_core::fsx::attachment_save(&d, leaf, &name, page, None);
+            }
+        }
         if !out.exists() {
             return Err("blocked".into()); // the antivirus removed it
         }

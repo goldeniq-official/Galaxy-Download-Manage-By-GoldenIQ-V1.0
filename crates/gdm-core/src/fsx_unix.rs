@@ -245,15 +245,13 @@ pub fn zone_identifier(dir: &Dir, leaf: &str) -> Option<String> {
 }
 
 /// the Unix "Save": mark the origin (macOS quarantine: Gatekeeper checks the file before it first runs; Linux:
-/// freedesktop origin attributes) and make sure the file is not executable. No antivirus exists to call.
-pub fn attachment_save(local: &Path, _final_name: &str, source: &str, referrer: Option<&str>) -> Result<(), String> {
-    let fd = rfs::open(local, OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC, Mode::empty()).map_err(|e| e.to_string())?;
-    let st = rfs::fstat(&fd).map_err(|e| e.to_string())?;
-    if FileType::from_raw_mode(st.st_mode) != FileType::RegularFile {
-        return Err("not a regular file".into());
-    }
-    rfs::fchmod(&fd, Mode::from_raw_mode(st.st_mode & 0o666)).map_err(|e| e.to_string())?;
-    set_origin(&fd, source, referrer)
+/// freedesktop origin attributes) and make sure the file is not executable. No antivirus exists to call. The
+/// file is opened through the held directory (never a re-resolved path), regular files only.
+pub fn attachment_save(dir: &Dir, leaf: &str, _final_name: &str, source: &str, referrer: Option<&str>) -> Result<(), String> {
+    let f = dir.file(leaf, OFlags::RDONLY, false, false).map_err(|e| e.to_string())?;
+    let st = rfs::fstat(&f).map_err(|e| e.to_string())?;
+    rfs::fchmod(&f, Mode::from_raw_mode(st.st_mode & 0o666)).map_err(|e| e.to_string())?;
+    set_origin(&OwnedFd::from(f), source, referrer)
 }
 
 #[cfg(target_vendor = "apple")]
@@ -403,7 +401,7 @@ mod tests {
         let dir = Dir::open(&d).unwrap();
         drop(dir.create_new("m.part").unwrap());
         rfs::chmod(d.join("m.part"), Mode::from_raw_mode(0o755)).unwrap();
-        attachment_save(&d.join("m.part"), "m.bin", "https://e.com/m.bin", None).unwrap();
+        attachment_save(&dir, "m.part", "m.bin", "https://e.com/m.bin", None).unwrap();
         let f = dir.open_locked("m.part").unwrap();
         assert!(os_protected(&f, zone_identifier(&dir, "m.part").as_deref()).is_ok(), "{:?}", zone_identifier(&dir, "m.part"));
     }

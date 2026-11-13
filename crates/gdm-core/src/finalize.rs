@@ -106,8 +106,7 @@ pub fn finalize(
     if !dir.exists(part) {
         return Err(vanished(dir, part));
     }
-    let local = dir.path.join(part);
-    let saved = fsx::attachment_save(&local, name, &clean_url(source), referrer.map(clean_url).as_deref());
+    let saved = fsx::attachment_save(dir, part, name, &clean_url(source), referrer.map(clean_url).as_deref());
     failpoint::hit("after_save");
     let f = match dir.open_locked(part) {
         Ok(f) => f,

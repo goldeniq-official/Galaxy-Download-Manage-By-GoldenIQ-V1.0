@@ -336,10 +336,11 @@ pub const GDM_CLIENT: GUID = GUID::from_u128(0x6a1c_2f0e_9b7d_4c3a_8e51_0d47_c2f
 
 /// IAttachmentExecute::Save in its own STA thread (MOTW + AV, N-05). `local` is the full path of the .part,
 /// `final_name` the name the user will see (set before Save so the policy evaluates the real type).
-pub fn attachment_save(local: &Path, final_name: &str, source: &str, referrer: Option<&str>) -> Result<(), String> {
+pub fn attachment_save(dir: &Dir, leaf: &str, final_name: &str, source: &str, referrer: Option<&str>) -> Result<(), String> {
+    let local = dir.path.join(leaf); // IAttachmentExecute takes a path; finalize then checks the file object id
     use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::Shell::{AttachmentServices, IAttachmentExecute};
-    let (local, final_name, source, referrer) = (local.to_path_buf(), final_name.to_string(), source.to_string(), referrer.map(String::from));
+    let (local, final_name, source, referrer) = (local, final_name.to_string(), source.to_string(), referrer.map(String::from));
     std::thread::spawn(move || unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
         let r = (|| {
