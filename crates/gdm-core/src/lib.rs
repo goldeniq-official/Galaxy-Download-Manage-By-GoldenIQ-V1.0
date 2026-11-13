@@ -883,7 +883,13 @@ impl Engine {
         let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
         policy.check_url(&u).ok()?; // IP literals never reach the resolver: check before sending (W-02)
         let c = net::client(policy, true, std::time::Duration::from_secs(5)).ok()?;
-        let r = tokio::time::timeout(std::time::Duration::from_secs(5), c.get(u.clone()).send()).await.ok()?.ok()?;
+        // the job's own credentials (cookie / site login) for the same origin: a protected folder needs them too
+        let mut rq = c.get(u.clone());
+        let creds = self.creds.lock().unwrap_or_else(|p| p.into_inner()).get(&job.id).cloned().unwrap_or_default();
+        for (k, v) in creds.headers_for(&u) {
+            rq = rq.header(k, v);
+        }
+        let r = tokio::time::timeout(std::time::Duration::from_secs(5), rq.send()).await.ok()?.ok()?;
         if r.status().as_u16() != 200 || net::origin(r.url()) != net::origin(&u) || r.content_length().is_some_and(|n| n > 4096) {
             return None;
         }

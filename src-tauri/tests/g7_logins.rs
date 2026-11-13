@@ -31,7 +31,9 @@ async fn p01_password_never_in_settings_db_or_export_and_sent_to_its_folder_only
     let auth: Vec<(String, bool)> = fx.log().iter().map(|r| (r.target.clone(), r.headers.iter().any(|(k, _)| k == "authorization"))).collect();
     assert!(auth.iter().filter(|(t, _)| t.starts_with("/p/")).all(|(_, h)| *h), "{auth:?}");
     assert!(auth.iter().filter(|(t, _)| t.starts_with("/file")).all(|(_, h)| !*h), "{auth:?}");
+    lock(&a.settings).categories[1].dir = r"D:\RememberedFolderXYZ".into();
     let export = a.export_json().unwrap();
+    assert!(!contains(&export, "RememberedFolderXYZ"), "no folder paths in an export");
     drop(a);
     for f in ["settings.json", "gdm.db", "gdm.db-wal"] {
         if let Ok(b) = std::fs::read(d.join("data").join(f)) {

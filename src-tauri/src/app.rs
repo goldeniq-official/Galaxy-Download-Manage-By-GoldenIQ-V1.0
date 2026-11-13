@@ -844,6 +844,14 @@ impl App {
             for k in ["hooks", "highest_seen", "last_check", "update_failures", "download_dir", "sounds", "site_logins"] {
                 o.remove(k);
             }
+            // no folder paths in an export (PRIVACY.md): remembered category folders are dropped
+            if let Some(cats) = o.get_mut("categories").and_then(|c| c.as_array_mut()) {
+                for c in cats {
+                    if let Some(c) = c.as_object_mut() {
+                        c.remove("dir");
+                    }
+                }
+            }
         }
         let e = crate::import::Export { gdm_export: 1, app_version: env!("CARGO_PKG_VERSION").into(), jobs, settings: Some(set) };
         serde_json::to_vec_pretty(&e).map_err(|e| e.to_string())
