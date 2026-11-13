@@ -24,6 +24,12 @@ GDM ជាកម្មវិធីគ្រប់គ្រងការទាញ�
 
 កូដប្រភពត្រូវបានផ្សព្វផ្សាយក្រោម **Reciprocal Public License 1.5** ([LICENSE](LICENSE), [NOTICE.md](NOTICE.md))។ នេះ**មិនមែន**ជា "open source យកទៅធ្វើអ្វីក៏បាន" ទេ: អ្នកណាកែ ហើយដាក់ប្រើ (Deploy) កំណែកែ ត្រូវបោះពុម្ពកូដរបស់ខ្លួន ប្ដូរឈ្មោះ និងរក្សាឈ្មោះអ្នកនិពន្ធ។ ឈ្មោះ "Galaxy Download Manager", "GDM" និង logo **មិន**ត្រូវបានផ្ដល់សិទ្ធិឱ្យ fork ប្រើទេ ([TRADEMARKS.md](TRADEMARKS.md))។ ការប្រើកម្មវិធីដើមគឺឥតគិតថ្លៃសម្រាប់គ្រប់គ្នា។
 
+## គាំទ្រ GDM
+
+GDM ឥតគិតថ្លៃសម្រាប់អ្នកទាំងអស់គ្នា រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័នរដ្ឋ។ ការគាំទ្រជាការស្ម័គ្រចិត្ត៖ វាមិនបើកមុខងារណាមួយ មិនផ្ដល់អាទិភាពក្នុង support ឬការសម្រេចមុខងារ ហើយមិនមែនជាការទិញផលិតផល ឬសេវាទេ។ រូប KHQR នឹងដាក់នៅទីនេះ និងក្នុងទំព័រ About របស់ app។ ស្ថាប័នដែលត្រូវការជំនួយដំឡើង ឬបង្ហាត់: [docs/services.md](docs/services.md)។ អ្នកឧបត្ថម្ភ: [docs/sponsors.md](docs/sponsors.md)។
+<!-- KHQR: put the owner's image at src/assets/khqr.png (the About page picks it up at build time) and add here:
+<img src="src/assets/khqr.png" alt="KHQR គាំទ្រ GDM / Support GDM" width="220"> -->
+
 ឯកសារផ្សេងៗ: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)
 
 Extension ពិតមានតែក្នុង store ដែលភ្ជាប់ពីក្នុង GDM ប៉ុណ្ណោះ (ID នឹងត្រូវបង្ហាញនៅទីនេះពេលបោះពុម្ព)។ Extension ផ្សេងដែលហៅខ្លួនថា "GDM" មិនមែនរបស់យើងទេ។
@@ -42,5 +48,7 @@ GDM is a Windows download manager that is free for everyone (companies, schools 
 **Install:** only from [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases); check `SHA256SUMS.txt` and `gh attestation verify`. Per-user, no admin. This beta has no Authenticode signature yet, so SmartScreen may warn.
 
 **Licence:** the source is published under the **Reciprocal Public License 1.5** ([LICENSE](LICENSE), [NOTICE.md](NOTICE.md)). It is **not** "take it and do anything" open source: whoever modifies and deploys it must publish their changes, use a different name and keep the attribution. The names "Galaxy Download Manager", "GDM" and the logo are **not** licensed to forks ([TRADEMARKS.md](TRADEMARKS.md)). Using the original program is free for everyone.
+
+**Support GDM:** GDM is free for everyone, including businesses, schools and government. Support is voluntary: it unlocks no feature, gives no priority in support or feature decisions, and buys no product or service. The KHQR image will appear here and on the app's About page. Organisations that want help with deployment or training: [docs/services.md](docs/services.md). Sponsors: [docs/sponsors.md](docs/sponsors.md).
 
 Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0

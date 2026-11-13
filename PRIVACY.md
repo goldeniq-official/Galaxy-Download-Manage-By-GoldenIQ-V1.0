@@ -31,6 +31,8 @@ GitHub និង server ដែលអ្នកទាញពី ឃើញ IP រប
 
 **ការលុប:** ពេលលុប GDM ប្រអប់ "លុបបញ្ជីការទាញយក និងការកំណត់" លុបថតខាងលើ (រួមទាំង component)។ ពាក្យសម្ងាត់ក្នុង Credential Manager លុបបានក្នុង ការកំណត់ › Site logins ឬ Windows Credential Manager។ ឯកសារដែលអ្នកបានទាញមិនដែលត្រូវលុបទេ។ ការលុប job ពីបញ្ជីមិនមែនជា secure erase ទេ។
 
+**ការគាំទ្រ (KHQR):** រូប KHQR ក្នុងទំព័រ About ជារូបភ្ជាប់ក្នុង app (គ្មាន request ទៅខាងក្រៅ, គ្មានការតាមដាន)។ ពេលអ្នកស្កេន ហើយបង់ ការទូទាត់ធ្វើក្នុងកម្មវិធីធនាគាររបស់អ្នក។ App មិនប្រមូល ឬទទួលការបញ្ជាក់ការទូទាត់ណាមួយទេ។ អ្នកទទួល (ម្ចាស់គម្រោង) ឃើញតែព័ត៌មានដែលធនាគារបង្ហាញ (ឧ. ឈ្មោះគណនី ចំនួនទឹកប្រាក់ ការកត់សម្គាល់)។
+
 ទំនាក់ទំនង: GitHub issues ក្នុង repository នេះ។
 
 <a id="english"></a>
@@ -48,5 +50,7 @@ GDM has no telemetry, no account, no user ID and no ads.
 - **The extension** sends GDM, through native messaging on this PC (no network), only: link, referrer, suggested name, size, mime type and that link's cookie. It reads nothing from pages except `<a href>` links and, only on sites where you turned on "Show videos", the number of `<video>` elements for the icon badge. Your site lists stay in the extension's storage on this PC.
 - **Export:** an exported JSON file holds the list and the settings, but no passwords, no program to run and no folder paths.
 - **Uninstall:** the box "Delete the application data" removes the folder above (including the components). Passwords in Credential Manager can be removed in Settings › Site logins or in Windows Credential Manager. Files you downloaded are never deleted. Removing a job from the list is not a secure erase.
+
+- **Support (KHQR):** the KHQR on the About page is an image bundled in the app (no external request, no tracking). If you scan it and pay, the payment happens in your banking app; The app does not collect or receive payment confirmations. The recipient (the project's owners) sees only what the bank shows (for example account name, amount, note).
 
 Contact: GitHub issues in this repository.

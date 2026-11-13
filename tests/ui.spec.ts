@@ -227,7 +227,20 @@ const G7: Record<string, { q: string; w: number; h: number; then?: (p: Page) => 
   "set-logins": { q: "scene=states", w: 1100, h: 700, then: setSec(6) },
   "set-sounds": { q: "scene=states", w: 1100, h: 700, then: setSec(7) },
   "set-video": { q: "scene=states&comp=0", w: 1100, h: 700, then: setSec(8) },
+  "set-about": { q: "scene=states", w: 1100, h: 700, then: async (p) => { await mainNav(p).last().click(); await p.locator(".set .rail .nav").last().click(); } },
 };
+
+test("G8 §21 M1: About shows the voluntary support block and loads nothing from the network", async ({ page }) => {
+  const outside: string[] = [];
+  page.on("request", (r) => { if (!r.url().startsWith("http://127.0.0.1:1431/") && !r.url().startsWith("data:")) outside.push(r.url()); });
+  await open(page, "scene=states&lang=en&theme=dark", 1100, 700);
+  await mainNav(page).last().click();
+  await page.locator(".set .rail .nav").last().click();
+  await expect(page.getByText("Support GDM")).toBeVisible();
+  await expect(page.getByText(/unlocks no feature/)).toBeVisible();
+  if (process.env.G8_QR) await expect(page.locator("img[alt=KHQR]")).toBeVisible();
+  expect(outside).toEqual([]);
+});
 
 for (const [name, s] of Object.entries(G7))
   for (const lang of ["km", "en"])

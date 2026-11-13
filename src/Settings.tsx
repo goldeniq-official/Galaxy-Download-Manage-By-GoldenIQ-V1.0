@@ -10,6 +10,8 @@ import { Components, rememberDir } from "./Dialogs";
 import { QueuesSection } from "./Queues";
 
 const VERSION = "0.9.0";
+// §21 M1: the owner's KHQR, bundled at build time (no network). Absent file = text-only "not in this build yet".
+const KHQR = Object.values(import.meta.glob<string>("./assets/khqr.png", { eager: true, query: "?url", import: "default" }))[0];
 
 export function Opt({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
@@ -312,6 +314,14 @@ export function SettingsView() {
                 {copied ? t("set.copied") : t("set.share")}
               </button>
             </Opt>
+            <div className="opt">
+              <div className="t">
+                <b>{t("set.support")}</b>
+                <small>{t("set.supportS")}</small>
+                <small>{t(KHQR ? "set.supportScan" : "set.supportNone")}</small>
+              </div>
+              {KHQR && <img src={KHQR} alt="KHQR" width={180} height={180} />}
+            </div>
           </Sec>}
         </div>
       </main>
