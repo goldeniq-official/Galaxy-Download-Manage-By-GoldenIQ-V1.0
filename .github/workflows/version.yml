@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: RPL-1.5
+# The "new version" button (docs/release/README.md). The owner presses Run workflow in GitHub Actions; this picks
+# the next number itself, so nobody edits versions by hand, and starts release.yml. Calm numbering on purpose:
+#   - the number changes only here, never per commit, push or build (CI runs carry no number);
+#   - the first press ships the version already in the repo (0.9.0) as it is;
+#   - default bump = minor (0.9.0 -> 0.10.0), so the last number stays 0; patch is only for an urgent fix;
+#   - refused when nothing changed since the last release, and a minor/major less than 7 days after the last one.
+name: version
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "minor = normal release; patch = urgent fix only; major = big break"
+        type: choice
+        options: [minor, patch, major]
+        default: minor
+permissions: read-all
+concurrency: version
+jobs:
+  next:
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - name: pick the number, move the notes, commit, tag
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          git config user.name goldeniq-official
+          git config user.email yr.goldeniq@gmail.com
+          cur=$(node scripts/version.mjs)
+          if ! git rev-parse -q --verify "refs/tags/v$cur" >/dev/null; then
+            v=$cur # never released yet: ship it as it is
+          else
+            [ -n "$(git log "v$cur..HEAD" --oneline)" ] || { echo "::error::nothing new since v$cur"; exit 1; }
+            age=$(( ($(date +%s) - $(git log -1 --format=%ct "v$cur")) / 86400 ))
+            if [ "$BUMP" != patch ] && [ "$age" -lt 7 ]; then
+              echo "::error::v$cur is only $age day(s) old; wait 7 days, or use patch for an urgent fix"; exit 1
+            fi
+            for e in json md; do
+              [ -f docs/release/next.$e ] || { echo "::error::write docs/release/next.$e (the notes of this release) first"; exit 1; }
+            done
+            v=$(node scripts/version.mjs "$BUMP")
+            git mv docs/release/next.json "docs/release/notes-$v.json"
+            git mv docs/release/next.md "docs/release/notes-$v.md"
+            git add package.json Cargo.toml Cargo.lock
+            git commit -q -m "release v$v"
+          fi
+          for e in json md; do [ -f "docs/release/notes-$v.$e" ] || { echo "::error::missing docs/release/notes-$v.$e"; exit 1; }; done
+          git tag -a "v$v" -m "Galaxy Download Manager v$v"
+          git push --atomic origin HEAD:main "v$v"
+          echo "V=$v" >> "$GITHUB_ENV"
+      - name: build and draft the release (release.yml on the new tag)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref "v$V"

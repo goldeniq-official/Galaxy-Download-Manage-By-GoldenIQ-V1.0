@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: RPL-1.5
 [package]
 name = "gdm-fixture"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 publish = false
 authors = ["GoldenIQ"]

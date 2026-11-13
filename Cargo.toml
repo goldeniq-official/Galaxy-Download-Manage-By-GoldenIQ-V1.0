@@ -5,6 +5,10 @@ members = ["crates/gdm-core", "crates/gdm-bridge", "crates/gdm-media", "crates/g
 # the G2/G3 throwaway spikes keep their own lock files
 exclude = ["spikes"]
 
+# THE version of GDM (app, bridge, core UA...): set only by scripts/version.mjs (docs/release/README.md)
+[workspace.package]
+version = "0.9.0"
+
 [profile.release]
 codegen-units = 1
 lto = true

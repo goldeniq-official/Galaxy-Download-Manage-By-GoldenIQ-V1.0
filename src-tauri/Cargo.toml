@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: RPL-1.5
 [package]
 name = "galaxy-download-manager"
-version = "0.9.0"
+version.workspace = true
 description = "Galaxy Download Manager"
 authors = ["GoldenIQ"]
 license = "RPL-1.5"

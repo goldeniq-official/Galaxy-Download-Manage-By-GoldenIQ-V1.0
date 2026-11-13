@@ -9,7 +9,7 @@ import { ErrLine, Icon, Modal, Tabs, Toggle } from "./ui";
 import { Components, rememberDir } from "./Dialogs";
 import { QueuesSection } from "./Queues";
 
-const VERSION = "0.9.0";
+import { version as VERSION } from "../package.json";
 // §21 M1: the owner's KHQR, bundled at build time (no network). Absent file = text-only "not in this build yet".
 const KHQR = Object.values(import.meta.glob<string>("./assets/khqr.png", { eager: true, query: "?url", import: "default" }))[0];
 
