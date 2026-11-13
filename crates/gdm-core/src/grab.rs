@@ -118,7 +118,7 @@ impl Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Found {
     pub url: String,
     /// the page that linked it (sent as Referer)
@@ -332,7 +332,7 @@ fn entities(s: &str) -> String {
     while let Some(i) = rest.find('&') {
         o.push_str(&rest[..i]);
         rest = &rest[i..];
-        let end = rest[..rest.len().min(12)].find(';');
+        let end = rest.as_bytes().iter().take(12).position(|&c| c == b';'); // bytes: never cuts a char
         let rep = end.and_then(|e| {
             let ent = &rest[1..e];
             let c = match ent {
@@ -788,7 +788,8 @@ impl Run<'_> {
             let st = resp.status().as_u16();
             if (300..400).contains(&st) && prev.len() < 5 {
                 let next = resp.headers().get("location").and_then(|l| l.to_str().ok()).and_then(|l| at.join(l).ok());
-                match next.filter(|n| net::redirect_ok(&prev, n, &self.policy).is_ok()) {
+                // a robots hop gets the same checks as a page hop (W-02, avoid list, scope); refused => no robots.txt
+                match next.filter(|n| net::redirect_ok(&prev, n, &self.policy).is_ok() && !avoided(n, &self.avoid) && self.scope(n).is_some()) {
                     Some(n) => {
                         prev.push(at);
                         at = n;

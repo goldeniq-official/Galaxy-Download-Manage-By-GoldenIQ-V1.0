@@ -292,6 +292,95 @@ fn batch_add(app: A, b: import::Batch, confirmed: bool, queue: Option<String>) -
     Ok(app.add_items(&items, queue.as_deref())?.len())
 }
 
+// ---------------- site grabber (F09): one project at a time, results stay in the UI until "Add"
+
+static GRAB_STOP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static GRAB_BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static GRAB_PROGRESS: Mutex<Option<gdm_core::grab::Progress>> = Mutex::new(None);
+/// the folder chosen with the native picker (X-01: no path ever comes from the WebView)
+static GRAB_DIR: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
+
+fn grab_dir() -> std::path::PathBuf {
+    lock(&GRAB_DIR).clone().unwrap_or_else(|| app::downloads_dir().join("Grabber"))
+}
+
+/// explore the site; `user`/`password` = optional login, sent as Basic to the start page's origin only (W-01)
+#[tauri::command]
+async fn grab_run(cfg: gdm_core::grab::Config, user: Option<String>, password: Option<String>) -> R<gdm_core::grab::Report> {
+    use std::sync::atomic::Ordering::SeqCst;
+    let mut cfg = cfg;
+    if cfg.start.len() > gdm_bridge::MAX_URL || [&cfg.avoid, &cfg.domains, &cfg.include, &cfg.exclude, &cfg.types].iter().any(|s| s.len() > 4096) {
+        return Err("bad-url".into());
+    }
+    cfg.typed = true; // the wizard's start page is always typed or pasted by the user
+    cfg.creds = match (user.as_deref().map(str::trim).filter(|u| !u.is_empty()), password) {
+        (Some(u), p) if u.len() <= 256 && !u.contains(':') && !u.chars().any(char::is_control) => {
+            vec![("Authorization".into(), creds::basic(u, &p.unwrap_or_default()))]
+        }
+        (Some(_), _) => return Err("bad-login".into()),
+        _ => vec![],
+    };
+    if GRAB_BUSY.swap(true, SeqCst) {
+        return Err("busy".into());
+    }
+    GRAB_STOP.store(false, SeqCst);
+    let last = Mutex::new(Instant::now() - Duration::from_secs(1));
+    let r = gdm_core::grab::crawl(&cfg, &GRAB_STOP, &|p| {
+        let mut l = lock(&last);
+        if l.elapsed() >= Duration::from_millis(250) {
+            *l = Instant::now();
+            *lock(&GRAB_PROGRESS) = Some(p.clone());
+        }
+    })
+    .await;
+    GRAB_BUSY.store(false, SeqCst);
+    *lock(&GRAB_PROGRESS) = None;
+    r
+}
+
+#[tauri::command]
+fn grab_progress() -> Option<gdm_core::grab::Progress> {
+    lock(&GRAB_PROGRESS).clone()
+}
+
+#[tauri::command]
+fn grab_cancel() {
+    GRAB_STOP.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// step 2 "save to": native folder picker; returns the folder to show (default Downloads\Grabber)
+#[tauri::command]
+fn grab_pick_dir(pick: bool) -> R<String> {
+    if pick {
+        if let Some(p) = os::pick_folder(&grab_dir()) {
+            gdm_core::fsx::Dir::open(&p).map_err(|e| e.to_string())?; // no junction on the way (N-03)
+            *lock(&GRAB_DIR) = Some(p);
+        }
+    }
+    Ok(grab_dir().display().to_string())
+}
+
+/// the ticked files become jobs (paused, like IDM's "add checked files"; `start` = put them in the main
+/// queue and start it). `keep` = mirror the site's folders (G-03).
+#[tauri::command]
+fn grab_add(app: A, files: Vec<gdm_core::grab::Found>, start_url: String, keep: bool, start: bool) -> R<usize> {
+    if files.len() > import::MAX_ITEMS || files.iter().any(|f| f.url.len() > gdm_bridge::MAX_URL || f.referrer.len() > gdm_bridge::MAX_URL) {
+        return Err("too-many".into());
+    }
+    let host = url::Url::parse(&start_url).ok().and_then(|u| u.host_str().map(str::to_string));
+    let dir = grab_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
+    let (jobs, held) = gdm_core::grab::jobs(&files, &dir, keep, host.as_deref()).map_err(|e| e.code())?;
+    let ids = app.engine.add_many(jobs, true).map_err(|e| e.code())?;
+    drop(held);
+    app.bump();
+    if start && !ids.is_empty() {
+        app.queue_put(&ids, Some("main"))?;
+        app.inner().queue_start("main", None)?;
+    }
+    Ok(ids.len())
+}
+
 #[tauri::command]
 fn refresh_start(app: A, id: String) -> R<()> {
     app.refresh_start(&id)
@@ -1041,6 +1130,11 @@ pub fn run() {
             export_pick,
             batch_preview,
             batch_add,
+            grab_run,
+            grab_progress,
+            grab_cancel,
+            grab_pick_dir,
+            grab_add,
             refresh_start,
             refresh_paste,
             refresh_candidate,

@@ -206,6 +206,15 @@ fn g01_robots_rfc9309_matching() {
 // ---------------- G-02 ----------------
 
 #[tokio::test(flavor = "multi_thread")]
+async fn g02_robots_redirect_into_an_avoided_page_is_not_followed() {
+    let f = site().await;
+    f.add_blob("robots.redirect", b"/logout?robots".to_vec());
+    let r = run(&cfg(f.url("/static/site/index.html"))).await;
+    assert!(!paths(&f).iter().any(|p| p.contains("logout")), "{:?}", paths(&f));
+    assert!(names(&r).contains(&"a.jpg".to_string()), "a refused robots hop = no robots.txt, the crawl goes on");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn g02_logged_in_crawl_never_requests_avoided_pages() {
     let f = site().await;
     let mut c = cfg(f.url("/static/site/index.html"));
@@ -419,6 +428,8 @@ fn g05_malformed_markup_does_not_panic() {
     for s in ["<", "<a", "<a href=", "<a href=\"", "<script>", "<!--", "<a href='x.zip'", "&#xFFFFFFFF;<a href=&#x;>", "<a\u{0}href=y>", "<<<>>>"] {
         let _ = grab::links(s, &base, true);
     }
+    // multi-byte text right after '&' (security review: no slicing inside a char)
+    let _ = grab::links("<a href='/&ខ្មែរខ្មែរ.zip'>&ក្ខ</a>&", &base, true);
     let big = "<a href=\"/x.zip\">".repeat(100_000);
     assert_eq!(grab::links(&big, &base, false).len(), 1, "deduplicated");
 }

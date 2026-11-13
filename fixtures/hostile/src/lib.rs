@@ -27,7 +27,7 @@
 //!   /static/<name> bytes of a registered blob, ranged (media for S7); .html => text/html
 //!   /cal?d=N       html linking d=N+1 and d=N-1, forever                (G-01 calendar trap)
 //!   /loop/...      html linking "a/" (relative), forever                (G-01 path loop)
-//!   /robots.txt    the blob "robots.txt", else 404                      (G-01 robots)
+//!   /robots.txt    302 to the blob "robots.redirect", else the blob "robots.txt", else 404 (G-01 robots)
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -364,6 +364,12 @@ Accept-Ranges: bytes
             }
             p if p.starts_with("/loop/") => html(s, "<a href=\"a/\">deeper</a>").await,
             "/robots.txt" => {
+                let to = self.st.blobs.lock().unwrap().get("robots.redirect").cloned();
+                if let Some(to) = to {
+                    let to = String::from_utf8_lossy(&to).to_string();
+                    s.write_all(format!("HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
+                    return Ok(true);
+                }
                 let blob = self.st.blobs.lock().unwrap().get("robots.txt").cloned();
                 match blob {
                     Some(b) => {
