@@ -40,5 +40,8 @@
   },
   "videoGet": {
     "message": "ទាញវីដេអូពីទំព័រនេះ"
+  },
+  "videoStream": {
+    "message": "ទាញយកស្ទ្រីមនេះ"
   }
 }

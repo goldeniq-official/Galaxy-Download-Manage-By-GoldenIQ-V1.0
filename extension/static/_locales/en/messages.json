@@ -40,5 +40,8 @@
   },
   "videoGet": {
     "message": "Download a video from this page"
+  },
+  "videoStream": {
+    "message": "Download this stream"
   }
 }

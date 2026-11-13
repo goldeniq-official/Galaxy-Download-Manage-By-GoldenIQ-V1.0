@@ -31,7 +31,7 @@ void (async () => {
     await chrome.storage.local.set({ sites: next });
     site.textContent = next.includes(host) ? `${msg("siteSkipped")}: ${host}` : `${msg("thisSite")}: ${host}`;
   };
-  const r = await chrome.runtime.sendMessage({ t: "popup" }).catch(() => null);
+  const r = await chrome.runtime.sendMessage({ t: "popup", tab: tab?.id }).catch(() => null);
   // D5: the page video button is off everywhere until the user turns it on for this site (and GDM allows it)
   const vrow = $("vrow");
   const vt = $("video");
@@ -56,6 +56,28 @@ void (async () => {
     await chrome.runtime.sendMessage({ t: "video", page: tab?.url }).catch(() => null);
     window.close();
   };
+  // streams seen on the network (HLS / DASH / direct media): each one can go to GDM by itself (IDM parity)
+  const sl = $("streams");
+  const found = vrow.hidden || !vsites.includes(host) ? [] : ((r?.streams as { url: string; kind: string }[] | undefined) ?? []);
+  for (const s of found.slice(0, 8)) {
+    const b = document.createElement("button");
+    b.className = "btn";
+    let leaf = s.url;
+    try {
+      leaf = decodeURIComponent(new URL(s.url).pathname.split("/").pop() || s.url);
+    } catch {
+      /* keep the address */
+    }
+    b.textContent = `${msg("videoStream")} · ${s.kind.toUpperCase()} · ${leaf}`;
+    b.onclick = async () => {
+      await chrome.runtime.sendMessage({ t: "video", page: s.url }).catch(() => null);
+      window.close();
+    };
+    const li = document.createElement("li");
+    li.append(b);
+    sl.append(li);
+  }
+  sl.hidden = found.length === 0;
   const st = $("state");
   st.textContent = r?.connected ? msg("connected") : msg("offline");
   st.className = "st " + (r?.connected ? "ok" : "off");

@@ -456,8 +456,8 @@ struct ComponentState {
 #[tauri::command]
 fn components_state(app: A) -> ComponentState {
     ComponentState {
-        ytdlp: components::has(&app.data, "yt-dlp.exe"),
-        ffmpeg: components::has(&app.data, "ffmpeg.exe") && components::has(&app.data, "ffprobe.exe"),
+        ytdlp: components::has(&app.data, &components::exe("yt-dlp")),
+        ffmpeg: components::has(&app.data, &components::exe("ffmpeg")) && components::has(&app.data, &components::exe("ffprobe")),
     }
 }
 
@@ -486,7 +486,7 @@ async fn components_install(app: A<'_>) -> R<()> {
     let body = get(components::MANIFEST_URL.to_string(), 256 * 1024).await?;
     let sig = get(format!("{}.sig", components::MANIFEST_URL), 4096).await?;
     let m = components::verify(&body, &String::from_utf8_lossy(&sig), update::PUBKEY, gdm_core::store::now())?;
-    for comp in &m.components {
+    for comp in m.components.iter().filter(|c| c.for_this_build()) {
         let bytes = get(comp.url.clone(), comp.size.min(components::MAX_DOWNLOAD)).await?;
         let (d, cc) = (a.data.clone(), comp.clone());
         tauri::async_runtime::spawn_blocking(move || components::install(&d, &cc, &bytes)).await.map_err(|e| e.to_string())??;
@@ -1220,7 +1220,7 @@ pub fn run() {
             clip::spawn(
                 Box::new(move || {
                     ac.upgrade().and_then(|a| {
-                        let video = components::has(&a.data, "yt-dlp.exe");
+                        let video = components::has(&a.data, &components::exe("yt-dlp"));
                         let s = lock(&a.settings);
                         s.clipboard.then(|| (s.catch_exts.clone(), video))
                     })

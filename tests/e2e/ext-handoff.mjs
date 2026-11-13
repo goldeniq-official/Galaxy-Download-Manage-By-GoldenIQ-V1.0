@@ -23,6 +23,15 @@ const check = (ok, what) => {
   if (!ok) fails++;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** wait for a condition (bounded) instead of a fixed sleep: fixed windows made tests flaky on a busy machine */
+const until = async (f, ms = 10_000) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await f()) return true;
+    await sleep(100);
+  }
+  return false;
+};
 
 const srv = http.createServer((q, r) => {
   const u = new URL(q.url, "http://x");
@@ -73,7 +82,7 @@ try {
   // 1. ack: handoff carries UA + cookie; the browser copy is cancelled and erased
   await stub("ok");
   await page.click("#a", { modifiers: ["Control"] });
-  await sleep(2500);
+  await until(async () => (await sent()).some((m) => m.t === "handoff") && (await state("one.bin")).length === 0);
   const h = (await sent()).find((m) => m.t === "handoff");
   check(h?.ua === ua && h?.cookie === "sid=S1", `handoff carries the browser UA and cookie (${JSON.stringify(h && { ua: h.ua, cookie: h.cookie })})`);
   check((await state("one.bin")).length === 0, "GDM acked: the browser's own copy is gone");
@@ -81,7 +90,7 @@ try {
   // 2. no ack: the browser keeps downloading, a dup withdraws a late GDM job
   await stub("silent");
   await page.click("#b", { modifiers: ["Control"] });
-  await sleep(4500);
+  await until(async () => (await sent()).some((m) => m.t === "dup"));
   const s2 = await sent();
   const h2 = s2.find((m) => m.t === "handoff");
   check(!!h2 && s2.some((m) => m.t === "dup" && m.hid === h2.hid), "no ack in 3 s: dup sent for that hid");
@@ -90,7 +99,7 @@ try {
   // 3. malformed %-escape: still caught (no URIError out of onCreated)
   await stub("ok");
   await page.click("#c", { modifiers: ["Control"] });
-  await sleep(2500);
+  await until(async () => (await sent()).some((m) => m.t === "handoff" && m.url.includes("bad%E0")));
   check((await sent()).some((m) => m.t === "handoff" && m.url.includes("bad%E0")), "a malformed %-escape in the URL is still handed off");
   const nm = await sw.evaluate((u) => nameOf({ filename: "", url: u, finalUrl: u }), `${base}/f/bad%E0.bin`);
   check(nm === "bad%E0.bin", `the name of a URL with a malformed %-escape is kept as is, no URIError (${nm})`);

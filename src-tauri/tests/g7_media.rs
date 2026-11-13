@@ -32,6 +32,7 @@ fn install(data: &Path, b: &Path) {
             sha256: s.clone(),
             size: bytes.len() as u64,
             files: vec![ComponentFile { name: n.into(), path: None, sha256: s }],
+            platform: None,
         };
         components::install(data, &c, &bytes).unwrap();
     }

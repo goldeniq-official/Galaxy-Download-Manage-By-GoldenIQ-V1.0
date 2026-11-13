@@ -120,14 +120,14 @@ impl App {
 
     /// paste a page address: extract-only yt-dlp => the quality list (or a clear refusal)
     pub async fn media_probe(self: &Arc<Self>, page: &str) -> Result<Probe, String> {
-        if !crate::components::has(&self.data, "yt-dlp.exe") {
+        if !crate::components::has(&self.data, &crate::components::exe("yt-dlp")) {
             return Err("need-component".into());
         }
         let host = url::Url::parse(page).ok().and_then(|u| u.host_str().map(String::from)).ok_or("bad-url")?;
         let (relay, _policy, proxy) = self.ytdlp_relay(&host).await?;
         let args = gdm_media::ytdlp_args(page, &proxy)?;
         let work = work_dir(&self.data)?;
-        let out = run_component(&self.data, "yt-dlp.exe", &args, &work, gdm_media::MAX_JSON, Duration::from_secs(120)).await;
+        let out = run_component(&self.data, &crate::components::exe("yt-dlp"), &args, &work, gdm_media::MAX_JSON, Duration::from_secs(120)).await;
         let _ = std::fs::remove_dir_all(&work);
         LAST_RELAY_SERVED.store(relay.served.load(std::sync::atomic::Ordering::Relaxed), std::sync::atomic::Ordering::Relaxed);
         drop(relay);
@@ -324,12 +324,12 @@ impl App {
         }
         args.extend(["-c", "copy", "-y"].map(String::from));
         args.push(out.display().to_string());
-        run_component(&self.data, "ffmpeg.exe", &args, cwd, 1 << 20, Duration::from_secs(3600)).await.map(|_| ())
+        run_component(&self.data, &crate::components::exe("ffmpeg"), &args, cwd, 1 << 20, Duration::from_secs(3600)).await.map(|_| ())
     }
 
     /// M-06: the result really has the streams it should (no silent video without sound)
     async fn check_streams(&self, f: &Path, cwd: &Path, video: bool, audio: bool) -> Result<(), String> {
-        if !crate::components::has(&self.data, "ffprobe.exe") {
+        if !crate::components::has(&self.data, &crate::components::exe("ffprobe")) {
             return Err("need-component".into());
         }
         let args: Vec<String> = ["-v", "error", "-protocol_whitelist", "file,pipe", "-show_entries", "stream=codec_type", "-of", "csv=p=0"]
@@ -337,7 +337,10 @@ impl App {
             .into_iter()
             .chain([f.display().to_string()])
             .collect();
-        let out = String::from_utf8_lossy(&run_component(&self.data, "ffprobe.exe", &args, cwd, 1 << 16, Duration::from_secs(60)).await?).to_string();
+        let out = String::from_utf8_lossy(
+            &run_component(&self.data, &crate::components::exe("ffprobe"), &args, cwd, 1 << 16, Duration::from_secs(60)).await?,
+        )
+        .to_string();
         // csv lines look like "video" or "video," (side data columns)
         let has = |k: &str| out.lines().any(|l| l.split(',').next().is_some_and(|c| c.trim() == k));
         if (video && !has("video")) || (audio && !has("audio")) {

@@ -30,6 +30,26 @@ pub struct Component {
     pub sha256: String,
     pub size: u64,
     pub files: Vec<ComponentFile>,
+    /// the build it is for, as update::platform_key names it ("darwin-aarch64", "linux-x86_64"...); absent =
+    /// "windows-x86_64" (manifests written before P4)
+    #[serde(default)]
+    pub platform: Option<String>,
+}
+
+impl Component {
+    /// is this entry for the running build?
+    pub fn for_this_build(&self) -> bool {
+        self.platform.as_deref().unwrap_or("windows-x86_64") == crate::update::platform_key()
+    }
+}
+
+/// the component's file name on this system: "yt-dlp" -> "yt-dlp.exe" on Windows
+pub fn exe(base: &str) -> String {
+    if cfg!(windows) {
+        format!("{base}.exe")
+    } else {
+        base.to_string()
+    }
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -39,7 +59,7 @@ pub struct Manifest {
     pub components: Vec<Component>,
 }
 
-const ALLOWED: &[&str] = &["yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe"];
+const ALLOWED: &[&str] = &["yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe", "yt-dlp", "ffmpeg", "ffprobe"];
 
 /// U-01-style checks: signature with the compiled key, not expired, only known file names, https upstream
 pub fn verify(body: &[u8], sig: &str, pubkey_b64: &str, now: i64) -> Result<Manifest, String> {
@@ -77,8 +97,9 @@ pub fn has(data: &Path, name: &str) -> bool {
     installed(data).iter().any(|f| f.name == name) && dir(data).join(name).is_file()
 }
 
-/// put downloaded bytes in place: a plain exe, or files taken out of a zip with Windows' own tar.exe; every
-/// file must match the signed hash before it is recorded as installed
+/// put downloaded bytes in place: a plain executable, or files taken out of an archive (Windows: its own tar.exe
+/// for .zip; macOS / Linux: unzip for .zip, tar for .tar.xz / .tar.gz); every file must match the signed hash
+/// before it is recorded as installed, and on Unix it is made executable for its owner only
 pub fn install(data: &Path, c: &Component, bytes: &[u8]) -> Result<(), String> {
     use sha2::Digest;
     if gdm_core::finalize::hex(&sha2::Sha256::digest(bytes)) != c.sha256.to_ascii_lowercase() {
@@ -90,16 +111,29 @@ pub fn install(data: &Path, c: &Component, bytes: &[u8]) -> Result<(), String> {
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(&stage).map_err(|e| e.to_string())?;
     let r = (|| -> Result<(), String> {
-        if c.url.to_ascii_lowercase().ends_with(".zip") {
-            let z = stage.join("pkg.zip");
+        let lower = c.url.to_ascii_lowercase();
+        let tarball = lower.ends_with(".tar.xz") || lower.ends_with(".tar.gz") || lower.ends_with(".tgz");
+        if lower.ends_with(".zip") || tarball {
+            let z = stage.join(if tarball { "pkg.tar" } else { "pkg.zip" });
             std::fs::write(&z, bytes).map_err(|e| e.to_string())?;
-            let tar = std::env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Windows")).join(r"System32\tar.exe");
             for f in &c.files {
                 let inner = f.path.as_deref().ok_or("bad-manifest")?;
-                if inner.contains("..") || inner.starts_with(['/', '\\']) || inner.contains(':') {
+                if inner.contains("..") || inner.starts_with(['/', '\\']) || inner.contains(':') || inner.starts_with('-') {
                     return Err("bad-manifest".into());
                 }
-                let st = std::process::Command::new(&tar).arg("-xf").arg(&z).arg("-C").arg(&stage).arg(inner).status().map_err(|e| e.to_string())?;
+                #[cfg(windows)]
+                let st = {
+                    let tar =
+                        std::env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Windows")).join(r"System32\tar.exe");
+                    std::process::Command::new(&tar).arg("-xf").arg(&z).arg("-C").arg(&stage).arg(inner).status().map_err(|e| e.to_string())?
+                };
+                #[cfg(unix)]
+                let st = if tarball {
+                    std::process::Command::new("tar").arg("-xf").arg(&z).arg("-C").arg(&stage).arg("--").arg(inner).status()
+                } else {
+                    std::process::Command::new("unzip").arg("-qo").arg(&z).arg(inner).arg("-d").arg(&stage).status()
+                }
+                .map_err(|e| e.to_string())?;
                 if !st.success() {
                     return Err(format!("unzip {}", f.name));
                 }
@@ -114,6 +148,11 @@ pub fn install(data: &Path, c: &Component, bytes: &[u8]) -> Result<(), String> {
                 gdm_core::finalize::sha_handle(&std::fs::File::open(stage.join(&f.name)).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
             if got != f.sha256.to_ascii_lowercase() {
                 return Err(format!("hash-mismatch {}", f.name));
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(stage.join(&f.name), std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
             }
             let _ = std::fs::remove_file(d.join(&f.name));
             std::fs::rename(stage.join(&f.name), d.join(&f.name)).map_err(|e| e.to_string())?;
@@ -146,6 +185,26 @@ pub fn hold(data: &Path, name: &str) -> Result<(std::fs::File, PathBuf), String>
 mod tests {
     use super::*;
 
+    /// P4: each build installs only the entries signed for its own platform; old manifests mean Windows x64
+    #[test]
+    fn p4_components_per_platform() {
+        let mut c = Component {
+            name: "x".into(),
+            version: "1".into(),
+            url: "https://x/y".into(),
+            sha256: "0".repeat(64),
+            size: 1,
+            files: vec![],
+            platform: None,
+        };
+        assert_eq!(c.for_this_build(), crate::update::platform_key() == "windows-x86_64");
+        c.platform = Some(crate::update::platform_key());
+        assert!(c.for_this_build());
+        c.platform = Some("plan9-mips".into());
+        assert!(!c.for_this_build());
+        assert_eq!(exe("yt-dlp"), if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" });
+    }
+
     fn fake(data: &Path, name: &str, body: &[u8]) -> ComponentFile {
         use sha2::Digest;
         let sha = gdm_core::finalize::hex(&sha2::Sha256::digest(body));
@@ -156,6 +215,7 @@ mod tests {
             sha256: sha.clone(),
             size: body.len() as u64,
             files: vec![ComponentFile { name: name.into(), path: None, sha256: sha }],
+            platform: None,
         };
         install(data, &c, body).unwrap();
         c.files[0].clone()
@@ -178,7 +238,15 @@ mod tests {
         b[100] ^= 1;
         std::fs::write(dir(&d).join("yt-dlp.exe"), &b).unwrap();
         assert_eq!(hold(&d, "yt-dlp.exe").unwrap_err(), "tampered");
-        let c = Component { name: "x".into(), version: "1".into(), url: "https://x/y.exe".into(), sha256: "0".repeat(64), size: 1, files: vec![] };
+        let c = Component {
+            name: "x".into(),
+            version: "1".into(),
+            url: "https://x/y.exe".into(),
+            sha256: "0".repeat(64),
+            size: 1,
+            files: vec![],
+            platform: None,
+        };
         assert_eq!(install(&d, &c, b"abc").unwrap_err(), "hash-mismatch");
         let _ = std::fs::remove_dir_all(&d);
     }
@@ -229,6 +297,7 @@ mod tests {
             sha256: h(&bytes),
             size: bytes.len() as u64,
             files: vec![file("ffmpeg.exe", "pkg/bin/ffmpeg.exe", b"fake ffmpeg"), file("ffprobe.exe", "pkg/bin/ffprobe.exe", b"fake ffprobe")],
+            platform: None,
         };
         let data = d.join("data");
         install(&data, &c, &bytes).unwrap();

@@ -216,11 +216,59 @@ async function sendLinks(urls: string[], referrer: string | null, storeId?: stri
   }
 }
 
-// ---- page video button (D5) ----
+// ---- page video button (D5) + streams seen on the network (IDM parity: HLS / DASH / direct media) ----
+// Only on sites the user turned the video button on for (D5), never on YouTube in the Chrome build (M-07).
+// A detected stream is offered in the popup; choosing it sends its address to GDM, which reads it with yt-dlp
+// without cookies (M-08), exactly like a page address.
+const STREAM = /\.(m3u8|mpd|mp4|webm|m4v|mov)$/i;
+const streams = new Map<number, { url: string; kind: string }[]>();
+const players = new Map<number, number>();
+let videoSites = new Set<string>();
+const loadVideoSites = () =>
+  chrome.storage.local.get("videoSites").then((v) => (videoSites = new Set(Array.isArray(v.videoSites) ? (v.videoSites as string[]) : [])));
+void loadVideoSites();
+chrome.storage.onChanged.addListener((c) => {
+  if (c.videoSites) void loadVideoSites();
+});
+const badge = (tabId: number) => {
+  const n = (players.get(tabId) ?? 0) + (streams.get(tabId)?.length ?? 0);
+  void chrome.action.setBadgeText({ tabId, text: n > 0 ? String(Math.min(n, 99)) : "" }).catch(() => {});
+};
+chrome.webRequest.onBeforeRequest.addListener(
+  (d) => {
+    if (d.tabId < 0) return undefined;
+    if (d.type === "main_frame") {
+      streams.delete(d.tabId); // a new page: its streams start over
+      return undefined;
+    }
+    const page = (d as { documentUrl?: string }).documentUrl ?? d.initiator ?? "";
+    let path = "";
+    try {
+      path = new URL(d.url).pathname;
+    } catch {
+      return undefined;
+    }
+    if (!STREAM.test(path) || !videoSites.has(hostOf(page)) || onYouTube(page) || d.url.length > 8192) return undefined;
+    const list = streams.get(d.tabId) ?? [];
+    if (!list.some((s) => s.url === d.url) && list.length < 20) {
+      list.push({ url: d.url, kind: path.match(STREAM)![1].toLowerCase() });
+      streams.set(d.tabId, list);
+      badge(d.tabId);
+    }
+    return undefined;
+  },
+  { urls: ["http://*/*", "https://*/*"], types: ["main_frame", "media", "xmlhttprequest", "other"] },
+);
+chrome.tabs.onRemoved.addListener((id) => {
+  streams.delete(id);
+  players.delete(id);
+});
+
 chrome.runtime.onMessage.addListener((m, sender) => {
   if (sender.id !== chrome.runtime.id) return;
   if (m?.t === "videos" && sender.tab?.id != null && typeof m.n === "number") {
-    void chrome.action.setBadgeText({ tabId: sender.tab.id, text: m.n > 0 ? String(Math.min(m.n, 99)) : "" });
+    players.set(sender.tab.id, m.n);
+    badge(sender.tab.id);
   }
   if (m?.t === "video" && typeof m.page === "string" && /^https?:/i.test(m.page) && m.page.length <= 8192 && !onYouTube(m.page)) {
     void send({ t: "video", page: m.page }); // GDM opens its own quality flow (yt-dlp in the app, D10)
@@ -233,7 +281,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
   void (async () => {
     const p = await hello(true);
     const st = p ? await send({ t: "status" }) : null;
-    reply({ connected: !!p, policy: p, status: st });
+    reply({ connected: !!p, policy: p, status: st, streams: typeof m.tab === "number" ? (streams.get(m.tab) ?? []) : [] });
   })();
   return true;
 });

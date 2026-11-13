@@ -4,7 +4,9 @@
 //  - off by default: a page with <video> shows no badge;
 //  - turned on for this site: the badge shows the number of <video> players with an http(s) or blob: (MSE) source;
 //  - "Download a video from this page" sends {t:"video", page} for an ordinary page, never for YouTube (M-07);
-//  - the Chrome build's content script never runs on youtube.com (manifest).
+//  - the Chrome build's content script never runs on youtube.com (manifest);
+//  - streams seen on the network (an HLS manifest fetched like hls.js does, media files) are offered in the
+//    popup only after the site is turned on, and each one goes to GDM as {t:"video", page: <stream>}.
 // node tests/e2e/ext-video.mjs <chrome.exe>
 import { chromium } from "@playwright/test";
 import http from "node:http";
@@ -20,10 +22,19 @@ const check = (ok, what) => {
   if (!ok) fails++;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** wait for a condition (bounded) instead of a fixed sleep */
+const until = async (f, ms = 10_000) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await f()) return true;
+    await sleep(100);
+  }
+  return false;
+};
 
 const srv = http.createServer((q, r) => {
   r.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-  r.end(`<!doctype html><title>v</title><video src="/a.mp4"></video><video><source src="/b.webm"></video><video src="blob:x"></video><video></video>`);
+  r.end(`<!doctype html><title>v</title><video src="/a.mp4"></video><video><source src="/b.webm"></video><video src="blob:x"></video><video></video><script>fetch("/hls/master.m3u8?token=t1")</script>`);
 });
 await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
 const base = `http://127.0.0.1:${srv.address().port}`;
@@ -48,17 +59,33 @@ try {
   const tabId = await sw.evaluate(async (u) => (await chrome.tabs.query({})).find((t) => t.url?.startsWith(u))?.id, base);
   const badge = () => sw.evaluate((id) => chrome.action.getBadgeText({ tabId: id }), tabId);
   check((await badge()) === "", "off by default: no badge on a page with videos (D5)");
+  const streamsOf = async () => {
+    const pg = await ctx.newPage();
+    await pg.goto(sw.url().replace("background.js", "popup.html"));
+    const r = await pg.evaluate((id) => chrome.runtime.sendMessage({ t: "popup", tab: id }), tabId);
+    await pg.close();
+    return r?.streams ?? [];
+  };
+  check((await streamsOf()).length === 0, "off by default: no stream is recorded on a site that is not turned on");
   await sw.evaluate((h) => chrome.storage.local.set({ videoSites: [h] }), host);
   await page.reload();
-  await sleep(3500);
-  check((await badge()) === "3", `turned on for ${host}: badge counts the 3 players (2 http(s) + 1 MSE blob:, not the empty one) (got "${await badge()}")`);
+  // the content script reports players every 2 s; streams arrive with the page's requests
+  await until(async () => (await badge()) === String(3 + (await streamsOf()).length) && (await streamsOf()).some((s) => s.kind === "m3u8"));
+  const st = await streamsOf();
+  const m3u8 = st.find((s) => s.kind === "m3u8");
+  check(!!m3u8 && m3u8.url === `${base}/hls/master.m3u8?token=t1`, `turned on: the HLS manifest fetched by the page is offered (${JSON.stringify(st)})`);
+  check((await badge()) === String(3 + st.length), `badge = 3 players (2 http(s) + 1 MSE blob:, not the empty one) + ${st.length} streams (got "${await badge()}")`);
   const popup = await ctx.newPage();
   await popup.goto(sw.url().replace("background.js", "popup.html"));
   await popup.evaluate(() => chrome.runtime.sendMessage({ t: "video", page: "https://www.youtube.com/watch?v=abc" }));
   await popup.evaluate((u) => chrome.runtime.sendMessage({ t: "video", page: u }), base + "/");
-  await sleep(500);
+  await popup.evaluate((u) => chrome.runtime.sendMessage({ t: "video", page: u }), m3u8?.url);
+  await until(async () => (await sw.evaluate(() => globalThis.__sent)).filter((m) => m.t === "video").length >= 2, 3000);
   const sent = (await sw.evaluate(() => globalThis.__sent)).filter((m) => m.t === "video");
-  check(sent.length === 1 && sent[0].page === base + "/", `only the ordinary page goes to GDM as {t:"video"} (sent: ${JSON.stringify(sent)})`);
+  check(
+    sent.length === 2 && sent[0].page === base + "/" && sent[1].page === m3u8?.url,
+    `the page and the chosen stream go to GDM as {t:"video"}, YouTube never (sent: ${JSON.stringify(sent)})`,
+  );
 } finally {
   await ctx.close();
   srv.close();
