@@ -133,7 +133,7 @@ export function GrabberDialog() {
           <>
             <Spinner text={t("grab.running", { pages: prog?.pages ?? 0, files: prog?.files ?? 0 })} />
             {prog && (
-              <div className="url clip1 meta" title={prog.url}>
+              <div className="url clip1 meta" data-tip-overflow data-tip={prog.url}>
                 {prog.url}
               </div>
             )}

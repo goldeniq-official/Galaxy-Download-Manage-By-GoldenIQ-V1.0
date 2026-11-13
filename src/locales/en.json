@@ -376,13 +376,14 @@
       "need-component": "Video download needs two free programs first.",
       "bad-url": "Not a valid link"
     },
-    "notice": "Video download uses the free yt-dlp and FFmpeg programs, downloaded once (~200 MB) from their official releases and checked against GDM's signed list. Only download what you have the right to. Protected (DRM) videos are never downloaded.",
-    "install": "Download components (~200 MB)",
+    "notice": "Video downloads use the free helpers yt-dlp and FFmpeg (~200 MB, once, signature-checked). Only download what you have the right to; DRM-protected video is never downloaded.",
+    "install": "Set up the video helpers (~200 MB)",
     "installing": "Downloading and checking…",
     "installErr": "Download failed: {{e}}",
     "ok": "Installed",
     "missing": "Not installed",
-    "hint": "Paste the page address and press “Find videos”: the qualities you can download are listed here."
+    "hint": "Paste the page address and press “Find videos”: the qualities you can download are listed here.",
+    "retry": "Try again"
   },
   "cd": {
     "shutdown": "Shutting down in {{n}} s",

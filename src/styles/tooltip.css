@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: RPL-1.5 */
+/* Every tooltip (Tooltip.tsx), from GoldenIQ's Mazer Client: one piece, card and arrow one outline cut from one sheet of
+   frosted glass, a shade lighter than the menus so the arrow reads on dark surfaces. No outline, no accent, no glow:
+   the black shadow cast by the same outline is the edge. Glass does not move: it fades where it stays. */
+.tooltip { position: fixed; left: 0; top: 0; z-index: 2147483000; max-width: min(320px, calc(100vw - 16px)); padding: 7px 11px 8px; color: #f4f4f5; pointer-events: none; }
+.tooltip > * { opacity: 0; transition: opacity 180ms var(--ease-in); }
+.tooltip[data-state="open"] > * { opacity: 1; transition: opacity 180ms var(--ease-out); }
+.tooltip-glass, .tooltip-shadow { position: absolute; inset: calc(var(--tooltip-bleed, 24px) * -1); width: calc(100% + var(--tooltip-bleed, 24px) * 2); height: calc(100% + var(--tooltip-bleed, 24px) * 2); pointer-events: none; }
+.tooltip-shadow { overflow: visible; }
+.tooltip-glass { display: block; background: linear-gradient(180deg, rgba(64, 70, 86, .70), rgba(46, 51, 64, .80)); backdrop-filter: blur(22px) saturate(170%); }
+.tooltip-body { position: relative; }
+.tooltip-text { display: block; font-size: 12px; font-weight: 600; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere; }
+html:lang(km) .tooltip-text { line-height: 1.6; }

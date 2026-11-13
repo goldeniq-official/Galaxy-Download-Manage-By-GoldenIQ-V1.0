@@ -407,8 +407,7 @@ test("G7 video: components missing => D10 notice, install, then probe again", as
   await tasks(page, 1);
   await page.locator(".modal input").fill("https://video.example.org/watch?v=abc");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".modal")).toContainText("Only download what you have the right to");
-  await page.locator(".modal .col-tip .btn").click();
+  // the helpers set themselves up (no click); the D10 notice is checked on Settings > Video (g7 set-video)
   await expect(page.locator(".modal [role=radio]")).toHaveCount(4, { timeout: 5000 });
   expect(await calls(page, "components_install")).toHaveLength(1);
 });

@@ -139,7 +139,7 @@ function BatchDialog() {
         {pv && !err ? (
           <>
             {pv.first.map((u) => (
-              <div key={u} className="clip1" title={u}>
+              <div key={u} className="clip1" data-tip-overflow data-tip={u}>
                 {u}
               </div>
             ))}
@@ -198,10 +198,10 @@ function ImportDialog({ pv }: { pv: ImportPreview }) {
       <div className="batch imp" role="list">
         {pv.sample.slice(0, 8).map((it, i) => (
           <div key={i} className="imp-row" role="listitem">
-            <b className="clip1" title={it.name || it.url}>
+            <b className="clip1" data-tip-overflow data-tip={it.name || it.url}>
               {it.name || it.url}
             </b>
-            <span className="mono clip1" title={it.url}>
+            <span className="mono clip1" data-tip-overflow data-tip={it.url}>
               {it.url}
             </span>
           </div>
@@ -267,7 +267,7 @@ function RefreshDialog({ id }: { id: string }) {
     <Modal label={t("ref.title")} onClose={() => void decide("cancel")} wide tall>
       <h2>{t("ref.title")}</h2>
       {job && (
-        <p className="meta clip1" title={job.name}>
+        <p className="meta clip1" data-tip-overflow data-tip={job.name}>
           {job.name}
         </p>
       )}
@@ -354,7 +354,7 @@ function UrlDialog({ id }: { id: string }) {
     <Modal label={t("prop.url")} onClose={close}>
       <h2>{t("prop.url")}</h2>
       {job && (
-        <p className="meta clip1" title={job.name}>
+        <p className="meta clip1" data-tip-overflow data-tip={job.name}>
           {job.name}
         </p>
       )}
@@ -380,10 +380,20 @@ function UrlDialog({ id }: { id: string }) {
 }
 
 /** D10 notice + install button, shared by the video dialog and Settings > Video */
-export function Components({ onDone }: { onDone?: () => void }) {
+/** the video helpers (yt-dlp finds the video, FFmpeg joins picture and sound). `auto`: the person asked for a video,
+ *  so GDM fetches them at once (progress shown) instead of asking them to read and click first */
+export function Components({ onDone, auto }: { onDone?: () => void; auto?: boolean }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const started = useRef(false);
+  useEffect(() => {
+    if (auto && !started.current) {
+      started.current = true;
+      void install();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto]);
   const install = async () => {
     setBusy(true);
     setErr("");
@@ -403,10 +413,12 @@ export function Components({ onDone }: { onDone?: () => void }) {
         {busy ? (
           <Spinner text={t("vid.installing")} />
         ) : (
-          <button type="button" className="fx btn btn-s" onClick={() => void install()}>
-            <Icon n="download-simple" />
-            {t("vid.install")}
-          </button>
+          (!auto || err) && (
+            <button type="button" className="fx btn btn-s" onClick={() => void install()}>
+              <Icon n="download-simple" />
+              {err ? t("vid.retry") : t("vid.install")}
+            </button>
+          )
         )}
         {err && (
           <p className="err-t" role="alert">
@@ -477,7 +489,7 @@ function VideoDialog({ initial }: { initial?: string }) {
       ) : (
         <ErrLine msg={err && (known.includes(err) ? t(`vid.e.${err}`) : t("vid.err", { e: err }))} />
       )}
-      {err === "need-component" && <Components onDone={() => void find()} />}
+      {err === "need-component" && <Components auto onDone={() => void find()} />}
       {!pr && err !== "need-component" && (
         <div className="url lines grow">
           <div className="meta">{t("vid.hint")}</div>
@@ -485,7 +497,7 @@ function VideoDialog({ initial }: { initial?: string }) {
       )}
       {pr && (
         <>
-          <span className="lab clip1" title={pr.title}>
+          <span className="lab clip1" data-tip-overflow data-tip={pr.title}>
             {pr.title}
           </span>
           <div className="batch grow" role="radiogroup" aria-label={t("vid.quality")}>

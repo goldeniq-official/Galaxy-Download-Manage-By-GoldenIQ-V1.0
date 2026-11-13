@@ -158,16 +158,16 @@ export function QueuesSection() {
             return (
               <div className="hl-row" key={id}>
                 <span className="num">{i + 1}</span>
-                <span className="clip1" title={name}>
+                <span className="clip1" data-tip-overflow data-tip={name}>
                   {name}
                 </span>
-                <button type="button" className="fx mini up" aria-label={t("qs.up") + " · " + name} title={t("qs.up")} disabled={i === 0} onClick={() => void move(i, -1)}>
+                <button type="button" className="fx mini up" aria-label={t("qs.up") + " · " + name} data-tip={t("qs.up")} disabled={i === 0} onClick={() => void move(i, -1)}>
                   <Icon n="caret-down" />
                 </button>
-                <button type="button" className="fx mini" aria-label={t("qs.down") + " · " + name} title={t("qs.down")} disabled={i === files.length - 1} onClick={() => void move(i, 1)}>
+                <button type="button" className="fx mini" aria-label={t("qs.down") + " · " + name} data-tip={t("qs.down")} disabled={i === files.length - 1} onClick={() => void move(i, 1)}>
                   <Icon n="caret-down" />
                 </button>
-                <button type="button" className="fx mini" aria-label={t("q.removeFrom") + " · " + name} title={t("q.removeFrom")} onClick={() => void api.queuePut([id], null).then(refresh)}>
+                <button type="button" className="fx mini" aria-label={t("q.removeFrom") + " · " + name} data-tip={t("q.removeFrom")} onClick={() => void api.queuePut([id], null).then(refresh)}>
                   <Icon n="x" />
                 </button>
               </div>

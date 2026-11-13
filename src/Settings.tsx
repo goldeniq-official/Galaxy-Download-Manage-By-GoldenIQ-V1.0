@@ -125,7 +125,7 @@ export function SettingsView() {
       </nav>
       <div className="sethead">
         <h2>{cur[2]}</h2>
-        <button type="button" className="fx chip" aria-label={t("d.close")} title={t("d.close")} onClick={close}>
+        <button type="button" className="fx chip" aria-label={t("d.close")} data-tip={t("d.close")} onClick={close}>
           <Icon n="x" />
         </button>
       </div>
@@ -190,15 +190,15 @@ export function SettingsView() {
                       <input aria-label={nm + " · " + t("set.exts")} defaultValue={c.exts.join(" ")} onBlur={(e) => put("exts", e.target.value)} />
                     </span>
                     <span role="cell" className="in">
-                      <input aria-label={nm + " · " + t("set.sites")} defaultValue={(c.sites ?? []).join(" ")} placeholder="*.example.com" onBlur={(e) => put("sites", e.target.value)} />
+                      <input aria-label={nm + " · " + t("set.sites")} defaultValue={(c.sites ?? []).join(" ")} onBlur={(e) => put("sites", e.target.value)} />
                     </span>
                     <span role="cell" className="cat-dir">
-                      <button type="button" className="fx btn btn-s" aria-label={(c.dir ? fileName(c.dir) : t("set.catDir")) + " · " + nm} title={c.dir || t("set.catDir")} onClick={() => void rememberDir(c.id, false)}>
+                      <button type="button" className="fx btn btn-s" aria-label={(c.dir ? fileName(c.dir) : t("set.catDir")) + " · " + nm} data-tip={c.dir || t("set.catDir")} onClick={() => void rememberDir(c.id, false)}>
                         <Icon n="folder-open" />
                         <span className="clip1">{c.dir ? fileName(c.dir) : t("set.catDir")}</span>
                       </button>
                       {c.dir && (
-                        <button type="button" className="fx mini" aria-label={t("info.forget") + " · " + nm} title={t("info.forget")} onClick={() => void rememberDir(c.id, true)}>
+                        <button type="button" className="fx mini" aria-label={t("info.forget") + " · " + nm} data-tip={t("info.forget")} onClick={() => void rememberDir(c.id, true)}>
                           <Icon n="x" />
                         </button>
                       )}
@@ -377,11 +377,11 @@ function ConnectionSection() {
         </div>
         {s.host_limits.map((h) => (
           <div className="hl-row" key={h.host}>
-            <span className="mono clip1" title={h.host}>
+            <span className="mono clip1" data-tip-overflow data-tip={h.host}>
               {h.host}
             </span>
             <span className="num">{t("set.connsN", { n: h.conns })}</span>
-            <button type="button" className="fx mini" aria-label={t("set.removeX", { x: h.host })} title={t("set.removeX", { x: h.host })} onClick={() => void save({ host_limits: s.host_limits.filter((x) => x.host !== h.host) })}>
+            <button type="button" className="fx mini" aria-label={t("set.removeX", { x: h.host })} data-tip={t("set.removeX", { x: h.host })} onClick={() => void save({ host_limits: s.host_limits.filter((x) => x.host !== h.host) })}>
               <Icon n="trash" />
             </button>
           </div>
@@ -417,13 +417,13 @@ function ConnectionSection() {
         </div>
         {s.site_agents.map((a) => (
           <div className="hl-row" key={a.host}>
-            <span className="mono clip1" title={a.host}>
+            <span className="mono clip1" data-tip-overflow data-tip={a.host}>
               {a.host}
             </span>
-            <span className="mono clip1" title={a.ua}>
+            <span className="mono clip1" data-tip-overflow data-tip={a.ua}>
               {a.ua}
             </span>
-            <button type="button" className="fx mini" aria-label={t("set.removeX", { x: a.host })} title={t("set.removeX", { x: a.host })} onClick={() => void save({ site_agents: s.site_agents.filter((x) => x.host !== a.host) })}>
+            <button type="button" className="fx mini" aria-label={t("set.removeX", { x: a.host })} data-tip={t("set.removeX", { x: a.host })} onClick={() => void save({ site_agents: s.site_agents.filter((x) => x.host !== a.host) })}>
               <Icon n="trash" />
             </button>
           </div>
@@ -475,7 +475,7 @@ function ScanRow() {
       <div className="t">
         <b>{t("set.scan")}</b>
         {err ? (
-          <small className="err-s clip1" role="alert" title={t(`qs.e.${err}`, { defaultValue: err })}>
+          <small className="err-s clip1" role="alert" data-tip-overflow data-tip={t(`qs.e.${err}`, { defaultValue: err })}>
             {t(`qs.e.${err}`, { defaultValue: err })}
           </small>
         ) : (
@@ -616,13 +616,13 @@ function LoginsSection() {
         {list.length === 0 && <p className="meta">{t("lg.empty")}</p>}
         {list.map((l) => (
           <div className="hl-row" key={l.id}>
-            <span className="mono clip1" title={l.prefix}>
+            <span className="mono clip1" data-tip-overflow data-tip={l.prefix}>
               {l.prefix}
             </span>
-            <span className="clip1" title={l.user}>
+            <span className="clip1" data-tip-overflow data-tip={l.user}>
               {l.user}
             </span>
-            <button type="button" className="fx mini" aria-label={t("lg.delete", { p: l.prefix })} title={t("lg.delete", { p: l.prefix })} onClick={() => void api.loginDelete(l.id).then(() => api.loginList().then(setList))}>
+            <button type="button" className="fx mini" aria-label={t("lg.delete", { p: l.prefix })} data-tip={t("lg.delete", { p: l.prefix })} onClick={() => void api.loginDelete(l.id).then(() => api.loginList().then(setList))}>
               <Icon n="trash" />
             </button>
           </div>
@@ -691,7 +691,7 @@ function SoundsSection() {
             <button type="button" className="fx btn btn-s" onClick={() => void api.soundPick(ev).then(async (p) => p && useStore.setState({ settings: await api.settingsGet() }))}>
               {t("snd.pick")}
             </button>
-            <button type="button" className="fx mini" aria-label={t("snd.play") + " · " + t(`snd.${ev}`)} title={t("snd.play")} disabled={!v} onClick={() => void api.soundTest(ev)}>
+            <button type="button" className="fx mini" aria-label={t("snd.play") + " · " + t(`snd.${ev}`)} data-tip={t("snd.play")} disabled={!v} onClick={() => void api.soundTest(ev)}>
               <Icon n="play" />
             </button>
           </Opt>

@@ -122,9 +122,11 @@ function NavBtn({ ic, label, n, sel, onClick }: { k: string; ic: string; label: 
   // labels are visible from 1180 px (rail 220 px); below that the icon button needs its name
   const showLabel = useWide() >= 1180;
   return (
-    <button type="button" className={"fx nav" + (sel ? " is-selected" : "")} aria-current={sel ? "page" : undefined} aria-label={showLabel ? undefined : label} title={label} onClick={onClick}>
+    <button type="button" className={"fx nav" + (sel ? " is-selected" : "")} aria-current={sel ? "page" : undefined} aria-label={showLabel ? undefined : label} data-tip={label} data-tip-overflow={showLabel || undefined} data-tip-side="right" onClick={onClick}>
       <Icon n={ic} lg fill={sel} />
-      <span className="lbl">{label}</span>
+      <span className="lbl" data-tip-measure>
+        {label}
+      </span>
       {n != null && (
         <span className="n" aria-hidden="true">
           {n}
@@ -133,6 +135,9 @@ function NavBtn({ ic, label, n, sel, onClick }: { k: string; ic: string; label: 
     </button>
   );
 }
+
+/** list row height + gap, fixed (CSS .row): the virtual list places rows by it, so they never overlap */
+const ROW_H = 50;
 
 export type Col = "name" | "size" | "status" | "speed" | "eta" | "added";
 const ALL: Col[] = ["name", "size", "status", "speed", "eta", "added"];
@@ -247,7 +252,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
     });
   };
   const scroller = useRef<HTMLDivElement>(null);
-  const v = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => 62, overscan: 8 });
+  const v = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => ROW_H, overscan: 8 });
   const selIdx = rows.findIndex((r) => r.id === sel);
   const selected = selIdx >= 0 ? rows[selIdx] : null;
   const total = Object.values(live).reduce((a, l) => a + l.speed, 0);
@@ -428,7 +433,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
                 <button
                   type="button"
                   className="fx colh"
-                  title={t("cols.hint")}
+                  data-tip={t("cols.hint")}
                   onClick={() => sortClick(c)}
                   onContextMenu={(e) => (e.preventDefault(), colMenu(c, e.clientX, e.clientY))}
                   onKeyDown={(e) => {
@@ -504,7 +509,8 @@ function ToolBtn({ ic, label, words, menu, pressed, onClick }: { ic: string; lab
       type="button"
       className={"fx btn btn-s tb" + (words ? "" : " icon")}
       aria-label={words ? undefined : label}
-      title={label}
+      data-tip={words ? undefined : label}
+      data-tip-side="bottom"
       aria-haspopup={menu ? "menu" : undefined}
       aria-pressed={pressed}
       onClick={onClick}
@@ -546,16 +552,13 @@ function RowView({ r, idx, sel, focusable, onWhy, onMenu, cols, icon, grid }: { 
       )}
       {cols.map((c) =>
         c === "name" ? (
-          <span key={c} role="gridcell" className="nm" title={r.name}>
-            <b>{r.name}</b>
-            <small>
-              <span className="sub">{host(r.url)}</span>
-              {r.ext && <span className={"ext" + (r.dangerous ? " danger" : "")}>{r.ext}</span>}
-            </small>
+          <span key={c} role="gridcell" className="nm">
+            <b data-tip-overflow data-tip={r.name}>{r.name}</b>
+            {r.dangerous && r.ext && <span className="ext danger">{r.ext}</span>}
           </span>
         ) : c === "status" ? (
           <span key={c} role="gridcell" className={"st " + st.tone}>
-            <span className="tx" title={text}>
+            <span className="tx" data-tip-overflow data-tip={text}>
               {text}
             </span>
             {st.bar != null ? (
@@ -660,11 +663,11 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
           <dd>
             {l ? (
               <span className="step">
-                <button type="button" className="fx" aria-label={t("d.connsLess")} title={t("d.connsLess")} disabled={l.conns <= 1} onClick={() => void api.conns(r.id, Math.max(1, l.conns - 1))}>
+                <button type="button" className="fx" aria-label={t("d.connsLess")} data-tip={t("d.connsLess")} disabled={l.conns <= 1} onClick={() => void api.conns(r.id, Math.max(1, l.conns - 1))}>
                   <Icon n="minus" />
                 </button>
                 <span className="num">{l.conns}</span>
-                <button type="button" className="fx" aria-label={t("d.connsMore")} title={t("d.connsMore")} disabled={l.conns >= 32} onClick={() => void api.conns(r.id, Math.min(32, l.conns + 1))}>
+                <button type="button" className="fx" aria-label={t("d.connsMore")} data-tip={t("d.connsMore")} disabled={l.conns >= 32} onClick={() => void api.conns(r.id, Math.min(32, l.conns + 1))}>
                   <Icon n="plus" />
                 </button>
               </span>
@@ -679,11 +682,11 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
             </>
           )}
           <dt>{t("d.folder")}</dt>
-          <dd className="clip1" title={r.dir}>
+          <dd className="clip1" data-tip-overflow data-tip={r.dir}>
             {r.dir}
           </dd>
           <dt>{t("d.sha")}</dt>
-          <dd className="mono clip1" title={r.sha256 ?? ""}>
+          <dd className="mono clip1" data-tip-overflow data-tip={r.sha256 ?? ""}>
             {r.sha256 ? r.sha256.slice(0, 16) + "…" : t("d.shaWait")}
           </dd>
         </dl>
@@ -759,7 +762,7 @@ function UpdateBanner() {
       </div>
     );
   return (
-    <div className={"banner" + (u.security ? " sec" : "")} role="status" title={notes ?? ""}>
+    <div className={"banner" + (u.security ? " sec" : "")} role="status" data-tip={notes ?? ""}>
       <Icon n={u.security ? "shield-check" : "arrow-clockwise"} />
       <span>
         {u.state === "ready" ? t("banner.updReady", { v: u.version }) : t("banner.updAvail", { v: u.version })}
@@ -846,7 +849,7 @@ function InfoDialog() {
           {items.map((it) => (
             <button key={it.id} type="button" className="fx check" role="checkbox" aria-checked={isOn(it.id)} onClick={() => setChecked({ ...checked, [it.id]: !isOn(it.id) })}>
               <i>{isOn(it.id) && <Icon n="check" />}</i>
-              <span className="clip1" title={it.name}>
+              <span className="clip1" data-tip-overflow data-tip={it.name}>
                 {it.name}
               </span>
               <span className="num">{bytes(live[it.id]?.total || it.size)}</span>
@@ -874,7 +877,7 @@ function InfoDialog() {
             </label>
             <div className="fld">
               <span>{t("info.save")}</span>
-              <div className="url clip1" title={saveTo}>
+              <div className="url clip1" data-tip-overflow data-tip={saveTo}>
                 {saveTo}
               </div>
             </div>
@@ -1004,7 +1007,7 @@ function Toasts() {
           <div className="tt">
             <b>{x.kind === "info" ? t(`toast.infoMsg.${x.name}`, { defaultValue: x.name }) : t(`toast.${x.kind}`, { defaultValue: x.kind })}</b>
             {x.kind !== "info" && (
-              <span className="clip1" title={sub(x)}>
+              <span className="clip1" data-tip-overflow data-tip={sub(x)}>
                 {sub(x)}
               </span>
             )}

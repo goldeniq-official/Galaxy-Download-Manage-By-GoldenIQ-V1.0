@@ -24,6 +24,12 @@ export function Toggle({ on, label, onChange, disabled }: { on: boolean; label: 
 /** a radio group: one Tab stop (the checked one), arrows/Home/End move and choose (WAI-ARIA radio group) */
 export function Tabs<T extends string>({ value, items, label, onChange }: { value: T; items: [T, string][]; label: string; onChange: (v: T) => void }) {
   const at = Math.max(0, items.findIndex(([k]) => k === value));
+  const box = useRef<HTMLDivElement>(null);
+  const [cap, setCap] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const b = box.current?.children[at + 1] as HTMLElement | undefined; // [0] is the capsule
+    if (b) setCap({ x: b.offsetLeft, w: b.offsetWidth });
+  }, [at, items.length, value]);
   const onKey = (e: RKE<HTMLDivElement>) => {
     const n = items.length;
     const i = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % n : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at - 1 + n) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
@@ -31,10 +37,11 @@ export function Tabs<T extends string>({ value, items, label, onChange }: { valu
     e.preventDefault();
     const group = e.currentTarget; // React clears currentTarget once the handler returns
     onChange(items[i][0]);
-    requestAnimationFrame(() => (group.children[i] as HTMLElement | undefined)?.focus());
+    requestAnimationFrame(() => (group.children[i + 1] as HTMLElement | undefined)?.focus());
   };
   return (
-    <div className="tabs" role="radiogroup" aria-label={label} onKeyDown={onKey}>
+    <div ref={box} className="tabs" role="radiogroup" aria-label={label} onKeyDown={onKey}>
+      <span className="tabs-cap" aria-hidden="true" style={cap ? { transform: `translateX(${cap.x}px)`, width: cap.w } : { opacity: 0 }} />
       {items.map(([k, text], i) => (
         <button key={k} type="button" className="fx tab" role="radio" aria-checked={value === k} tabIndex={i === at ? 0 : -1} onClick={() => onChange(k)}>
           {text}
@@ -62,13 +69,13 @@ export function TitleBar() {
       <b>Galaxy Download Manager</b>
       <span className="sp" data-tauri-drag-region />
       <div className="wctl">
-        <button type="button" tabIndex={-1} aria-label={t("win.min")} title={t("win.min")} onClick={() => void win()?.minimize()}>
+        <button type="button" tabIndex={-1} aria-label={t("win.min")} data-tip={t("win.min")} data-tip-side="bottom" onClick={() => void win()?.minimize()}>
           <Icon n="minus" />
         </button>
-        <button type="button" tabIndex={-1} aria-label={t("win.max")} title={t("win.max")} onClick={() => void win()?.toggleMaximize()}>
+        <button type="button" tabIndex={-1} aria-label={t("win.max")} data-tip={t("win.max")} data-tip-side="bottom" onClick={() => void win()?.toggleMaximize()}>
           <Icon n="square" />
         </button>
-        <button type="button" tabIndex={-1} className="close" aria-label={t("d.close")} title={t("d.close")} onClick={() => void win()?.close()}>
+        <button type="button" tabIndex={-1} className="close" aria-label={t("d.close")} data-tip={t("d.close")} data-tip-side="bottom" onClick={() => void win()?.close()}>
           <Icon n="x" />
         </button>
       </div>
@@ -79,7 +86,7 @@ export function TitleBar() {
 /** one fixed line for an error: never wraps, never moves what is below; the full text is the tooltip */
 export function ErrLine({ msg }: { msg?: string | false | null }) {
   return (
-    <p className="err-line clip1" role="alert" title={msg || undefined}>
+    <p className="err-line clip1" role="alert" data-tip-overflow data-tip={msg || undefined}>
       {msg || ""}
     </p>
   );

@@ -54,8 +54,8 @@ function layoutProbe() {
     if (r.left < -1 || r.right > innerWidth + 1 || (!sc && (r.top < -1 || r.bottom > innerHeight + 1))) out.offscreen.push(own.slice(0, 40));
     if ((cs.overflowX === "hidden" || cs.overflowX === "clip") && el.scrollWidth > el.clientWidth + 1) {
       // ellipsis allowed only where the full text is reachable as a tooltip (file names)
-      const full = el.closest("[title]");
-      if (cs.textOverflow === "ellipsis" && full && full.title.trim()) out.ellipsis++; else out.hClip.push(own.slice(0, 40) + (cs.textOverflow === "ellipsis" ? " (ellipsis without title)" : ""));
+      const full = el.closest("[title], [data-tip]"); // data-tip = GDM's own tooltip (Tooltip.tsx)
+      if (cs.textOverflow === "ellipsis" && full && (full.getAttribute("data-tip") || full.title || "").trim()) out.ellipsis++; else out.hClip.push(own.slice(0, 40) + (cs.textOverflow === "ellipsis" ? " (ellipsis without tooltip)" : ""));
     }
   }
   return out;
