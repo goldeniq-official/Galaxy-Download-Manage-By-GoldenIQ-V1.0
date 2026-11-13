@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: RPL-1.5
-/* global navigator, nameOf, sendLinks -- they live in the extension's service worker (sw.evaluate) */
+/* global navigator, nameOf, sendLinks, extOf -- they live in the extension's service worker (sw.evaluate) */
 // Extension handoff and link-menu rules in real Chromium with the real extension (audit 2026-11-13). The native
 // port is stubbed inside the service worker, so nothing reaches the user's GDM:
 //  - a caught download carries the browser's User-Agent and cookie; on GDM's ack the browser copy is cancelled;
@@ -105,6 +105,11 @@ try {
   const nm = await sw.evaluate((u) => nameOf({ filename: "", url: u, finalUrl: u }), `${base}/f/bad%E0.bin`);
   check(nm === "bad%E0.bin", `the name of a URL with a malformed %-escape is kept as is, no URIError (${nm})`);
 
+  // 3b. the catch type = gdm-core name::type_extension (same vectors as n04_type_extension_routes_volumes...)
+  const vec = { "archive.tar.gz": "gz", "x.7z.001": "7z", "x.ZIP.002": "zip", "film.mkv.003": "mkv", "x.r00": "rar", "x.R17": "rar", "x.s01": "rar", "x.z01": "zip", "x.part2.rar": "rar", "report.2026": "2026", "x.001": "001", README: "", "setup.exe": "exe", "setup.exe.001": "exe", "pkg.msixbundle": "msixbundle" };
+  const got = await sw.evaluate((v) => Object.fromEntries(Object.keys(v).map((k) => [k, extOf(k)])), vec);
+  check(JSON.stringify(got) === JSON.stringify(vec), `extension extOf matches the core's type_extension (${JSON.stringify(got)})`);
+
   // 4. link menu: per origin, cookie only for its origin, chunks under the native cap
   await stub("ok");
   const long = (i) => `${base}/l/${i}/${"x".repeat(1000)}`;
@@ -125,6 +130,7 @@ try {
 } finally {
   await ctx.close();
   srv.close();
+  fs.rmSync(prof, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); // leave nothing behind
 }
 console.log(fails ? `${fails} FAILED` : "ALL PASS");
 process.exit(fails ? 1 : 0);

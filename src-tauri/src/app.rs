@@ -41,20 +41,65 @@ fn cat(id: &str, km: &str, en: &str, sub: &str, exts: &str) -> Category {
     }
 }
 
-/// IDM 6.43 defaults (idm.md §1.6, §22): six categories, sub-folders of Downloads
+/// IDM 6.43's six categories (idm.md §1.6, §22), sub-folders of Downloads, with the types people download
+/// worldwide today (2026-11-14, owner): modern compressors (zstd, lz4, xz/tar compounds), Korean ALZip/Egg
+/// and Hangul (alz egg hwp hwpx), Chinese WPS Office (wps et dps), Japanese Ichitaro (jtd; lzh was already
+/// IDM's), e-books and comics, Android/iOS/macOS/Linux packages, disk and VM images, lossless audio, disc and
+/// camera video. Split volumes sort with their archive (name::type_extension: .7z.001, .r00, .z01).
 pub fn default_categories() -> Vec<Category> {
     vec![
         cat("general", "ទូទៅ", "General", "", ""),
-        cat("compressed", "ឯកសារបង្ហាប់", "Compressed", "Compressed", "zip rar 7z arj gz bz2 xz tar tgz sit sitx sea ace lzh z"),
-        cat("documents", "ឯកសារ", "Documents", "Documents", "pdf doc docx ppt pptx pps xls xlsx odt ods odp epub"),
-        cat("music", "តន្ត្រី", "Music", "Music", "mp3 wav wma mpa ram ra aac aif m4a ogg flac opus"),
-        cat("programs", "កម្មវិធី", "Programs", "Programs", "exe msi msu msix appx apk iso img bin"),
-        cat("video", "វីដេអូ", "Video", "Video", "avi mpg mpe mpeg asf wmv mov qt rm rmvb mp4 m4v flv webm ogv mkv 3gp ts"),
+        cat("compressed", "ឯកសារបង្ហាប់", "Compressed", "Compressed", CAT_COMPRESSED),
+        cat("documents", "ឯកសារ", "Documents", "Documents", CAT_DOCUMENTS),
+        cat("music", "តន្ត្រី", "Music", "Music", CAT_MUSIC),
+        cat("programs", "កម្មវិធី", "Programs", "Programs", CAT_PROGRAMS),
+        cat("video", "វីដេអូ", "Video", "Video", CAT_VIDEO),
     ]
 }
 
-/// IDM's default "File Types" list (catch rules, §22), as lower-case extensions
-pub const CATCH_EXTS: &str = "3gp 7z aac ace aif apk arj asf avi bin bz2 exe gz gzip img iso lzh m4a m4v mkv mov mp3 mp4 mpa mpe mpeg mpg msi msu ogg ogv pdf plj pps ppt qt ra rar rm rmvb sea sit sitx tar tif tiff wav wma wmv xz z zip";
+const CAT_COMPRESSED: &str =
+    "zip rar 7z arj gz gzip bz2 xz tar tgz sit sitx sea ace lzh z zst lz lz4 lzma tbz tbz2 txz tzst cab wim cpio alz egg pea zpaq arc";
+const CAT_DOCUMENTS: &str = "pdf doc docx ppt pptx pps xls xlsx odt ods odp epub rtf odg djvu mobi azw azw3 fb2 cbz cbr chm xps oxps hwp hwpx wps et dps jtd pages numbers key";
+const CAT_MUSIC: &str = "mp3 wav wma mpa ram ra aac aif aiff m4a ogg flac opus ape wv dsf dff mka m4b mid midi amr ac3 dts tta";
+const CAT_PROGRAMS: &str = "exe msi msu msix msixbundle appx appxbundle apk xapk apks apkm aab ipa dmg pkg deb rpm appimage flatpakref snap iso img bin esd vhd vhdx vmdk qcow2 ova";
+const CAT_VIDEO: &str = "avi mpg mpe mpeg asf wmv mov qt rm rmvb mp4 m4v flv webm ogv mkv 3gp 3g2 ts m2ts mts vob f4v m2v mxf ogm divx wtv";
+
+/// the defaults before 2026-11-14: a saved list still equal to one of these was never edited, so it gets the
+/// new default (upgrade_defaults); an edited list is the user's and is left alone
+const OLD_CATEGORIES: &[(&str, &str)] = &[
+    ("compressed", "zip rar 7z arj gz bz2 xz tar tgz sit sitx sea ace lzh z"),
+    ("documents", "pdf doc docx ppt pptx pps xls xlsx odt ods odp epub"),
+    ("music", "mp3 wav wma mpa ram ra aac aif m4a ogg flac opus"),
+    ("programs", "exe msi msu msix appx apk iso img bin"),
+    ("video", "avi mpg mpe mpeg asf wmv mov qt rm rmvb mp4 m4v flv webm ogv mkv 3gp ts"),
+];
+const OLD_CATCH_EXTS: &str = "3gp 7z aac ace aif apk arj asf avi bin bz2 exe gz gzip img iso lzh m4a m4v mkv mov mp3 mp4 mpa mpe mpeg mpg msi msu ogg ogv pdf plj pps ppt qt ra rar rm rmvb sea sit sitx tar tif tiff wav wma wmv xz z zip";
+
+fn same_set(list: &[String], words: &str) -> bool {
+    let a: std::collections::BTreeSet<&str> = list.iter().map(String::as_str).collect();
+    a == words.split(' ').collect()
+}
+
+/// lists still at an old default follow the new default; idempotent (runs at every start)
+pub fn upgrade_defaults(s: &mut Settings) {
+    if same_set(&s.catch_exts, OLD_CATCH_EXTS) {
+        s.catch_exts = CATCH_EXTS.split(' ').map(String::from).collect();
+    }
+    let fresh = default_categories();
+    for c in &mut s.categories {
+        if OLD_CATEGORIES.iter().any(|(id, old)| *id == c.id && same_set(&c.exts, old)) {
+            if let Some(f) = fresh.iter().find(|f| f.id == c.id) {
+                c.exts = f.exts.clone();
+            }
+        }
+    }
+}
+
+/// what the browser hands to GDM (catch rules, §22): IDM's default "File Types" list (its R0* R1* RAR volumes
+/// are covered by name::type_extension, which also brings .7z.001/.z01 volumes) plus the big downloads of
+/// today. Conservative on purpose: nothing a browser shows inline (txt, csv, images, html) and no "ts" (also
+/// TypeScript source); sorting-only types (key, pages...) stay out.
+pub const CATCH_EXTS: &str = "3gp 7z aac ace aif apk arj asf avi bin bz2 exe gz gzip img iso lzh m4a m4v mkv mov mp3 mp4 mpa mpe mpeg mpg msi msu ogg ogv pdf plj pps ppt qt ra rar rm rmvb sea sit sitx tar tif tiff wav wma wmv xz z zip zst lz4 tgz txz tbz2 cab wim alz egg dmg pkg deb rpm appimage xapk apks apkm aab ipa msix msixbundle appx esd vhd vhdx vmdk qcow2 ova webm flv m2ts mts vob f4v flac opus ape m4b epub mobi azw3 djvu cbz cbr";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(default)]
@@ -203,8 +248,9 @@ pub fn downloads_dir() -> PathBuf {
     std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("C:\\")).join("Downloads")
 }
 
+/// the type a name sorts by (split volumes take their archive's type); danger uses name::dangerous
 pub fn ext_of(name: &str) -> String {
-    gdm_core::name::real_extension(name)
+    gdm_core::name::type_extension(name)
 }
 
 /// the per-user data folder (db, settings, backups): %LOCALAPPDATA%\<identifier>, the folder the NSIS
@@ -298,7 +344,7 @@ impl App {
     pub fn open(data: &Path) -> Result<Arc<App>, String> {
         std::fs::create_dir_all(data).map_err(|e| e.to_string())?;
         let sp = data.join("settings.json");
-        let settings: Settings = match std::fs::read(&sp) {
+        let mut settings: Settings = match std::fs::read(&sp) {
             Err(_) => Settings::default(),
             Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|_| {
                 // a damaged settings file is kept for the user, never silently overwritten (UX rule 2)
@@ -306,6 +352,7 @@ impl App {
                 Settings::default()
             }),
         };
+        upgrade_defaults(&mut settings);
         let engine = Engine::open(&data.join("gdm.db"), gdm_core::seg::Config { cap: settings.max_conns.clamp(1, 32), ..Default::default() })
             .map_err(|e| e.to_string())?;
         let banner = engine
@@ -940,6 +987,42 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// lists still at the old defaults get the new ones; a list the user edited is never touched; twice = once
+    #[test]
+    fn upgrade_defaults_only_touches_unedited_lists() {
+        let mut s = Settings { catch_exts: OLD_CATCH_EXTS.split(' ').rev().map(String::from).collect(), ..Default::default() };
+        for c in &mut s.categories {
+            if let Some((_, old)) = OLD_CATEGORIES.iter().find(|(id, _)| *id == c.id) {
+                c.exts = old.split(' ').map(String::from).collect();
+            }
+        }
+        s.categories.iter_mut().find(|c| c.id == "music").unwrap().exts.push("xm".into()); // the user's edit
+        upgrade_defaults(&mut s);
+        let mut again = s.clone();
+        upgrade_defaults(&mut again);
+        assert!(s.catch_exts.iter().any(|e| e == "zst") && s.catch_exts.iter().any(|e| e == "dmg"), "old catch list upgraded");
+        let ex = |id: &str| s.categories.iter().find(|c| c.id == id).unwrap().exts.clone();
+        assert!(ex("compressed").contains(&"alz".to_string()) && ex("documents").contains(&"hwp".to_string()));
+        assert!(!ex("music").contains(&"ape".to_string()) && ex("music").contains(&"xm".to_string()), "edited list kept");
+        assert_eq!((&s.catch_exts, &s.categories), (&again.catch_exts, &again.categories), "idempotent");
+        // sorting: the owner's archive, split volumes, a Korean document
+        let a = |n: &str| ext_of(n);
+        assert_eq!(
+            (a("archive-2026-10-17T075353Z.tar.gz"), a("x.7z.001"), a("x.r00"), a("doc.hwp")),
+            ("gz".into(), "7z".into(), "rar".into(), "hwp".into())
+        );
+        for n in ["archive.tar.gz", "x.7z.001", "x.r00", "x.part1.rar", "x.zst", "x.egg"] {
+            let c = default_categories().into_iter().find(|c| c.exts.contains(&ext_of(n))).map(|c| c.id);
+            assert_eq!(c.as_deref(), Some("compressed"), "{n}");
+        }
+        for e in CATCH_EXTS.split(' ') {
+            assert!(
+                default_categories().iter().any(|c| c.exts.iter().any(|x| x == e)) || ["plj", "tif", "tiff"].contains(&e),
+                "caught but no category: {e}"
+            );
+        }
+    }
     /// X-02: a made-up id resolves to nothing (commands look paths up by id, never take them from the UI)
     #[test]
     fn x02_fake_job_id_refused_and_settings_survive_damage() {

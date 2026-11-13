@@ -161,8 +161,53 @@ fn content_disposition_and_url() {
 #[test]
 fn n04_counter_keeps_extension() {
     assert_eq!(with_counter("setup.exe", 1), "setup (1).exe");
-    assert_eq!(with_counter("archive.tar.gz", 2), "archive.tar (2).gz");
     assert_eq!(with_counter("README", 3), "README (3)");
+}
+
+/// compound and split-volume names keep their whole extension (Chrome/Firefox: "test(1).tar.gz"), so the
+/// file still opens in its archiver; the owner's case was "archive-2026-10-17T075353Z.tar.gz"
+#[test]
+fn n04_counter_keeps_compound_and_volume_extensions() {
+    let c = |n: &str| with_counter(n, 1);
+    assert_eq!(c("archive-2026-10-17T075353Z.tar.gz"), "archive-2026-10-17T075353Z (1).tar.gz");
+    assert_eq!(c("linux-6.9.tar.xz"), "linux-6.9 (1).tar.xz");
+    assert_eq!(c("db.tar.zst"), "db (1).tar.zst");
+    assert_eq!(c("x.tar.lz4"), "x (1).tar.lz4");
+    assert_eq!(c("BACKUP.TAR.GZ"), "BACKUP (1).TAR.GZ");
+    assert_eq!(c("movie.7z.001"), "movie (1).7z.001");
+    assert_eq!(c("movie.part12.rar"), "movie (1).part12.rar");
+    assert_eq!(c("ឯកសារ.tar.gz"), "ឯកសារ (1).tar.gz");
+    // not compound: a long middle, no middle, an unknown final, a dot file
+    assert_eq!(c("notes.backup.gz"), "notes.backup (1).gz");
+    assert_eq!(c("a..gz"), "a. (1).gz");
+    assert_eq!(c("report.2026"), "report (1).2026");
+    assert_eq!(c("report.pdf.exe"), "report.pdf (1).exe");
+    assert_eq!(c(".gitignore"), ".gitignore (1)");
+    assert_eq!(c("trailing."), "trailing. (1)");
+}
+
+/// the type a name is sorted and caught by: split volumes take their archive's type; the dangerous label
+/// still reads the real last extension
+#[test]
+fn n04_type_extension_routes_volumes_but_never_hides_danger() {
+    use gdm_core::name::type_extension as t;
+    assert_eq!(t("archive.tar.gz"), "gz");
+    assert_eq!(t("x.7z.001"), "7z");
+    assert_eq!(t("x.ZIP.002"), "zip");
+    assert_eq!(t("film.mkv.003"), "mkv");
+    assert_eq!(t("x.r00"), "rar");
+    assert_eq!(t("x.R17"), "rar");
+    assert_eq!(t("x.s01"), "rar");
+    assert_eq!(t("x.z01"), "zip");
+    assert_eq!(t("x.part2.rar"), "rar");
+    assert_eq!(t("report.2026"), "2026");
+    assert_eq!(t("x.001"), "001");
+    assert_eq!(t("README"), "");
+    assert_eq!(t("setup.exe"), "exe");
+    // a volume name never makes an .exe look safe, and never makes a safe name look dangerous
+    assert!(dangerous("setup.exe"));
+    assert!(!dangerous("setup.exe.001"));
+    assert_eq!(t("setup.exe.001"), "exe");
 }
 
 #[test]

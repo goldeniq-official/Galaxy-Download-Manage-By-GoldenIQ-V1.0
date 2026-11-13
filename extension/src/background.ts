@@ -65,7 +65,16 @@ function glob(pat: string, s: string) {
   const re = new RegExp("^" + pat.toLowerCase().replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");
   return re.test(s.toLowerCase());
 }
-const extOf = (name: string) => (name.match(/\.([a-z0-9]{1,8})$/i)?.[1] ?? "").toLowerCase();
+// the type a download is caught by = gdm-core name::type_extension (same vectors: tests/e2e/ext-handoff.mjs and
+// crates/gdm-core/tests/n01_n02_names.rs): split volumes take their archive's type (.7z.001 -> 7z, .r00 -> rar,
+// .z01 -> zip); up to 16 chars (msixbundle)
+const extOf = (name: string) => {
+  const n = name.toLowerCase();
+  const fin = n.match(/[^.]\.([a-z0-9]{1,16})$/)?.[1] ?? "";
+  if (/^[rs]\d\d$/.test(fin)) return "rar";
+  if (/^z\d\d$/.test(fin)) return "zip";
+  return n.match(/[^.]\.([a-z0-9]{1,4})\.\d{3}$/)?.[1] ?? fin;
+};
 const decode = (s: string) => {
   try {
     return decodeURIComponent(s);

@@ -104,7 +104,7 @@ fn truncate(s: String) -> String {
     if s.encode_utf16().count() <= MAX_UTF16 {
         return s;
     }
-    let ext = match s.rfind('.') {
+    let ext = match ext_start(&s) {
         Some(i) if s.len() - i <= 16 => s[i..].to_string(),
         _ => String::new(),
     };
@@ -136,12 +136,58 @@ pub fn dangerous(name: &str) -> bool {
     DANGEROUS.contains(&e.as_str()) || DANGEROUS_OS.contains(&e.as_str())
 }
 
-/// "setup.exe", 1 -> "setup (1).exe" (N-04)
+/// "setup.exe", 1 -> "setup (1).exe"; "archive.tar.gz" -> "archive (1).tar.gz" (N-04, as Chrome and Firefox)
 pub fn with_counter(name: &str, n: u32) -> String {
-    match name.rfind('.') {
-        Some(i) if i > 0 => format!("{} ({n}){}", &name[..i], &name[i..]),
-        _ => format!("{name} ({n})"),
+    match ext_start(name) {
+        Some(i) => format!("{} ({n}){}", &name[..i], &name[i..]),
+        None => format!("{name} ({n})"),
     }
+}
+
+/// compression suffixes that make one extension with a short part before them: Chromium's
+/// kCommonDoubleExtensionSuffixes (base/files/file_path.cc) plus lz4 (".tar.lz4")
+const DOUBLE_SUFFIXES: &[&str] = &["bz", "bz2", "gz", "lz", "lz4", "lzma", "lzo", "xz", "z", "zst"];
+
+/// the byte index of the dot that starts the whole extension, None when there is none (or a dot file):
+/// "a.zip" -> ".zip"; "a.tar.gz" -> ".tar.gz" (Chromium: a compression suffix after a 1-4 char part);
+/// "a.7z.001" -> ".7z.001" (a split volume: 3 digits after a 1-4 char part); "a.part1.rar" -> ".part1.rar".
+/// Names only: what a file IS (and whether it is dangerous) is never decided from this.
+pub fn ext_start(name: &str) -> Option<usize> {
+    let last = name.rfind('.').filter(|&i| i > 0 && i + 1 < name.len())?;
+    let fin = name[last + 1..].to_ascii_lowercase();
+    let Some(prev) = name[..last].rfind('.').filter(|&i| i > 0) else { return Some(last) };
+    let mid = &name[prev + 1..last];
+    let short = (1..=4).contains(&mid.len()) && mid.bytes().all(|b| b.is_ascii_alphanumeric());
+    let double = short && DOUBLE_SUFFIXES.contains(&fin.as_str());
+    let volume = short && fin.len() == 3 && fin.bytes().all(|b| b.is_ascii_digit());
+    let rar_part = fin == "rar"
+        && mid.len() <= 8
+        && mid.to_ascii_lowercase().strip_prefix("part").is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()));
+    Some(if double || volume || rar_part { prev } else { last })
+}
+
+/// the type a name sorts and is caught by (categories, catch lists), lower case, "" when none: the last
+/// extension, except split volumes, which take their archive's type: "a.7z.001" -> "7z", "a.r00"/"a.s01" ->
+/// "rar", "a.z01" -> "zip". A routing hint only: `dangerous` keeps the real last extension.
+pub fn type_extension(name: &str) -> String {
+    let e = real_extension(name);
+    let b = e.as_bytes();
+    if b.len() == 3 && b[1].is_ascii_digit() && b[2].is_ascii_digit() {
+        match b[0] {
+            b'r' | b's' => return "rar".into(),
+            b'z' => return "zip".into(),
+            _ => {}
+        }
+    }
+    if let Some(i) = ext_start(name) {
+        let full = name[i + 1..].to_ascii_lowercase();
+        if let Some((inner, vol)) = full.split_once('.') {
+            if vol.len() == 3 && vol.bytes().all(|c| c.is_ascii_digit()) {
+                return inner.to_string();
+            }
+        }
+    }
+    e
 }
 
 /// name from Content-Disposition (filename* per RFC 8187 first, then filename), else the URL's last path
