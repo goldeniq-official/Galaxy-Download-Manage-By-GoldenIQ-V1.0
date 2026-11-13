@@ -1,58 +1,58 @@
-# cargo test --workspace --no-fail-fast, a269e20+test-fix, 2026-11-13T07:07:45Z
+# cargo test --workspace --no-fail-fast, 4251ff0, 2026-11-13T07:57:33Z
      Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_app-dacd95f01ba2d174.exe)
-test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
      Running unittests src\main.rs (D:/gdm-t6\debug\deps\gdm-6c6be3ba2d56cd8c.exe)
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
      Running tests\g7_digest.rs (D:/gdm-t6\debug\deps\g7_digest-f8e26e957d359ea2.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.45s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.85s
      Running tests\g7_logins.rs (D:/gdm-t6\debug\deps\g7_logins-a679daa5b7b3e1a3.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
      Running tests\g7_media.rs (D:/gdm-t6\debug\deps\g7_media-d224ea5722d1e435.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 34.04s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.46s
      Running tests\g7_misc.rs (D:/gdm-t6\debug\deps\g7_misc-6ad26df6a22aa1f7.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
      Running tests\g7_queue.rs (D:/gdm-t6\debug\deps\g7_queue-5579708ba8dc2df1.exe)
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.37s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.28s
      Running tests\g7_refresh.rs (D:/gdm-t6\debug\deps\g7_refresh-38759c2d504b67fe.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.73s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.83s
      Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_auth-c528645c305a3d4f.exe)
 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
      Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_bridge-f62df28d1e2aa1d4.exe)
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
      Running unittests src\main.rs (D:/gdm-t6\debug\deps\gdm_bridge-a84d4b6dba388363.exe)
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
      Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_core-c822fa44be875eb8.exe)
-test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
      Running unittests src\bin\gdm-get.rs (D:/gdm-t6\debug\deps\gdm_get-e544d26f95901b03.exe)
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
      Running tests\d01_store.rs (D:/gdm-t6\debug\deps\d01_store-51abc3360133251a.exe)
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.76s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.70s
      Running tests\e01_e03_hostile.rs (D:/gdm-t6\debug\deps\e01_e03_hostile-0fea6f75ccdafdaf.exe)
-test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.11s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.25s
      Running tests\e04_kill.rs (D:/gdm-t6\debug\deps\e04_kill-78597c2f180fc2ee.exe)
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 130.18s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 125.53s
      Running tests\g6_api.rs (D:/gdm-t6\debug\deps\g6_api-7eb5a09689308889.exe)
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.39s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.42s
      Running tests\g7_conns.rs (D:/gdm-t6\debug\deps\g7_conns-07c23d6527b79792.exe)
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.11s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.97s
      Running tests\g7_l02.rs (D:/gdm-t6\debug\deps\g7_l02-6b8480ec1988b689.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.54s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.40s
      Running tests\g7_p1rows.rs (D:/gdm-t6\debug\deps\g7_p1rows-be8ca52b6b0faa5e.exe)
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.49s
      Running tests\g7_pac.rs (D:/gdm-t6\debug\deps\g7_pac-f396d731b15fe706.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
      Running tests\g7_proxy.rs (D:/gdm-t6\debug\deps\g7_proxy-ffa7fa9466770c16.exe)
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.80s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.57s
      Running tests\g7_refresh.rs (D:/gdm-t6\debug\deps\g7_refresh-bce2f541fa0b4180.exe)
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.36s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.26s
      Running tests\g7_sync.rs (D:/gdm-t6\debug\deps\g7_sync-91334a4beed16f90.exe)
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
      Running tests\n01_n02_names.rs (D:/gdm-t6\debug\deps\n01_n02_names-0249bd5bd6e62462.exe)
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.31s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.94s
      Running tests\n03_n09_files.rs (D:/gdm-t6\debug\deps\n03_n09_files-7f63dd34d81fc010.exe)
-test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.21s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.91s
      Running tests\w01_w03_network.rs (D:/gdm-t6\debug\deps\w01_w03_network-a2715939dcf1f134.exe)
-test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.98s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.89s
      Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_fixture-fe586255c3373f66.exe)
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
      Running unittests src\main.rs (D:/gdm-t6\debug\deps\gdm_fixture-8b5a6001b4dc039b.exe)
@@ -60,11 +60,11 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
      Running tests\wire.rs (D:/gdm-t6\debug\deps\wire-58d73e7a121e90d9.exe)
 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.04s
      Running unittests src\lib.rs (D:/gdm-t6\debug\deps\gdm_media-33fe0c0dda50ca45.exe)
-test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-TOTAL: passed 153, failed 0
+TOTAL: passed 155, failed 0
