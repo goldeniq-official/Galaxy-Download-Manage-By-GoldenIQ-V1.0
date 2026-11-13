@@ -26,9 +26,8 @@ GDM ជាកម្មវិធីគ្រប់គ្រងការទាញ�
 
 ## គាំទ្រ GDM
 
-GDM ឥតគិតថ្លៃសម្រាប់អ្នកទាំងអស់គ្នា រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័នរដ្ឋ។ ការគាំទ្រជាការស្ម័គ្រចិត្ត៖ វាមិនបើកមុខងារណាមួយ មិនផ្ដល់អាទិភាពក្នុង support ឬការសម្រេចមុខងារ ហើយមិនមែនជាការទិញផលិតផល ឬសេវាទេ។ រូប KHQR នឹងដាក់នៅទីនេះ និងក្នុងទំព័រ About របស់ app។ ស្ថាប័នដែលត្រូវការជំនួយដំឡើង ឬបង្ហាត់: [docs/services.md](docs/services.md)។ អ្នកឧបត្ថម្ភ: [docs/sponsors.md](docs/sponsors.md)។
-<!-- KHQR: put the owner's image at src/assets/khqr.png (the About page picks it up at build time) and add here:
-<img src="src/assets/khqr.png" alt="KHQR គាំទ្រ GDM / Support GDM" width="220"> -->
+GDM ឥតគិតថ្លៃសម្រាប់អ្នកទាំងអស់គ្នា រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័នរដ្ឋ។ ការគាំទ្រជាការស្ម័គ្រចិត្ត៖ វាមិនបើកមុខងារណាមួយ មិនផ្ដល់អាទិភាពក្នុង support ឬការសម្រេចមុខងារ ហើយមិនមែនជាការទិញផលិតផល ឬសេវាទេ។ ស្កេន KHQR (ABA) ខាងក្រោមដោយកម្មវិធីធនាគាររបស់អ្នក (ក៏មាននៅក្នុងទំព័រ About របស់ app ដែរ)។ ស្ថាប័នដែលត្រូវការជំនួយដំឡើង ឬបង្ហាត់: [docs/services.md](docs/services.md)។ អ្នកឧបត្ថម្ភ: [docs/sponsors.md](docs/sponsors.md)។
+<img src="src/assets/khqr.png" alt="KHQR គាំទ្រ GDM / Support GDM" width="220">
 
 ឯកសារផ្សេងៗ: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)
 
@@ -49,6 +48,6 @@ GDM is a Windows download manager that is free for everyone (companies, schools 
 
 **Licence:** the source is published under the **Reciprocal Public License 1.5** ([LICENSE](LICENSE), [NOTICE.md](NOTICE.md)). It is **not** "take it and do anything" open source: whoever modifies and deploys it must publish their changes, use a different name and keep the attribution. The names "Galaxy Download Manager", "GDM" and the logo are **not** licensed to forks ([TRADEMARKS.md](TRADEMARKS.md)). Using the original program is free for everyone.
 
-**Support GDM:** GDM is free for everyone, including businesses, schools and government. Support is voluntary: it unlocks no feature, gives no priority in support or feature decisions, and buys no product or service. The KHQR image will appear here and on the app's About page. Organisations that want help with deployment or training: [docs/services.md](docs/services.md). Sponsors: [docs/sponsors.md](docs/sponsors.md).
+**Support GDM:** GDM is free for everyone, including businesses, schools and government. Support is voluntary: it unlocks no feature, gives no priority in support or feature decisions, and buys no product or service. Scan the KHQR (ABA) in the Khmer section above with your banking app (it is also on the app's About page). Organisations that want help with deployment or training: [docs/services.md](docs/services.md). Sponsors: [docs/sponsors.md](docs/sponsors.md).
 
 Galaxy Download Manager — Copyright (c) 2026 Golden IQ and CHHIT Sungchhay. Licensed under the Reciprocal Public License 1.5. https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0

@@ -238,7 +238,7 @@ test("G8 §21 M1: About shows the voluntary support block and loads nothing from
   await page.locator(".set .rail .nav").last().click();
   await expect(page.getByText("Support GDM")).toBeVisible();
   await expect(page.getByText(/unlocks no feature/)).toBeVisible();
-  if (process.env.G8_QR) await expect(page.locator("img[alt=KHQR]")).toBeVisible();
+  await expect(page.locator("img[alt=KHQR]")).toBeVisible();
   expect(outside).toEqual([]);
 });
 

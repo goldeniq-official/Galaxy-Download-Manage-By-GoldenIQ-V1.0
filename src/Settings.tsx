@@ -320,7 +320,7 @@ export function SettingsView() {
                 <small>{t("set.supportS")}</small>
                 <small>{t(KHQR ? "set.supportScan" : "set.supportNone")}</small>
               </div>
-              {KHQR && <img src={KHQR} alt="KHQR" width={180} height={180} />}
+              {KHQR && <img src={KHQR} alt="KHQR" width={240} height={339} />}
             </div>
           </Sec>}
         </div>
