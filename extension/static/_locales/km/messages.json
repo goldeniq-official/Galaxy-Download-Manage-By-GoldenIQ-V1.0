@@ -20,6 +20,9 @@
   "offlineHelp": {
     "message": "ដំឡើង ឬបើក Galaxy Download Manager។ មុនពេលនោះ browser ទាញធម្មតា។"
   },
+  "getGdm": {
+    "message": "ទាញយក Galaxy Download Manager"
+  },
   "catching": {
     "message": "ចាប់ការទាញយក"
   },

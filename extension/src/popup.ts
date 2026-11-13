@@ -83,6 +83,10 @@ void (async () => {
   st.className = "st " + (r?.connected ? "ok" : "off");
   ($("help") as HTMLElement).hidden = !!r?.connected;
   $("help").textContent = msg("offlineHelp");
+  const get = $("get") as HTMLButtonElement; // a store user may have the extension before GDM itself
+  get.hidden = !!r?.connected;
+  get.textContent = msg("getGdm");
+  get.onclick = () => chrome.tabs.create({ url: "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases/latest" });
   const ul = $("recent");
   for (const it of (r?.status?.recent as { name: string; state: string }[] | undefined) ?? []) {
     const li = document.createElement("li");

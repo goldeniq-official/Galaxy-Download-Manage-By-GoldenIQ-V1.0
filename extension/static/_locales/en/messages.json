@@ -20,6 +20,9 @@
   "offlineHelp": {
     "message": "Install or open Galaxy Download Manager. Until then your browser downloads normally."
   },
+  "getGdm": {
+    "message": "Download Galaxy Download Manager"
+  },
   "catching": {
     "message": "Catch downloads"
   },

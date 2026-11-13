@@ -88,7 +88,9 @@ jobs:
               echo "GDM_${v}_$a.AppImage" > out/updater-$a.txt ;;
           esac
           if [ "$a" = windows-x64 ]; then
-            (cd extension/dist && zip -qr "../../out/gdm-extension-chrome-$v.zip" chrome && zip -qr "../../out/gdm-extension-firefox-$v.zip" firefox) || pwsh -Command "Compress-Archive extension/dist/chrome out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox out/gdm-extension-firefox-$v.zip"
+            # store packages: manifest.json at the zip root (both stores require it); no dev "key" (the stores assign the id)
+            node -e "const f='extension/dist/chrome/manifest.json',fs=require('fs'),m=JSON.parse(fs.readFileSync(f));delete m.key;fs.writeFileSync(f,JSON.stringify(m,null,2))"
+            pwsh -Command "Compress-Archive extension/dist/chrome/* out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox/* out/gdm-extension-firefox-$v.zip"
           fi
           ls -la out
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

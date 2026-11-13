@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: RPL-1.5
+/* global navigator, nameOf, sendLinks -- they live in the extension's service worker (sw.evaluate) */
 // Extension handoff and link-menu rules in real Chromium with the real extension (audit 2026-11-13). The native
 // port is stubbed inside the service worker, so nothing reaches the user's GDM:
 //  - a caught download carries the browser's User-Agent and cookie; on GDM's ack the browser copy is cancelled;
@@ -70,7 +71,7 @@ try {
         if (mode === "old" && "ua" in m) return Promise.resolve({ ok: false, error: "rejected" });
         return Promise.resolve({ ok: true, id: "j1", started: true });
       };
-      lastHello = 0;
+      lastHello = 0; // eslint-disable-line no-undef -- the worker's own let
     }, mode);
   const sent = () => sw.evaluate(() => globalThis.__sent);
   const ua = await sw.evaluate(() => navigator.userAgent);
