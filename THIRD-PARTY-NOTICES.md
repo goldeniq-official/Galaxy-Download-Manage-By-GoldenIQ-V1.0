@@ -46,7 +46,7 @@ programs and does not link to them. Their licences apply to them, not to GDM.
 | void-elements | 3.1.0 | MIT | https://github.com/jadejs/void-elements |
 | zustand | 5.1.0 | MIT | https://github.com/pmndrs/zustand |
 
-## Rust crates in gdm.exe and gdm-bridge.exe (301)
+## Rust crates in gdm.exe and gdm-bridge.exe (299)
 
 | Crate | Version | Licence | Repository |
 |---|---|---|---|
@@ -118,8 +118,6 @@ programs and does not link to them. Their licences apply to them, not to GDM.
 | futures-sink | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-task | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-util | 0.3.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
-| gdm-auth | 0.1.0 | RPL-1.5 |  |
-| gdm-media | 0.1.0 | RPL-1.5 |  |
 | generic-array | 0.14.7 | MIT | https://github.com/fizyk20/generic-array.git |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
 | getrandom | 0.2.17 | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |

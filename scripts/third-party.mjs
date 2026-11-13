@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 
 const meta = JSON.parse(execSync("cargo metadata --format-version 1 --locked --filter-platform x86_64-pc-windows-msvc", { maxBuffer: 1 << 28 }).toString());
-const ours = new Set(["galaxy-download-manager", "gdm-core", "gdm-bridge", "gdm-fixture"]);
+const ours = new Set(["galaxy-download-manager", "gdm-core", "gdm-bridge", "gdm-fixture", "gdm-auth", "gdm-media"]);
 const pkgs = new Map(meta.packages.map((p) => [p.id, p]));
 const reach = new Set();
 const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
