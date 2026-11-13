@@ -259,6 +259,49 @@ fn g02_avoid_matching() {
     assert!(grab::avoided(&u("http://h/cart/empty"), &["*cart/empty*".to_string()]));
 }
 
+// council G9 final review: robots.txt itself avoided, robots.txt cut short, redirects meet every page rule
+
+#[tokio::test(flavor = "multi_thread")]
+async fn g02_avoided_robots_txt_is_never_requested() {
+    let f = site().await;
+    let mut c = cfg(f.url("/static/site/index.html"));
+    c.avoid = "robots.txt".into();
+    let r = run(&c).await;
+    assert!(!paths(&f).iter().any(|p| p.contains("robots")), "{:?}", paths(&f));
+    assert!(names(&r).contains(&"a.jpg".to_string()));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn g01_robots_cut_short_means_disallowed() {
+    let f = site().await;
+    f.add_blob("robots.cut", b"User-agent: *\nAllow: /\n".to_vec());
+    let r = run(&cfg(f.url("/static/site/index.html"))).await;
+    assert_eq!(paths(&f), ["/robots.txt"], "a broken-off robots.txt is not a permission");
+    assert!(r.skipped.iter().any(|s| s.reason == "robots"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn g01_redirects_meet_path_filters_and_other_site_depth() {
+    let f = site().await;
+    let other = fx().await;
+    other.add_blob("p.html", b"<a href='q.zip'>q</a>".to_vec());
+    f.add_blob("secret.html", b"<a href='/static/s.zip'>s</a>".to_vec());
+    let page = format!(
+        "<a href=\"/redirect?to=%2Fstatic%2Fsecret.html\">x</a> <a href=\"/redirect?to={}\">y</a>",
+        pct_encode(&format!("http://localhost:{}/static/p.html", other.addr.port()))
+    );
+    f.add_blob("site/index.html", page.into_bytes());
+    let mut c = cfg(f.url("/static/site/index.html"));
+    c.no_parent = false;
+    c.exclude = "/static/secret*".into();
+    c.domains = "localhost".into(); // allowed for files, but other-site depth stays 0
+    let r = run(&c).await;
+    assert!(!paths(&f).iter().any(|p| p.starts_with("/static/secret")), "{:?}", paths(&f));
+    assert!(other.log().is_empty(), "other-site depth 0: a redirect does not explore it");
+    assert!(r.skipped.iter().any(|s| s.reason == "filter"), "{:?}", r.skipped);
+    assert!(r.skipped.iter().any(|s| s.reason == "depth"), "{:?}", r.skipped);
+}
+
 // ---------------- G-03 ----------------
 
 #[test]

@@ -21,11 +21,13 @@ async function open(page: Page, q: string) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(700);
 }
+/** the Tasks menu button, by its name (its place in the toolbar may change) */
+const tasksBtn = (p: Page) => p.locator(".top").getByRole("button", { name: /^(Tasks|កិច្ចការ)/ }).first();
 const calls = (p: Page, cmd: string) =>
   p.evaluate((c) => ((window as unknown as { __calls?: [string, Record<string, unknown>][] }).__calls ?? []).filter((x) => x[0] === c).map((x) => x[1]), cmd);
 
 async function wizard(p: Page) {
-  await p.locator(".top .chip[aria-haspopup]").first().click();
+  await tasksBtn(p).click();
   await p.locator(".menu .mi").last().click();
   await p.locator(".modal input").first().fill("https://example.com/gallery/");
 }
@@ -94,7 +96,7 @@ test("g9 grabber: ticked files only, duplicates hidden, no path from the WebView
 
 test("g9 grabber: a non-http start address cannot go on", async ({ page }) => {
   await open(page, "scene=states&lang=km&theme=dark");
-  await page.locator(".top .chip[aria-haspopup]").first().click();
+  await tasksBtn(page).click();
   await page.locator(".menu .mi").last().click();
   await page.locator(".modal input").first().fill("file:///C:/Windows/");
   await expect(page.locator(".modal .mfoot .btn-p")).toHaveAttribute("aria-disabled", "true");

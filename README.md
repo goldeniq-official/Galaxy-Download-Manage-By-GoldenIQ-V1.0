@@ -13,6 +13,7 @@ GDM ជាកម្មវិធីគ្រប់គ្រងការទាញ�
 - **សុវត្ថិភាពដោយមិនបាច់គិត:** Mark-of-the-Web + ការពិនិត្យ antivirus ពេលបញ្ចប់, គ្មាន port localhost, គ្មានការបើកឯកសារគ្រោះថ្នាក់ដោយស្វ័យប្រវត្តិ, update ចុះហត្ថលេខា។
 - Extension សម្រាប់ Chrome, Edge (និង Brave, Vivaldi, Opera) និង Firefox: ចាប់ការទាញយក, <kbd>Ctrl</kbd> + ចុច = GDM, <kbd>Alt</kbd> + ចុច = browser, ម៉ឺនុយ "ទាញ link ទាំងអស់"។
 - ផ្ទាំង Download Info ដូច IDM, ប្រភេទឯកសារ (category), ស្វែងរក (ខ្មែរ និងឡាតាំង), theme ភ្លឺ/ងងឹត, tray, កំណត់ល្បឿន។
+- **ឧបករណ៍ចាប់ពីគេហទំព័រ** (កិច្ចការ ▾): រុករកគេហទំព័រ ហើយរាយរូបភាព វីដេអូ ឬឯកសារដែលអ្នកចង់បាន; អានតែប៉ុណ្ណោះ, ជៀស logout/delete, មានដែនកំណត់ការពារអន្ទាក់ ([docs/site-grabber.md](docs/site-grabber.md))។
 
 ## ដំឡើង
 
@@ -42,7 +43,7 @@ GDM is a Windows download manager that is free for everyone (companies, schools 
 
 > **v0.9 public beta** — read the [release notes](docs/release/notes-0.9.0.md) first (known limitations listed).
 
-**What it does:** multi-connection downloads (start at 2, grow to 8, up to 32) that resume after network loss or a restart; files are never published under their final name unless they are byte-correct (SHA-256, hostile-server checks, 1000 kill cycles with no corrupt file); Mark-of-the-Web and an antivirus check on completion, no localhost port, dangerous files never auto-open, signed updates; extensions for Chrome, Edge (also Brave, Vivaldi, Opera) and Firefox with <kbd>Ctrl</kbd>+click = GDM and <kbd>Alt</kbd>+click = browser; an IDM-style Download Info dialog, categories, search (Khmer and Latin), light/dark themes, tray, speed limits.
+**What it does:** multi-connection downloads (start at 2, grow to 8, up to 32) that resume after network loss or a restart; files are never published under their final name unless they are byte-correct (SHA-256, hostile-server checks, 1000 kill cycles with no corrupt file); Mark-of-the-Web and an antivirus check on completion, no localhost port, dangerous files never auto-open, signed updates; extensions for Chrome, Edge (also Brave, Vivaldi, Opera) and Firefox with <kbd>Ctrl</kbd>+click = GDM and <kbd>Alt</kbd>+click = browser; an IDM-style Download Info dialog, categories, search (Khmer and Latin), light/dark themes, tray, speed limits. A **site grabber** (Tasks ▾) explores a website and lists the images, videos or files you want; read-only, avoids logout/delete links, bounded against crawler traps ([docs/site-grabber.md](docs/site-grabber.md)).
 
 **Install:** only from [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases); check `SHA256SUMS.txt` and `gh attestation verify`. Per-user, no admin. This beta has no Authenticode signature yet, so SmartScreen may warn.
 

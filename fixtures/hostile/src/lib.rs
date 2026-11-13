@@ -370,6 +370,14 @@ Accept-Ranges: bytes
                     s.write_all(format!("HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
                     return Ok(true);
                 }
+                // "robots.cut": promises 100 bytes more than it sends, then closes (a broken-off robots.txt)
+                let cut = self.st.blobs.lock().unwrap().get("robots.cut").cloned();
+                if let Some(b) = cut {
+                    s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n", b.len() + 100).as_bytes())
+                        .await?;
+                    s.write_all(&b).await?;
+                    return Ok(false);
+                }
                 let blob = self.st.blobs.lock().unwrap().get("robots.txt").cloned();
                 match blob {
                     Some(b) => {

@@ -678,6 +678,8 @@ enum Fetched {
 
 struct Run<'a> {
     c: &'a Config,
+    start: Url,
+    start_dir: String,
     client: reqwest::Client,
     policy: Policy,
     creds: Creds,
@@ -759,18 +761,28 @@ impl Run<'_> {
     }
 
     /// body up to the page cap and the byte budget
-    async fn body(&mut self, mut resp: reqwest::Response, cap: u64) -> Result<String, &'static str> {
+    /// body up to `cap`; the flag is false when the body broke off (error, timeout, byte budget) before its
+    /// end or the cap. ponytail: one network chunk is counted whole, so the byte budget can be passed by at
+    /// most one chunk before the crawl stops.
+    async fn body(&mut self, mut resp: reqwest::Response, cap: u64) -> Result<(String, bool), &'static str> {
         let mut v: Vec<u8> = vec![];
-        loop {
+        let whole = loop {
             let chunk = guarded(self.stop, self.deadline, tokio::time::timeout(Duration::from_secs(30), resp.chunk())).await?;
-            let Ok(Ok(Some(c))) = chunk else { break };
+            let c = match chunk {
+                Ok(Ok(Some(c))) => c,
+                Ok(Ok(None)) => break true,
+                _ => break false,
+            };
             self.r.bytes += c.len() as u64;
             v.extend_from_slice(&c[..c.len().min((cap as usize).saturating_sub(v.len()))]);
-            if v.len() as u64 >= cap || self.r.bytes >= self.c.limits.bytes {
-                break;
+            if v.len() as u64 >= cap {
+                break true;
             }
-        }
-        Ok(String::from_utf8_lossy(&v).into_owned())
+            if self.r.bytes >= self.c.limits.bytes {
+                break false;
+            }
+        };
+        Ok((String::from_utf8_lossy(&v).into_owned(), whole))
     }
 
     async fn robots_for(&mut self, u: &Url) -> Result<(), &'static str> {
@@ -780,6 +792,11 @@ impl Run<'_> {
         }
         let mut at = u.join("/robots.txt").map_err(|_| "error")?;
         let mut prev: Vec<Url> = vec![];
+        if avoided(&at, &self.avoid) {
+            // the user listed robots.txt itself as a page to avoid: it is never requested (G-02), so no rules
+            self.robots.insert(o, Robots::default());
+            return Ok(());
+        }
         let rb = loop {
             let resp = match self.get(&at).await? {
                 Ok(r) => r,
@@ -789,9 +806,9 @@ impl Run<'_> {
             if (300..400).contains(&st) && prev.len() < 5 {
                 let next = resp.headers().get("location").and_then(|l| l.to_str().ok()).and_then(|l| at.join(l).ok());
                 // a robots hop gets the same checks as a page hop (W-02, avoid list, scope); refused => no robots.txt
+                prev.push(at.clone()); // history includes the current URL: no https -> http on the first hop
                 match next.filter(|n| net::redirect_ok(&prev, n, &self.policy).is_ok() && !avoided(n, &self.avoid) && self.scope(n).is_some()) {
                     Some(n) => {
-                        prev.push(at);
                         at = n;
                         continue;
                     }
@@ -799,7 +816,11 @@ impl Run<'_> {
                 }
             }
             break match st {
-                200..=299 => Robots::parse(&self.body(resp, 512 << 10).await?),
+                // a robots.txt that broke off is not a permission (council G9 final #2)
+                200..=299 => match self.body(resp, 512 << 10).await? {
+                    (text, true) => Robots::parse(&text),
+                    (_, false) => Robots::unreachable(),
+                },
                 429 => Robots::unreachable(),
                 400..=499 => Robots::default(),
                 _ => Robots::unreachable(),
@@ -809,8 +830,26 @@ impl Run<'_> {
         Ok(())
     }
 
-    /// a page: robots, then GET with redirects followed by hand (each hop: W-02, avoid, scope, robots)
-    async fn fetch(&mut self, start: &Url) -> Result<Fetched, &'static str> {
+    /// path rules: include/exclude filters (pages and files), and for pages on the start origin "do not
+    /// explore parent folders" and the path-loop guard
+    fn path_rule(&self, u: &Url, home: bool, page: bool) -> Option<&'static str> {
+        let p = name::pct_decode(u.path()).to_lowercase();
+        let (inc, exc) = (list(&self.c.include), list(&self.c.exclude));
+        if exc.iter().any(|x| glob(x, &p)) || (!inc.is_empty() && !inc.iter().any(|x| glob(x, &p))) {
+            return Some("filter");
+        }
+        if page && home && self.c.no_parent && net::origin(u) == net::origin(&self.start) && !u.path().starts_with(&self.start_dir) {
+            return Some("parent");
+        }
+        if page && looping(u) {
+            return Some("loop");
+        }
+        None
+    }
+
+    /// a page: robots, then GET with redirects followed by hand (each hop: W-02, avoid, scope, depth on
+    /// other sites, path rules, robots). `other` = pages since leaving the start site.
+    async fn fetch(&mut self, start: &Url, other: u32) -> Result<Fetched, &'static str> {
         let mut u = start.clone();
         let mut prev: Vec<Url> = vec![];
         loop {
@@ -827,19 +866,23 @@ impl Run<'_> {
                 let next = resp.headers().get("location").and_then(|l| l.to_str().ok()).and_then(|l| u.join(l).ok());
                 let Some(mut next) = next else { return Ok(Fetched::Skip(Skip { url: u.to_string(), reason: format!("http-{st}") })) };
                 next.set_fragment(None);
+                // the current URL is part of the history: an https page never redirects to http (council G9 final #1)
+                prev.push(u.clone());
+                // a redirect lands on a page fetch: every rule a link to that page would meet applies (#4, #5)
                 let why = if net::redirect_ok(&prev, &next, &self.policy).is_err() {
                     Some("private")
                 } else if avoided(&next, &self.avoid) {
                     Some("avoid")
-                } else if self.scope(&next).is_none() {
-                    Some("other-domain")
                 } else {
-                    None
+                    match self.scope(&next) {
+                        None => Some("other-domain"),
+                        Some(false) if other.max(1) > self.c.other_depth => Some("depth"),
+                        Some(home) => self.path_rule(&next, home, true),
+                    }
                 };
                 if let Some(why) = why {
                     return Ok(Fetched::Skip(Skip { url: next.to_string(), reason: why.into() }));
                 }
-                prev.push(u);
                 u = next;
                 continue;
             }
@@ -848,7 +891,7 @@ impl Run<'_> {
             }
             let ct = crate::http::content_type(resp.headers());
             if ct.starts_with("text/html") || ct.starts_with("application/xhtml+xml") {
-                let body = self.body(resp, self.c.limits.page_bytes).await?;
+                let (body, _) = self.body(resp, self.c.limits.page_bytes).await?; // a cut page still has links
                 return Ok(Fetched::Html(u, body));
             }
             // not a page: list it, do not read it
@@ -911,9 +954,10 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
         let p = start.path();
         p[..p.rfind('/').map(|i| i + 1).unwrap_or(p.len())].to_string()
     };
-    let (include, exclude) = (list(&c.include), list(&c.exclude));
     let mut run = Run {
         c: &c,
+        start: start.clone(),
+        start_dir,
         client,
         policy,
         creds,
@@ -946,7 +990,7 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
             stop_why = "pages";
             break;
         }
-        let got = match run.fetch(&it.url).await {
+        let got = match run.fetch(&it.url, it.other).await {
             Ok(g) => g,
             Err(why) => {
                 stop_why = why;
@@ -971,6 +1015,8 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
             Fetched::Html(u, h) => (u, h),
         };
         run.r.pages += 1;
+        // where the page really is after redirects: the start site resets the other-site count
+        let here = if run.scope(&page) == Some(true) { 0 } else { it.other.max(1) };
         for l in links(&html, &page, c.js) {
             if !seen.insert(l.to_string()) {
                 continue;
@@ -991,9 +1037,8 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
                 run.skip(&l, "other-domain");
                 continue;
             };
-            let p = name::pct_decode(l.path()).to_lowercase();
-            if exclude.iter().any(|x| glob(x, &p)) || (!include.is_empty() && !include.iter().any(|x| glob(x, &p))) {
-                run.skip(&l, "filter");
+            if let Some(why) = run.path_rule(&l, home, false) {
+                run.skip(&l, why);
                 continue;
             }
             if !page_like(&l) {
@@ -1003,16 +1048,12 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
                 }
                 continue;
             }
-            let (depth, other) = if home { (it.depth + 1, 0) } else { (it.depth + 1, it.other + 1) };
+            let (depth, other) = if home { (it.depth + 1, 0) } else { (it.depth + 1, here + 1) };
             if depth > c.depth || other > c.other_depth {
                 continue;
             }
-            if home && c.no_parent && net::origin(&l) == net::origin(&start) && !l.path().starts_with(&start_dir) {
-                run.skip(&l, "parent");
-                continue;
-            }
-            if looping(&l) {
-                run.skip(&l, "loop");
+            if let Some(why) = run.path_rule(&l, home, true) {
+                run.skip(&l, why);
                 continue;
             }
             if l.query().is_some() {
@@ -1030,6 +1071,11 @@ pub async fn crawl(c: &Config, stop: &AtomicBool, progress: &(dyn Fn(&Progress) 
             break;
         }
     }
+    if stop_why == "done" && run.r.bytes >= c.limits.bytes {
+        stop_why = "bytes"; // the budget ran out on the last page (council G9 final r2)
+    }
+    // ponytail: a redirect chain other site -> start site -> other site keeps the first count, so it may stop
+    // one step early (never later); track the count per hop if users hit it
     run.r.stop = stop_why.into();
     Ok(run.r)
 }

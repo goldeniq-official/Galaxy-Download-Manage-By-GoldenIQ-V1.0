@@ -1,0 +1,5 @@
+npx playwright test -c <copy of playwright.config.ts on port 1442> tests/grabber.spec.ts --timeout 30000
+worktree: clean detached HEAD d4758bf + tests/grabber.spec.ts (Tasks button by accessible name), Playwright 1.65.0, Chromium 1228, node 24.22.1
+result: 22 passed (1.1m): step1..step4 + results x km/en x dark/light (rule 8 probe, layout, Khmer ink clip, Kantumruy Pro font, axe serious/critical = 0, focus by fill on dark), behaviour (ticked only / duplicates hidden / no path or header from the WebView / start paused), non-http start refused
+earlier run (before the selector change): 21 passed, 1 failed (clicking an aria-disabled button waits forever) -> test now checks aria-disabled
+after each run: IDMan visible windows = 0 (no IDM pop-ups left)

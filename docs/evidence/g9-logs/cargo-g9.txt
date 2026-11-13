@@ -1,0 +1,32 @@
+cargo 1.97.1 (c980f4866 2026-06-30)
+rustc 1.97.1 (8bab26f4f 2026-07-14)
+    Blocking waiting for file lock on build directory
+
+running 24 tests
+test g01_hard_ceilings ... ok
+test filters ... ok
+test g02_avoid_matching ... ok
+test g01_robots_rfc9309_matching ... ok
+test g01_robots_cut_short_means_disallowed ... ok
+test g02_avoided_robots_txt_is_never_requested ... ok
+test g03_mirror_segments_table ... ok
+test g01_robots_disallow_is_never_requested ... ok
+test g02_redirect_into_an_avoided_page_is_not_followed ... ok
+test g02_logged_in_crawl_never_requests_avoided_pages ... ok
+test g01_redirects_meet_path_filters_and_other_site_depth ... ok
+test g02_robots_redirect_into_an_avoided_page_is_not_followed ... ok
+test g04_untyped_private_start_is_refused ... ok
+test g05_static_js_scan_never_executes ... ok
+test g01_path_loop_guard ... ok
+test g04_credentials_stay_on_their_origin ... ok
+test g03_mirror_folders_are_held_and_junctions_refused ... ok
+test g04_private_and_foreign_links_are_skipped ... ok
+test g01_page_budget_stops_the_crawl ... ok
+test g01_calendar_query_trap_stops_at_query_variant_cap ... ok
+test g05_malformed_markup_does_not_panic ... ok
+test g03_results_become_paused_jobs_in_mirror_folders ... ok
+test g01_depth_time_and_byte_budgets ... ok
+test g01_per_host_spacing_and_cancel ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.62s
+

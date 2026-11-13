@@ -369,7 +369,11 @@ fn grab_add(app: A, files: Vec<gdm_core::grab::Found>, start_url: String, keep: 
     }
     let host = url::Url::parse(&start_url).ok().and_then(|u| u.host_str().map(str::to_string));
     let dir = grab_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
+    if !dir.exists() {
+        // the default Downloads\Grabber: created by handle under a checked Downloads (no junction followed)
+        let (Some(parent), Some(leaf)) = (dir.parent(), dir.file_name().and_then(|n| n.to_str())) else { return Err("dir".into()) };
+        gdm_core::fsx::Dir::open(parent).and_then(|p| p.subdir(leaf)).map_err(|e| e.to_string())?;
+    }
     let (jobs, held) = gdm_core::grab::jobs(&files, &dir, keep, host.as_deref()).map_err(|e| e.code())?;
     let ids = app.engine.add_many(jobs, true).map_err(|e| e.code())?;
     drop(held);
