@@ -1,0 +1,13 @@
+﻿PASS WebView2 runs under gdm.exe
+PASS download A started
+killed 6 WebView2 processes at 2026-11-13T13:21:15.5482259+07:00
+PASS gdm.exe alive after the WebView crash
+PASS download A finished after the WebView crash
+PASS download A bytes correct
+PASS download B started
+killed gdm.exe at 2026-11-13T13:21:48.8671829+07:00
+PASS download B resumed by itself and finished after the core crash
+PASS download B bytes correct
+IDM dialogs answered No: 0
+RESULT failures=0
+
