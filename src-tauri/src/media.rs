@@ -356,14 +356,15 @@ impl App {
             n += 1;
             name = gdm_core::name::with_counter(&base, n);
         }
-        if let (Some(parent), Some(leaf)) = (out.parent(), out.file_name().and_then(|l| l.to_str())) {
-            if let Ok(d) = gdm_core::fsx::Dir::open(parent) {
-                let _ = gdm_core::fsx::attachment_save(&d, leaf, &name, page, None);
-            }
-        }
+        // fail closed (like finalize): the work folder is GDM's own data folder on a normal volume, so a folder
+        // that cannot be held or a mark that cannot be written stops the publish instead of skipping MOTW / AV
+        let (Some(parent), Some(leaf)) = (out.parent(), out.file_name().and_then(|l| l.to_str())) else { return Err("bad work path".into()) };
+        let d = gdm_core::fsx::Dir::open(parent).map_err(|e| format!("work folder: {e}"))?;
+        let saved = gdm_core::fsx::attachment_save(&d, leaf, &name, page, None);
         if !out.exists() {
             return Err("blocked".into()); // the antivirus removed it
         }
+        saved?;
         std::fs::rename(out, cat.join(&name)).map_err(|e| e.to_string())?;
         let sha = gdm_core::finalize::sha_handle(&std::fs::File::open(cat.join(&name)).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         self.engine.record_finished(page, cat, &name, &sha).map_err(|e| e.code())?;
