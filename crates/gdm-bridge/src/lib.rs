@@ -249,6 +249,8 @@ mod tests {
         let cli = br#"{"t":"cli","cmd":"d","url":"https://e.com/a.exe","dir":"C:/Users/x/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup","name":null,"add_only":false,"silent":true,"quit_after":false}"#;
         assert!(serde_json::from_slice::<Msg>(cli).is_ok_and(|m| m.validate().is_ok()), "a well-formed CLI message");
         assert!(parse(cli).is_err(), "I-02: the browser bridge never forwards a CLI message");
+        assert!(parse(br#"{"t":"video","page":"https://e.com/watch"}"#).is_ok(), "D5 page video message");
+        assert!(parse(br#"{"t":"video","page":"file:///C:/x"}"#).is_err() && parse(br#"{"t":"video","page":"https://e.com/","auto":true}"#).is_err());
         assert!(parse(br#"{"t":"handoff","hid":"1","url":"https://e.com/a.zip","name":"a.zip","size":5}"#).is_ok());
     }
     #[test]

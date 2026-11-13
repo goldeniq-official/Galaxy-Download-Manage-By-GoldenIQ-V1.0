@@ -1,0 +1,6 @@
+﻿PASS Chrome build: content script excluded from youtube.com (M-07)
+PASS off by default: no badge on a page with videos (D5)
+PASS turned on for 127.0.0.1:53335: badge counts the 2 http(s) videos (got "2")
+PASS only the ordinary page goes to GDM as {t:"video"} (sent: [{"t":"video","page":"http://127.0.0.1:53335/"}])
+ALL PASS
+
