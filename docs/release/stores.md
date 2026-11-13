@@ -65,7 +65,6 @@ GitHub → Actions → **version** → Run (មើល [README.md](README.md))។
 
 ## ៤. ក្រោយមក
 
-- Key updater (`TAURI_SIGNING_PRIVATE_KEY`) ឥឡូវនៅក្នុង env នៃជំហាន build ដែល `build.rs` របស់ dependency ណាមួយអានបាន។ ក្រោយ CI រត់ជោគជ័យលើកដំបូង: build ដោយគ្មាន key ហើយចុះហត្ថលេខាក្នុងជំហានដាច់ដោយឡែក (`tauri signer sign`)។ មិនទាន់ប្ដូរ ព្រោះវាប៉ះរបៀបបង្កើត `.sig` និង `.app.tar.gz` របស់ macOS ហើយ CI មិនទាន់ធ្លាប់រត់សោះ។
 
 - winget: ដាក់ manifest ទៅ `microsoft/winget-pkgs` ដោយប្រើ `GDM_<v>_x64-setup.exe` (NSIS, `/S`)។
 - macOS: Apple Developer ID ($99/ឆ្នាំ) សម្រាប់ notarization (រហូតដល់ពេលនោះ ad-hoc signed ហើយ Gatekeeper នឹងព្រមាន)។
