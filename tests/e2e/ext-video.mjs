@@ -89,6 +89,7 @@ try {
 } finally {
   await ctx.close();
   srv.close();
+  fs.rmSync(prof, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); // leave nothing behind
 }
 console.log(fails ? `${fails} FAIL` : "ALL PASS");
 process.exit(fails ? 1 : 0);

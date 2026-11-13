@@ -41,8 +41,8 @@ pub fn pick(text: &str, exts: &[String]) -> Option<String> {
         return None;
     }
     let leaf = u.path_segments()?.next_back()?.to_ascii_lowercase();
-    let ext = leaf.rsplit_once('.')?.1;
-    exts.iter().any(|e| e.eq_ignore_ascii_case(ext)).then(|| u.to_string())
+    let ext = gdm_core::name::type_extension(&leaf); // split volumes (.7z.001, .r00) count as their archive
+    (!ext.is_empty() && exts.iter().any(|e| e.eq_ignore_ascii_case(&ext))).then(|| u.to_string())
 }
 
 /// §04 YouTube row: a copied video page (youtube.com / youtu.be, exact host or subdomain by parsed host)
@@ -174,6 +174,8 @@ mod tests {
     fn i01_only_one_url_with_a_caught_extension() {
         assert_eq!(pick("https://e.com/a/file.ZIP", &exts()).as_deref(), Some("https://e.com/a/file.ZIP"));
         assert_eq!(pick("  http://e.com/v.mp4\r\n", &exts()).as_deref(), Some("http://e.com/v.mp4"));
+        assert_eq!(pick("https://e.com/big.zip.001", &exts()).as_deref(), Some("https://e.com/big.zip.001"), "a split volume of a caught type");
+        assert_eq!(pick("https://e.com/big.z01", &exts()).as_deref(), Some("https://e.com/big.z01"));
         for no in [
             "hunter2",
             "my password is https://e.com/a.zip",
