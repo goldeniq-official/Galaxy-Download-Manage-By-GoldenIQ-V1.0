@@ -105,7 +105,9 @@ async fn e02_no_validator_unverified_and_restart_asks() {
     // interrupted job without validator, then a new session: Ask => NeedsDecision; Restart => correct file
     let url = a.url(&format!("/novalidator?size={}&seed=42&rate=1500000", 48 * MIB));
     let id = t.engine.add(t.job(&url)).unwrap();
-    let _ = tokio::time::timeout(Duration::from_millis(3000), t.engine.run(&id, Unverified::SameSession, None)).await;
+    // interrupt AFTER the first checkpoint reached the database (a fixed 3 s window was flaky when the disk was busy
+    // and the first flush landed later); 48 MiB at 1.5 MB/s cannot finish inside the 20 s bound
+    run_until_checkpoint(&t.engine, &id, Unverified::SameSession, Duration::from_secs(20)).await;
     assert!(t.engine.job(&id).unwrap().done > 0, "progress was committed");
     assert!(matches!(t.engine.run(&id, Unverified::Ask, None).await, Err(Fail::NeedsDecision(_))));
     let o = t.engine.run(&id, Unverified::Restart, None).await.unwrap();
@@ -119,7 +121,7 @@ async fn e02_416_on_resume_is_size_changed() {
     // resume past the end: the fixture answers 416
     let url = a.url(&format!("/file?size={}&seed=43&rate=2000000", 64 * MIB));
     let id = t.engine.add(t.job(&url)).unwrap();
-    let _ = tokio::time::timeout(Duration::from_millis(2500), t.engine.run(&id, Unverified::Ask, None)).await;
+    run_until_checkpoint(&t.engine, &id, Unverified::Ask, Duration::from_secs(20)).await;
     let smaller = a.url(&format!("/file?size={}&seed=43", 1024));
     t.engine.store.lock().unwrap().conn.execute("UPDATE jobs SET url = ?1, final_url = ?1 WHERE id = ?2", [&smaller, &id]).unwrap();
     let r = t.engine.run(&id, Unverified::Ask, None).await;

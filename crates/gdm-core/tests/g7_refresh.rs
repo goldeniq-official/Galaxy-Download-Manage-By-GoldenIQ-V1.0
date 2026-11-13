@@ -8,7 +8,7 @@ use std::time::Duration;
 
 async fn partial(t: &T, url: &str) -> String {
     let id = t.engine.add(t.job(url)).unwrap();
-    let _ = tokio::time::timeout(Duration::from_millis(3000), t.engine.run(&id, Unverified::Ask, None)).await;
+    run_until_checkpoint(&t.engine, &id, Unverified::Ask, Duration::from_secs(20)).await;
     let _ = t.engine.stopped(&id);
     assert!(t.engine.job(&id).unwrap().done > 0, "some progress committed");
     id

@@ -12,6 +12,19 @@ const DANGEROUS: &[&str] = &[
 /// what runs (or installs, or mounts something that runs) on a double-click on this system (P4)
 #[cfg(target_vendor = "apple")]
 const DANGEROUS_OS: &[&str] = &[
+    "py",
+    "pyw",
+    "pyc",
+    "pl",
+    "rb",
+    "jnlp",
+    "afploc",
+    "ftploc",
+    "bash",
+    "zsh",
+    "csh",
+    "ksh",
+    "url",
     "app",
     "command",
     "tool",

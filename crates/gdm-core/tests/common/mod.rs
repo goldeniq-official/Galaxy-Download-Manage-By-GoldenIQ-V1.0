@@ -6,6 +6,20 @@ use std::time::Duration;
 
 pub const MIB: u64 = 1 << 20;
 
+/// run a job until its first checkpoint reached the database, then interrupt it (drop the run). A fixed time
+/// window was flaky: when the disk is busy the first flush lands later (bounded by `max`).
+pub async fn run_until_checkpoint(e: &Engine, id: &str, mode: Unverified, max: Duration) {
+    let run = e.run(id, mode, None);
+    tokio::pin!(run);
+    let deadline = std::time::Instant::now() + max;
+    while e.job(id).unwrap().done == 0 && std::time::Instant::now() < deadline {
+        tokio::select! {
+            _ = &mut run => return,
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+        }
+    }
+}
+
 /// a fresh directory under %TEMP% (outside OneDrive)
 pub fn tmpdir(tag: &str) -> PathBuf {
     use std::sync::atomic::{AtomicU32, Ordering};

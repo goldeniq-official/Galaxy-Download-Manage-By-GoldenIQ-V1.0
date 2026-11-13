@@ -159,11 +159,7 @@ fn strict(fd: &OwnedFd, at: &Path, last: bool) -> Result<(), FsError> {
     let me = rustix::process::geteuid().as_raw();
     let (uid, mode) = (st.st_uid, st.st_mode as u32);
     let sticky = mode & 0o1000 != 0;
-    let bad = if last {
-        uid != me || mode & 0o022 != 0
-    } else {
-        (uid != 0 && uid != me) || (mode & 0o002 != 0 && !sticky) || (mode & 0o020 != 0 && uid != 0 && !sticky)
-    };
+    let bad = if last { uid != me || mode & 0o022 != 0 } else { (uid != 0 && uid != me) || (mode & 0o022 != 0 && !sticky) };
     if bad {
         return Err(FsError::Reparse(format!("{} can be changed by other users (owner {uid}, mode {:o})", at.display(), mode & 0o7777)));
     }

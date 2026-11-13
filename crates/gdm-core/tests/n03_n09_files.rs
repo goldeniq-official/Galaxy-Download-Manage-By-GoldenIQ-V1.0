@@ -193,9 +193,15 @@ async fn n10_replaced_part_is_not_reused() {
     let t = engine("n10", quick());
     let id = t.engine.add(t.job(&a.url(&format!("/file?size={}&seed=11&rate=1500000", 48 * MIB)))).unwrap();
     let _ = tokio::time::timeout(std::time::Duration::from_millis(2500), t.engine.run(&id, Unverified::Ask, None)).await;
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     let part = t.dl.join(format!("{}.part", t.engine.job(&id).unwrap().name));
-    std::fs::remove_file(&part).unwrap();
+    // the cancelled run's writer thread closes its handle a moment later (longer when the disk is busy): wait for
+    // it instead of a fixed 500 ms, which made this test flaky under load
+    let mut tries = 0;
+    while let Err(e) = std::fs::remove_file(&part) {
+        tries += 1;
+        assert!(tries < 200, "the .part stayed held: {e}");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     std::fs::write(&part, b"someone else's data").unwrap();
     let r = t.engine.run(&id, Unverified::Ask, None).await;
     assert!(matches!(r, Err(Fail::NeedsDecision(_))), "{r:?}");
