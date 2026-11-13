@@ -83,7 +83,11 @@ function clipSetup() {
     items.push({ i: i++, id: el.id || el.parentElement.id || "", text: own.slice(0, 40), top, bottom, x: r.left, w: r.width, y: r.top, h: r.height, fs: parseFloat(getComputedStyle(el).fontSize) });
   }
   const st = document.createElement("style"); st.id = "unclip";
-  st.textContent = "[data-unclip]{overflow:visible!important;text-overflow:clip!important}[data-hide]{color:transparent!important;-webkit-text-fill-color:transparent!important}[data-hide] svg{visibility:hidden}";
+  // every OTHER text is transparent while one element is measured: hiding a text repaints its box, and at a
+  // fractional scale (125 %) that repaint can cover the edge of a neighbour's text (a row's "Open" link above),
+  // which the diff would then count as this element's ink (CI-only failure 2026-11-14)
+  st.textContent = "[data-unclip]{overflow:visible!important;text-overflow:clip!important}[data-hide]{color:transparent!important;-webkit-text-fill-color:transparent!important}[data-hide] svg{visibility:hidden}"
+    + "[data-solo] *:not([data-meas]):not(:has([data-meas])){color:transparent!important;-webkit-text-fill-color:transparent!important}";
   document.head.append(st);
   return items;
 }
@@ -99,10 +103,11 @@ async function clipRun(page, diffPage) {
     const x0 = Math.max(0, Math.floor(it.x)), x1 = Math.min(vp.width, Math.ceil(it.x + it.w));
     if (x1 - x0 < 1 || y1 - y0 < 1) continue;
     const clip = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+    await page.evaluate(i => { document.body.dataset.solo = ""; document.querySelector(`[data-ck="${i}"]`).dataset.meas = ""; }, it.i);
     const a = (await page.screenshot({ clip })).toString("base64");
     await page.evaluate(i => document.querySelector(`[data-ck="${i}"]`).setAttribute("data-hide", ""), it.i);
     const b = (await page.screenshot({ clip })).toString("base64");
-    await page.evaluate(i => document.querySelector(`[data-ck="${i}"]`).removeAttribute("data-hide"), it.i);
+    await page.evaluate(i => { const e = document.querySelector(`[data-ck="${i}"]`); e.removeAttribute("data-hide"); delete e.dataset.meas; delete document.body.dataset.solo; }, it.i);
     const rows = await diffPage.evaluate(async ([a, b]) => {
       const load = async s => { const i = await createImageBitmap(await (await fetch("data:image/png;base64," + s)).blob()); const c = new OffscreenCanvas(i.width, i.height); const x = c.getContext("2d"); x.drawImage(i, 0, 0); return x.getImageData(0, 0, i.width, i.height); };
       const A = await load(a), B = await load(b), rows = [];
