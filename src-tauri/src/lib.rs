@@ -1097,14 +1097,28 @@ fn crash_log(path: std::path::PathBuf) {
 
 /// every http(s) link in a text becomes scheme://host/… (no path, query or user info)
 fn redact(s: &str) -> String {
-    s.split_inclusive(char::is_whitespace)
-        .map(|w| match url::Url::parse(w.trim_end()) {
-            Ok(u) if matches!(u.scheme(), "http" | "https") => {
-                format!("{}://{}/…{}", u.scheme(), u.host_str().unwrap_or(""), &w[w.trim_end().len()..])
-            }
-            _ => w.to_string(),
-        })
-        .collect()
+    // a message that names a secret (or a Debug-printed Url / header) is not written at all
+    let low = s.to_ascii_lowercase();
+    if ["password", "token", "authorization", "cookie", "secret", "query: some", "username:"].iter().any(|k| low.contains(k)) {
+        return "<message withheld: may contain a secret>".into();
+    }
+    // every "scheme://..." anywhere (quoted, in brackets, any scheme) keeps only its host
+    let stop = |c: char| c.is_whitespace() || "\"'<>()[]{},;`".contains(c);
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find("://") {
+        let start = rest[..i].rfind(|c: char| !(c.is_ascii_alphanumeric() || "+.-".contains(c))).map_or(0, |p| p + 1);
+        out.push_str(&rest[..start]);
+        let scheme = &rest[start..i];
+        let after = &rest[i + 3..];
+        let end = after.find(stop).unwrap_or(after.len());
+        let authority = after[..end].split(['/', '?', '#']).next().unwrap_or("");
+        let host = authority.rsplit('@').next().unwrap_or(""); // never user:password@
+        out.push_str(&format!("{scheme}://{host}/…"));
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
 }
 
 fn quit(h: &AppHandle, app: Arc<App>) {
@@ -1410,7 +1424,10 @@ pub fn run() {
 mod crash_tests {
     #[test]
     fn links_in_a_panic_message_keep_only_their_host() {
-        assert_eq!(super::redact("bad https://u:p@x.com/a?t=SECRET here"), "bad https://x.com/… here");
+        assert_eq!(super::redact("bad https://u:p@x.com/a?t=abc here"), "bad https://x.com/… here");
+        assert_eq!(super::redact("in \"https://x.com/a?sig=1\", and (ftp://h:21/f)"), "in \"https://x.com/…\", and (ftp://h:21/…)");
+        assert_eq!(super::redact("Url { scheme: \"https\", query: Some(\"t=1\") }"), "<message withheld: may contain a secret>");
+        assert_eq!(super::redact("bad token=xyz"), "<message withheld: may contain a secret>");
         assert_eq!(super::redact("plain text"), "plain text");
     }
 }

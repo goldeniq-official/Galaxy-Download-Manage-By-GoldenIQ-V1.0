@@ -342,7 +342,13 @@
     "count": "{{n}} downloads found in the file. Nothing is added until you press “Add”.",
     "first": "First {{n}}",
     "settings": "Also restore settings from this file (safe ones only; queue actions stay off)",
-    "added": "{{n}} downloads added"
+    "added": "{{n}} downloads added",
+    "e": {
+      "too-large": "The file is larger than 50 MB",
+      "bad-json": "This file is not a GDM export",
+      "too-many": "The file holds too many downloads (at most 100,000 at a time)",
+      "nothing": "No downloads found in this file"
+    }
   },
   "ref": {
     "title": "Refresh download address",

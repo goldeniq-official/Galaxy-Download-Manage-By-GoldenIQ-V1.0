@@ -333,7 +333,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
         },
         {
           items: [
-            { label: t("tasks.import"), onClick: () => void api.importPick().then((pv) => pv && s.setDlg({ k: "import", pv }), (e) => s.notify("error", errText(e))) },
+            { label: t("tasks.import"), onClick: () => void api.importPick().then((pv) => pv && s.setDlg({ k: "import", pv }), (e) => s.notify("error", t(`imp.e.${errText(e)}`, { defaultValue: errText(e) }))) },
             { label: t("tasks.export"), onClick: () => void api.exportPick().then((p) => p && s.notify("exported", fileName(p)), (e) => s.notify("error", errText(e))) },
           ],
         },
@@ -621,11 +621,19 @@ function DetailsPane({ r, onWhy, drawer, onClose }: { r: Row | null; onWhy: (k: 
   const l = useStore((s) => (r ? s.live[r.id] : undefined));
   const [d, setD] = useState<Detail | null>(null);
   const [desc, setDesc] = useState("");
+  const [descFor, setDescFor] = useState<string | undefined>(undefined);
+  const id = r?.id;
+  const state = r?.state;
+  // the list refreshes every 500 ms with new row objects: details reload only when the row or its state changes
+  // (no flicker), and the description being typed is reset only when another row is selected
   useEffect(() => {
     setD(null);
-    if (r) void api.detail(r.id).then(setD).catch(() => setD(null));
+    if (id) void api.detail(id).then(setD).catch(() => setD(null));
+  }, [id, state]);
+  if (descFor !== id) {
+    setDescFor(id);
     setDesc(r?.description ?? "");
-  }, [r?.id, r?.state, r?.description, r]);
+  }
   if (!r)
     return (
       <aside className={"pane none" + (drawer ? " drawer" : "")} aria-label={t("d.title")}>
@@ -1028,12 +1036,13 @@ function Toasts() {
               {t("toast.choose")}
             </button>
           )}
-          {x.kind === "complete" && !x.dangerous && (
+          {/* a finished video has no list row (no id): no Open buttons that would do nothing */}
+          {x.kind === "complete" && x.id && !x.dangerous && (
             <button type="button" className="fx act" onClick={() => void api.open(x.id)}>
               {t("act.open")}
             </button>
           )}
-          {(x.kind === "complete" || x.kind === "unprotected") && (
+          {(x.kind === "complete" || x.kind === "unprotected") && x.id && (
             <button type="button" className="fx act" onClick={() => void api.folder(x.id)}>
               {t("act.openFolder")}
             </button>

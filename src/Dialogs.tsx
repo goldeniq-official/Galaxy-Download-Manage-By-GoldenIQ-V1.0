@@ -214,7 +214,7 @@ function ImportDialog({ pv }: { pv: ImportPreview }) {
         </button>
       )}
       <QueueSelect value={queue} onChange={setQueue} label={t("batch.queue")} none />
-      <ErrLine msg={err && errText(err)} />
+      <ErrLine msg={err && errMsg(t, "imp.e", err)} />
       <div className="mfoot">
         <span className="sp" />
         <button type="button" className="fx btn btn-g" onClick={close}>
