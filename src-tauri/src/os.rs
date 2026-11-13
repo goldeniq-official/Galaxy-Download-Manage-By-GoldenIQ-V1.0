@@ -74,6 +74,11 @@ pub fn open_file(path: &Path, name: &str) -> Result<(), String> {
     if !path.is_file() {
         return Err("missing".into());
     }
+    // default deny on macOS / Linux: whatever its name, a file with an execute bit is never launched from GDM
+    #[cfg(unix)]
+    if std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(path).map_err(|e| e.to_string())?.permissions()) & 0o111 != 0 {
+        return Err("dangerous".into());
+    }
     shell_open(&path.display().to_string(), "open")
 }
 

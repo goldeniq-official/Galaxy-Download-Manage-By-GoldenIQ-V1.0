@@ -182,6 +182,14 @@ fn unix_hosts() -> Vec<(PathBuf, PathBuf, bool)> {
 
 #[cfg(unix)]
 fn register() -> Result<(), String> {
+    // a path that will not exist next time must never be written into a browser: an AppImage runs from a
+    // temporary mount (/tmp/.mount_*), and macOS runs an app opened from Downloads / the disk image from a
+    // random App Translocation path. Browser integration needs the installed .deb / .rpm, or the app in
+    // /Applications.
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?.display().to_string();
+    if std::env::var_os("APPIMAGE").is_some() || exe.contains("/.mount_") || exe.contains("/AppTranslocation/") {
+        return Err(format!("not registered: {exe} is a temporary location (install the package / move GDM to Applications)"));
+    }
     let mut n = 0;
     for (root, dir, ff) in unix_hosts() {
         if !root.is_dir() {

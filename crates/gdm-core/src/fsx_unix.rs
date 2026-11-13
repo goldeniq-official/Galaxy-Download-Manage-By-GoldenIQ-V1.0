@@ -4,6 +4,11 @@
 //!   descriptor; a path that resolves elsewhere (a symlink anywhere on the way) is refused, like a junction on
 //!   Windows. Unix cannot stop a held directory from being renamed, but every operation stays relative to the
 //!   held descriptor, so a write can never land in another directory.
+//! - Other users (in scope, §10) must not be able to change names on the way (council final review: rename,
+//!   replace and hard-link races all need that): like OpenSSH's StrictModes, every component must be owned by
+//!   root or by us and not writable by others unless sticky, and the destination itself must be ours and not
+//!   writable by group or others. A folder that fails this is refused (fail closed), e.g. an exFAT stick
+//!   mounted 0777.
 //! - Files: openat(O_NOFOLLOW|O_NONBLOCK) relative to that descriptor, regular files only (a symlink, FIFO or
 //!   device planted at the leaf is refused, never followed), one hard link only for files GDM writes into.
 //! - "Busy" (Windows share modes): GDM's own handles take flock(LOCK_EX|LOCK_NB); flock belongs to the open file
@@ -61,9 +66,13 @@ impl Dir {
             return Err(FsError::Reparse(format!("{} resolves to {}", abs.display(), canon.display())));
         }
         let mut fd = rfs::open("/", DIR_FLAGS, Mode::empty()).map_err(|e| err(e, "/"))?;
+        let mut at = PathBuf::from("/");
+        strict(&fd, &at, false)?;
         for c in canon.components() {
             if let Component::Normal(name) = c {
                 fd = rfs::openat(&fd, name, DIR_FLAGS, Mode::empty()).map_err(|e| err(e, &canon.display().to_string()))?;
+                at.push(name);
+                strict(&fd, &at, at == canon)?;
             }
         }
         Ok(Dir { fd, path: canon })
@@ -78,6 +87,7 @@ impl Dir {
             Err(e) => return Err(err(e, leaf)),
         }
         let fd = rfs::openat(&self.fd, leaf, DIR_FLAGS, Mode::empty()).map_err(|e| err(e, leaf))?;
+        strict(&fd, &self.path.join(leaf), true)?;
         Ok(Dir { fd, path: self.path.join(leaf) })
     }
 
@@ -142,6 +152,24 @@ impl Dir {
     }
 }
 
+/// StrictModes for one held directory: owned by root or us, never writable by others unless sticky; the
+/// destination itself (`last`) must be ours and writable by nobody else
+fn strict(fd: &OwnedFd, at: &Path, last: bool) -> Result<(), FsError> {
+    let st = rfs::fstat(fd).map_err(io)?;
+    let me = rustix::process::geteuid().as_raw();
+    let (uid, mode) = (st.st_uid, st.st_mode as u32);
+    let sticky = mode & 0o1000 != 0;
+    let bad = if last {
+        uid != me || mode & 0o022 != 0
+    } else {
+        (uid != 0 && uid != me) || (mode & 0o002 != 0 && !sticky) || (mode & 0o020 != 0 && uid != 0 && !sticky)
+    };
+    if bad {
+        return Err(FsError::Reparse(format!("{} can be changed by other users (owner {uid}, mode {:o})", at.display(), mode & 0o7777)));
+    }
+    Ok(())
+}
+
 fn same(a: &rfs::Stat, b: &rfs::Stat) -> bool {
     a.st_dev == b.st_dev && a.st_ino == b.st_ino
 }
@@ -152,6 +180,9 @@ pub fn rename(f: &File, dir: &Dir, from: &str, leaf: &str, replace: bool) -> Res
     leaf_ok(from)?;
     leaf_ok(leaf)?;
     let me = rfs::fstat(f).map_err(io)?;
+    if me.st_nlink != 1 {
+        return Err(FsError::Reparse(format!("{from} has {} hard links", me.st_nlink)));
+    }
     let named = rfs::statat(&dir.fd, from, AtFlags::SYMLINK_NOFOLLOW).map_err(|e| err(e, from))?;
     if !same(&me, &named) {
         return Err(FsError::Reparse(format!("{from} is no longer the file being renamed")));
@@ -248,7 +279,7 @@ pub fn zone_identifier(dir: &Dir, leaf: &str) -> Option<String> {
 /// freedesktop origin attributes) and make sure the file is not executable. No antivirus exists to call. The
 /// file is opened through the held directory (never a re-resolved path), regular files only.
 pub fn attachment_save(dir: &Dir, leaf: &str, _final_name: &str, source: &str, referrer: Option<&str>) -> Result<(), String> {
-    let f = dir.file(leaf, OFlags::RDONLY, false, false).map_err(|e| e.to_string())?;
+    let f = single_link(dir.file(leaf, OFlags::RDONLY, false, false).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     let st = rfs::fstat(&f).map_err(|e| e.to_string())?;
     rfs::fchmod(&f, Mode::from_raw_mode(st.st_mode & 0o666)).map_err(|e| e.to_string())?;
     set_origin(&OwnedFd::from(f), source, referrer)
@@ -284,8 +315,16 @@ fn set_origin(fd: &OwnedFd, source: &str, referrer: Option<&str>) -> Result<(), 
 pub fn os_protected(f: &File, zone: Option<&str>) -> Result<(), String> {
     #[cfg(target_vendor = "apple")]
     {
-        let _ = f;
-        zone.filter(|z| z.starts_with("00")).map(|_| ()).ok_or_else(|| "no quarantine record (Gatekeeper will not check it)".into())
+        // read from the held file itself; "FFFF;..." with 4 hex flag digits, not yet user-approved (0x0040)
+        let _ = zone;
+        let mut buf = [0u8; 1024];
+        let n = rfs::fgetxattr(f, ORIGIN_XATTR, &mut buf[..]).map_err(|_| "no quarantine record (Gatekeeper will not check it)".to_string())?;
+        let v = String::from_utf8_lossy(&buf[..n]).into_owned();
+        let flags = v.get(..4).filter(|_| v.as_bytes().get(4) == Some(&b';')).and_then(|h| u16::from_str_radix(h, 16).ok());
+        match flags {
+            Some(fl) if fl & 0x0040 == 0 => Ok(()),
+            _ => Err(format!("quarantine record {v:?} does not make Gatekeeper check the file")),
+        }
     }
     #[cfg(not(target_vendor = "apple"))]
     {
@@ -394,6 +433,21 @@ mod tests {
         std::fs::write(d.join("h"), b"x").unwrap();
         std::fs::hard_link(d.join("h"), d.join("h2")).unwrap();
         assert!(matches!(dir.open_rw("h"), Err(FsError::Reparse(_))), "hard link refused");
+    }
+    /// council final review: a folder another user can change names in is refused (rename / hard-link races)
+    #[test]
+    fn folders_other_users_can_change_are_refused() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tmp("e");
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(matches!(Dir::open(&d), Err(FsError::Reparse(_))), "world-writable destination");
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o775)).unwrap();
+        assert!(matches!(Dir::open(&d), Err(FsError::Reparse(_))), "group-writable destination");
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let dir = Dir::open(&d).unwrap();
+        std::fs::create_dir(d.join("open")).unwrap();
+        std::fs::set_permissions(d.join("open"), std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(matches!(dir.subdir("open"), Err(FsError::Reparse(_))));
     }
     #[test]
     fn origin_mark_and_not_executable() {

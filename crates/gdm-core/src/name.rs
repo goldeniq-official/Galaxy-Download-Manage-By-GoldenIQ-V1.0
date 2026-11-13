@@ -9,6 +9,35 @@ const DANGEROUS: &[&str] = &[
     "exe", "msi", "msix", "appx", "bat", "cmd", "com", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "hta", "scr", "pif", "cpl", "lnk",
     "url", "reg", "iso", "img", "vhd", "vhdx", "jar", "dll", "sys", "msc", "chm", "inf",
 ];
+/// what runs (or installs, or mounts something that runs) on a double-click on this system (P4)
+#[cfg(target_vendor = "apple")]
+const DANGEROUS_OS: &[&str] = &[
+    "app",
+    "command",
+    "tool",
+    "terminal",
+    "sh",
+    "scpt",
+    "scptd",
+    "applescript",
+    "workflow",
+    "action",
+    "pkg",
+    "mpkg",
+    "dmg",
+    "webloc",
+    "inetloc",
+    "fileloc",
+    "prefpane",
+    "kext",
+    "dylib",
+    "osx",
+];
+#[cfg(all(unix, not(target_vendor = "apple")))]
+const DANGEROUS_OS: &[&str] =
+    &["desktop", "sh", "bash", "zsh", "ksh", "csh", "run", "bin", "appimage", "deb", "rpm", "snap", "flatpakref", "flatpak", "py", "pl", "rb", "so"];
+#[cfg(windows)]
+const DANGEROUS_OS: &[&str] = &[];
 
 /// one safe Windows path component, never empty
 pub fn sanitize(raw: &str) -> String {
@@ -90,7 +119,8 @@ pub fn real_extension(name: &str) -> String {
 
 /// never auto-opened, labelled in the UI (N-02)
 pub fn dangerous(name: &str) -> bool {
-    DANGEROUS.contains(&real_extension(name).as_str())
+    let e = real_extension(name);
+    DANGEROUS.contains(&e.as_str()) || DANGEROUS_OS.contains(&e.as_str())
 }
 
 /// "setup.exe", 1 -> "setup (1).exe" (N-04)

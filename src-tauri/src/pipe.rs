@@ -76,6 +76,7 @@ pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(
     let _ = std::fs::remove_file(&path); // a stale socket of a GDM that ended (nobody answered it)
     let l = UnixListener::bind(&path).map_err(|e| format!("pipe-taken:{e}"))?;
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())?;
+    // the CLI check needs both identities: without our own path no CLI message is ever accepted (never None == None)
     let me = std::env::current_exe().ok().map(|p| gdm_bridge::norm(&p));
     std::thread::spawn(move || {
         for c in l.incoming() {
@@ -93,7 +94,8 @@ pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(
                 Ok(_) => match serde_json::from_slice::<Envelope>(&buf) {
                     Ok(env)
                         if env.msg.validate().is_ok()
-                            && (!matches!(env.msg, Msg::Cli { .. }) || gdm_bridge::image_of(pid).map(|p| gdm_bridge::norm(&p)) == me) =>
+                            && (!matches!(env.msg, Msg::Cli { .. })
+                                || me.as_ref().is_some_and(|me| gdm_bridge::image_of(pid).is_some_and(|p| &gdm_bridge::norm(&p) == me))) =>
                     {
                         let (a, m, o) = (app.clone(), env.msg, env.origin);
                         rt.block_on(async move { handle(&a, &o, m).await })

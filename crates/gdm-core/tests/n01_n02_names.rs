@@ -133,6 +133,11 @@ fn n02_bidi_stripped_real_extension_dangerous() {
     assert!(dangerous("report.pdf.exe"));
     assert!(dangerous("SETUP.MSI") && dangerous("a.ps1") && dangerous("a.lnk") && dangerous("a.iso") && dangerous("a.vhd"));
     assert!(!dangerous("movie.mp4") && !dangerous("archive.zip"));
+    // P4: what runs on a double-click on THIS system is dangerous too
+    #[cfg(target_vendor = "apple")]
+    assert!(dangerous("Install.command") && dangerous("x.pkg") && dangerous("x.dmg") && dangerous("x.scpt") && dangerous("x.webloc"));
+    #[cfg(all(unix, not(target_vendor = "apple")))]
+    assert!(dangerous("run.desktop") && dangerous("x.sh") && dangerous("x.AppImage") && dangerous("x.deb") && dangerous("x.run"));
     // ZWJ / ZWNJ can carry meaning in scripts: kept
     assert_eq!(sanitize("a\u{200D}b\u{200C}c.txt"), "a\u{200D}b\u{200C}c.txt");
     // NFC: e + combining acute == é

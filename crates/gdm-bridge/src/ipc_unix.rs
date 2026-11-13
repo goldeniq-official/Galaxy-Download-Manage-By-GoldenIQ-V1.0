@@ -35,11 +35,27 @@ pub fn pipe_name() -> String {
     endpoint_dir().join("gdm.sock").display().to_string()
 }
 
-/// create (server) or check (client) the private folder: a real directory, owned by us, mode 0700
+/// create (server) or check (client) the private folder: a real directory, owned by us, mode 0700, no ACL
+/// grants (macOS evaluates ACLs apart from the mode bits), and no folder on the way that another user can change
 pub fn private_dir(create: bool) -> Result<PathBuf, String> {
     let d = endpoint_dir();
     if create {
         std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&d).map_err(|e| format!("{}: {e}", d.display()))?;
+        #[cfg(target_vendor = "apple")]
+        let _ = std::process::Command::new("/bin/chmod").arg("-N").arg(&d).status();
+        // drop inherited ACL entries
+    }
+    let mut at = PathBuf::from("/");
+    for c in d.parent().map(Path::components).into_iter().flatten() {
+        if let std::path::Component::Normal(n) = c {
+            at.push(n);
+            let m = std::fs::symlink_metadata(&at).map_err(|e| format!("no GDM: {e}"))?;
+            let mode = m.permissions().mode();
+            let sticky = mode & 0o1000 != 0;
+            if m.file_type().is_symlink() || (m.uid() != 0 && m.uid() != uid()) || (mode & 0o002 != 0 && !sticky) {
+                return Err(format!("refused: {} can be changed by other users", at.display()));
+            }
+        }
     }
     let m = std::fs::symlink_metadata(&d).map_err(|e| format!("no GDM: {e}"))?;
     if !m.is_dir() || m.uid() != uid() {
