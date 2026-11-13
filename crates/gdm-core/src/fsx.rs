@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 use windows::core::{GUID, HSTRING, PCWSTR};
 use windows::Wdk::Foundation::OBJECT_ATTRIBUTES;
 use windows::Wdk::Storage::FileSystem::{
-    NtCreateFile, FILE_CREATE, FILE_NON_DIRECTORY_FILE, FILE_OPEN, FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT,
+    NtCreateFile, FILE_CREATE, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_OPEN, FILE_OPEN_IF, FILE_OPEN_REPARSE_POINT,
+    FILE_SYNCHRONOUS_IO_NONALERT, NTCREATEFILE_CREATE_DISPOSITION, NTCREATEFILE_CREATE_OPTIONS,
 };
 use windows::Win32::Foundation::{HANDLE, OBJ_CASE_INSENSITIVE, UNICODE_STRING};
 use windows::Win32::Storage::FileSystem::*;
@@ -113,6 +114,30 @@ impl Dir {
 
     /// NtCreateFile relative to the held directory: `leaf` is one sanitized component.
     fn nt_open(&self, leaf: &str, access: u32, share: FILE_SHARE_MODE, create: bool) -> Result<File, FsError> {
+        self.nt(leaf, access, share, if create { FILE_CREATE } else { FILE_OPEN }, FILE_NON_DIRECTORY_FILE)
+    }
+
+    /// a sub-directory relative to this held handle (created when missing), held the same way as `open`
+    /// (no FILE_SHARE_DELETE). A junction/symlink there is refused, never followed (G-03 mirror folders).
+    pub fn subdir(&self, leaf: &str) -> Result<Dir, FsError> {
+        let f = self.nt(
+            leaf,
+            (FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_ADD_FILE | FILE_ADD_SUBDIRECTORY).0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            FILE_OPEN_IF,
+            FILE_DIRECTORY_FILE,
+        )?;
+        Ok(Dir { h: OwnedHandle::from(f), path: self.path.join(leaf) })
+    }
+
+    fn nt(
+        &self,
+        leaf: &str,
+        access: u32,
+        share: FILE_SHARE_MODE,
+        disposition: NTCREATEFILE_CREATE_DISPOSITION,
+        kind: NTCREATEFILE_CREATE_OPTIONS,
+    ) -> Result<File, FsError> {
         // one component; the only stream allowed is Zone.Identifier (MOTW read-back)
         let base = leaf.strip_suffix(":Zone.Identifier").unwrap_or(leaf);
         if base.is_empty() || base.contains(['\\', '/', ':']) || base == "." || base == ".." {
@@ -142,8 +167,8 @@ impl Dir {
                 None,
                 FILE_ATTRIBUTE_NORMAL,
                 share,
-                if create { FILE_CREATE } else { FILE_OPEN },
-                FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+                disposition,
+                kind | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
                 None,
                 0,
             )

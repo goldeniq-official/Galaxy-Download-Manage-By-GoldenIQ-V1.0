@@ -7,6 +7,7 @@ pub use reqwest;
 pub mod failpoint;
 pub mod finalize;
 pub mod fsx;
+pub mod grab;
 pub mod http;
 pub mod limiter;
 pub mod name;

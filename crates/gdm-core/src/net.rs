@@ -130,6 +130,16 @@ pub const DEFAULT_UA: &str = concat!("GalaxyDownloadManager/", env!("CARGO_PKG_V
 
 /// `client` with a User-Agent (None = GDM's own, never empty)
 pub fn client_ua(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration, ua: Option<&str>) -> Result<reqwest::Client, String> {
+    build(policy, h1_only, read_timeout, ua, true)
+}
+
+/// the same client, but redirects are returned to the caller (site grabber F09: every hop is checked against
+/// the project's scope, avoid list and robots.txt before it is requested; the caller applies `redirect_ok`)
+pub fn client_manual(policy: Arc<Policy>, read_timeout: Duration, ua: Option<&str>) -> Result<reqwest::Client, String> {
+    build(policy, false, read_timeout, ua, false)
+}
+
+fn build(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration, ua: Option<&str>, follow: bool) -> Result<reqwest::Client, String> {
     let tls = tls_config(if h1_only { &[b"http/1.1"] } else { &[b"h2", b"http/1.1"] }).map_err(|e| e.to_string())?;
     let p2 = policy.clone();
     let relay = crate::relay::global();
@@ -146,10 +156,14 @@ pub fn client_ua(policy: Arc<Policy>, h1_only: bool, read_timeout: Duration, ua:
         .read_timeout(read_timeout)
         .connect_timeout(Duration::from_secs(15))
         .pool_max_idle_per_host(crate::seg::MAX_CONNS)
-        .redirect(reqwest::redirect::Policy::custom(move |att| match redirect_ok(att.previous(), att.url(), &p2) {
-            Ok(()) => att.follow(),
-            Err(e) => att.error(e),
-        }));
+        .redirect(if follow {
+            reqwest::redirect::Policy::custom(move |att| match redirect_ok(att.previous(), att.url(), &p2) {
+                Ok(()) => att.follow(),
+                Err(e) => att.error(e),
+            })
+        } else {
+            reqwest::redirect::Policy::none()
+        });
     if h1_only {
         b = b.http1_only();
     }

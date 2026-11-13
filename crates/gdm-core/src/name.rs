@@ -166,7 +166,7 @@ fn ext_value(v: &str) -> Option<String> {
     cs.eq_ignore_ascii_case("utf-8").then(|| pct_decode(val))
 }
 
-fn pct_decode(s: &str) -> String {
+pub(crate) fn pct_decode(s: &str) -> String {
     let b = s.as_bytes();
     let mut o = Vec::with_capacity(b.len());
     let mut i = 0;

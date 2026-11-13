@@ -24,7 +24,10 @@
 //!   /html          200 text/html page                                   (R-03)
 //!   /multipart     206 multipart/byteranges                             (not requested => reject)
 //!   /p/<size>/<seed>/<rate>/<name>  same as /file, parameters in the path (URLs without a query)
-//!   /static/<name> bytes of a registered blob, ranged (media for S7)
+//!   /static/<name> bytes of a registered blob, ranged (media for S7); .html => text/html
+//!   /cal?d=N       html linking d=N+1 and d=N-1, forever                (G-01 calendar trap)
+//!   /loop/...      html linking "a/" (relative), forever                (G-01 path loop)
+//!   /robots.txt    the blob "robots.txt", else 404                      (G-01 robots)
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -354,6 +357,23 @@ Accept-Ranges: bytes
                 s.write_all(body).await?;
                 Ok(true)
             }
+            // F09 grabber traps: an endless calendar (query space) and an endless relative-path loop
+            "/cal" => {
+                let d: i64 = qp.get("d").and_then(|v| v.parse().ok()).unwrap_or(0);
+                html(s, &format!("<a href=\"/cal?d={}\">next</a> <a href='/cal?d={}'>prev</a>", d + 1, d - 1)).await
+            }
+            p if p.starts_with("/loop/") => html(s, "<a href=\"a/\">deeper</a>").await,
+            "/robots.txt" => {
+                let blob = self.st.blobs.lock().unwrap().get("robots.txt").cloned();
+                match blob {
+                    Some(b) => {
+                        s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n", b.len()).as_bytes()).await?;
+                        s.write_all(&b).await?;
+                    }
+                    None => s.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await?,
+                }
+                Ok(true)
+            }
             p if p.starts_with("/static/") => {
                 let blob = self.st.blobs.lock().unwrap().get(&p[8..]).cloned();
                 let Some(b) = blob else {
@@ -434,6 +454,11 @@ Accept-Ranges: bytes
 /// Q-05: a conditional request that matches gets 304 and no body
 async fn not_modified(s: &mut TcpStream, etag: &str) -> std::io::Result<bool> {
     s.write_all(format!("HTTP/1.1 304 Not Modified\r\nETag: {etag}\r\nContent-Length: 0\r\n\r\n").as_bytes()).await?;
+    Ok(true)
+}
+
+async fn html(s: &mut TcpStream, body: &str) -> std::io::Result<bool> {
+    s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await?;
     Ok(true)
 }
 
