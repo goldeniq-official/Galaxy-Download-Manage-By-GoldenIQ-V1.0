@@ -1,21 +1,28 @@
 // SPDX-License-Identifier: RPL-1.5
-// Writes THIRD-PARTY-NOTICES.md: every Rust crate compiled into the Windows build (cargo metadata, x64 target)
-// and every production npm package bundled into the UI, with its licence, plus fonts, icons and NSIS.
+// Writes THIRD-PARTY-NOTICES.md: every Rust crate compiled into any release build (cargo metadata for each of the
+// six targets, P4: Windows / macOS / Linux, x64 + ARM64) and every production npm package bundled into the UI,
+// with its licence, plus fonts, icons and NSIS.
 // Run: node scripts/third-party.mjs   (after cargo fetch + pnpm install)
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 
-const meta = JSON.parse(execSync("cargo metadata --format-version 1 --locked --filter-platform x86_64-pc-windows-msvc", { maxBuffer: 1 << 28 }).toString());
+const TARGETS = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"];
 const ours = new Set(["galaxy-download-manager", "gdm-core", "gdm-bridge", "gdm-fixture", "gdm-auth", "gdm-media"]);
-const pkgs = new Map(meta.packages.map((p) => [p.id, p]));
+const pkgs = new Map();
 const reach = new Set();
-const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
-const walk = (id) => {
-  if (reach.has(id)) return;
-  reach.add(id);
-  for (const d of nodes.get(id)?.deps ?? []) if (d.dep_kinds.some((k) => k.kind !== "dev" && k.kind !== "build")) walk(d.pkg);
-};
-for (const p of meta.packages) if (p.name === "galaxy-download-manager" || p.name === "gdm-bridge") walk(p.id);
+for (const t of TARGETS) {
+  const meta = JSON.parse(execSync(`cargo metadata --format-version 1 --locked --filter-platform ${t}`, { maxBuffer: 1 << 28 }).toString());
+  for (const p of meta.packages) pkgs.set(p.id, p);
+  const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
+  const seen = new Set();
+  const walk = (id) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    reach.add(id);
+    for (const d of nodes.get(id)?.deps ?? []) if (d.dep_kinds.some((k) => k.kind !== "dev" && k.kind !== "build")) walk(d.pkg);
+  };
+  for (const p of meta.packages) if (p.name === "galaxy-download-manager" || p.name === "gdm-bridge") walk(p.id);
+}
 const crates = [...reach].map((id) => pkgs.get(id)).filter((p) => !ours.has(p.name)).sort((a, b) => a.name.localeCompare(b.name));
 
 const npm = JSON.parse(execSync("pnpm licenses list --prod --json").toString());
@@ -54,7 +61,7 @@ programs and does not link to them. Their licences apply to them, not to GDM.
 |---|---|---|---|
 ${npmRows.map((r) => `| ${r.join(" | ")} |`).join("\n")}
 
-## Rust crates in gdm.exe and gdm-bridge.exe (${crates.length})
+## Rust crates in GDM and gdm-bridge, every platform (${crates.length})
 
 | Crate | Version | Licence | Repository |
 |---|---|---|---|

@@ -3,7 +3,7 @@
 # MPL-2.0 is allowed only unmodified: no [patch] of an MPL crate (checked in review; see docs/p0/exit.md).
 
 [graph]
-targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
+targets = ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
 
 [licenses]
 allow = [
@@ -21,6 +21,8 @@ confidence-threshold = 0.93
 # GDM itself is RPL-1.5 (LICENSE); only our own crates may carry it.
 exceptions = [
   { crate = "galaxy-download-manager", allow = ["RPL-1.5"] },
+  # build-time only (system-deps -> cfg-expr on Linux): permissive, OSI approved
+  { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
   { crate = "gdm-core", allow = ["RPL-1.5"] },
   { crate = "gdm-fixture", allow = ["RPL-1.5"] },
   { crate = "gdm-bridge", allow = ["RPL-1.5"] },
@@ -29,7 +31,14 @@ exceptions = [
 ]
 
 [advisories]
-ignore = []
+# "Unmaintained" notices (no vulnerability) in Tauri's own Linux stack, no safe upgrade published; reviewed
+# 2026-11-13 for P4 (macOS/Linux builds). Re-check when Tauri moves to gtk-rs 0.19+ / a maintained zbus.
+ignore = [
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: build-time macro of glib 0.18 (tauri/wry/tray-icon on Linux)" },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant 5: zbus 5 of tauri-plugin-notification / single-instance on Linux" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names 4: zbus 5 of tauri-plugin-notification / single-instance on Linux" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5: zbus 5 of tauri-plugin-notification / single-instance on Linux" },
+]
 
 [bans]
 multiple-versions = "allow"
