@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: RPL-1.5
 //! gdm-bridge.exe: the native messaging host. Stateless: frame in -> validate -> verified pipe -> frame out.
 //!   gdm-bridge <origin>          host mode (started by the browser)
-//!   gdm-bridge register          write the host manifest for every known browser (HKCU, B-07; NSIS calls it)
+//!   gdm-bridge register          write the host manifest for every known browser (Windows: HKCU, B-07, NSIS
+//!                                calls it; macOS/Linux: each installed browser's NativeMessagingHosts folder)
 //!   gdm-bridge unregister        remove them again (T-03)
 use gdm_bridge::*;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::time::Duration;
+#[cfg(windows)]
 use windows::core::HSTRING;
 
 fn frame_out(out: &mut impl Write, v: &[u8]) -> io::Result<()> {
@@ -16,7 +18,8 @@ fn frame_out(out: &mut impl Write, v: &[u8]) -> io::Result<()> {
 }
 
 fn gdm_exe() -> PathBuf {
-    std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("gdm.exe"))).unwrap_or_default()
+    let name = if cfg!(windows) { "gdm.exe" } else { "gdm" };
+    std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join(name))).unwrap_or_default()
 }
 
 fn host(origin: String) -> i32 {
@@ -66,8 +69,21 @@ fn host(origin: String) -> i32 {
     }
 }
 
-// ---- per-user registration (HKCU only, no admin) ----
+/// the host manifest a browser reads: Chromium family (allowed_origins) or Firefox family (allowed_extensions)
+fn manifest(firefox: bool) -> Result<Vec<u8>, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut m = serde_json::json!({"name": HOST, "description": "Galaxy Download Manager", "path": exe, "type": "stdio"});
+    if firefox {
+        m["allowed_extensions"] = serde_json::json!(FIREFOX_IDS);
+    } else {
+        m["allowed_origins"] = CHROME_IDS.iter().map(|i| format!("chrome-extension://{i}/")).collect();
+    }
+    serde_json::to_vec_pretty(&m).map_err(|e| e.to_string())
+}
+
+// ---- per-user registration (no admin) ----
 /// (HKCU key, Firefox-style manifest). Chromium forks that read Chrome's key are covered by it (B-07).
+#[cfg(windows)]
 const KEYS: &[(&str, bool)] = &[
     (r"Software\Google\Chrome\NativeMessagingHosts", false),
     (r"Software\Chromium\NativeMessagingHosts", false),
@@ -81,10 +97,12 @@ const KEYS: &[(&str, bool)] = &[
     (r"Software\Floorp\NativeMessagingHosts", true),
 ];
 
+#[cfg(windows)]
 fn nmh_dir() -> PathBuf {
     PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join(r"GDM\nmh")
 }
 
+#[cfg(windows)]
 fn reg_set_default(key: &str, value: &str) -> Result<(), String> {
     use windows::Win32::System::Registry::*;
     unsafe {
@@ -100,23 +118,18 @@ fn reg_set_default(key: &str, value: &str) -> Result<(), String> {
     }
 }
 
+#[cfg(windows)]
 fn reg_delete(key: &str) -> bool {
     use windows::Win32::System::Registry::*;
     unsafe { RegDeleteTreeW(HKEY_CURRENT_USER, &HSTRING::from(key)).is_ok() && RegDeleteKeyW(HKEY_CURRENT_USER, &HSTRING::from(key)).is_ok() }
 }
 
+#[cfg(windows)]
 fn register() -> Result<(), String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let dir = nmh_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     for (ff, file) in [(false, "chromium.json"), (true, "firefox.json")] {
-        let mut m = serde_json::json!({"name": HOST, "description": "Galaxy Download Manager", "path": exe, "type": "stdio"});
-        if ff {
-            m["allowed_extensions"] = serde_json::json!(FIREFOX_IDS);
-        } else {
-            m["allowed_origins"] = CHROME_IDS.iter().map(|i| format!("chrome-extension://{i}/")).collect();
-        }
-        std::fs::write(dir.join(file), serde_json::to_vec_pretty(&m).unwrap_or_default()).map_err(|e| e.to_string())?;
+        std::fs::write(dir.join(file), manifest(ff)?).map_err(|e| e.to_string())?;
     }
     for (key, ff) in KEYS {
         let file = dir.join(if *ff { "firefox.json" } else { "chromium.json" });
@@ -126,10 +139,66 @@ fn register() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
 fn unregister() {
     let n = KEYS.iter().filter(|(k, _)| reg_delete(&format!(r"{k}\{HOST}"))).count();
     let _ = std::fs::remove_dir_all(nmh_dir());
     println!("unregistered ({n} keys removed)");
+}
+
+/// (browser profile root under $HOME, its NativeMessagingHosts folder, Firefox-style manifest). A manifest is
+/// written only for a browser whose profile root exists (an installed, used browser).
+#[cfg(unix)]
+fn unix_hosts() -> Vec<(PathBuf, PathBuf, bool)> {
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+    #[cfg(target_vendor = "apple")]
+    let list: &[(&str, &str, bool)] = &[
+        ("Library/Application Support/Google/Chrome", "NativeMessagingHosts", false),
+        ("Library/Application Support/Google/Chrome Beta", "NativeMessagingHosts", false),
+        ("Library/Application Support/Chromium", "NativeMessagingHosts", false),
+        ("Library/Application Support/Microsoft Edge", "NativeMessagingHosts", false),
+        ("Library/Application Support/BraveSoftware/Brave-Browser", "NativeMessagingHosts", false),
+        ("Library/Application Support/Vivaldi", "NativeMessagingHosts", false),
+        ("Library/Application Support/Arc/User Data", "NativeMessagingHosts", false),
+        ("Library/Application Support/Mozilla", "NativeMessagingHosts", true),
+        ("Library/Application Support/LibreWolf", "NativeMessagingHosts", true),
+    ];
+    #[cfg(not(target_vendor = "apple"))]
+    let list: &[(&str, &str, bool)] = &[
+        (".config/google-chrome", "NativeMessagingHosts", false),
+        (".config/google-chrome-beta", "NativeMessagingHosts", false),
+        (".config/chromium", "NativeMessagingHosts", false),
+        (".config/microsoft-edge", "NativeMessagingHosts", false),
+        (".config/BraveSoftware/Brave-Browser", "NativeMessagingHosts", false),
+        (".config/vivaldi", "NativeMessagingHosts", false),
+        (".config/opera", "NativeMessagingHosts", false),
+        (".mozilla", "native-messaging-hosts", true),
+        (".librewolf", "native-messaging-hosts", true),
+        (".waterfox", "native-messaging-hosts", true),
+        (".floorp", "native-messaging-hosts", true),
+    ];
+    list.iter().map(|(root, sub, ff)| (home.join(root), home.join(root).join(sub), *ff)).collect()
+}
+
+#[cfg(unix)]
+fn register() -> Result<(), String> {
+    let mut n = 0;
+    for (root, dir, ff) in unix_hosts() {
+        if !root.is_dir() {
+            continue;
+        }
+        std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        std::fs::write(dir.join(format!("{HOST}.json")), manifest(ff)?).map_err(|e| format!("{}: {e}", dir.display()))?;
+        n += 1;
+    }
+    println!("registered {n} browsers");
+    Ok(())
+}
+
+#[cfg(unix)]
+fn unregister() {
+    let n = unix_hosts().iter().filter(|(_, dir, _)| std::fs::remove_file(dir.join(format!("{HOST}.json"))).is_ok()).count();
+    println!("unregistered ({n} manifests removed)");
 }
 
 fn main() {
@@ -150,7 +219,7 @@ fn main() {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
     use windows::Win32::Foundation::CloseHandle;
