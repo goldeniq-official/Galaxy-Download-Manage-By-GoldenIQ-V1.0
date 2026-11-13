@@ -159,7 +159,7 @@ async function focusRun(page, diffPage) {
   for (; i < CAP; i++) {
     await page.keyboard.press("Tab");
     const info = await page.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null;
-      const typed = e.tagName === "INPUT" || e.tagName === "TEXTAREA"; const field = typed || e.getAttribute("role") === "row"; const t = typed ? (e.closest(".fld, .search") || e) : e; const r = t.getBoundingClientRect();
+      const typed = e.tagName === "INPUT" || e.tagName === "TEXTAREA"; const field = typed || e.getAttribute("role") === "row" || e.classList.contains("nav"); const t = typed ? (e.closest(".fld, .search") || e) : e; const r = t.getBoundingClientRect();
       return { tag: e.tagName.toLowerCase(), label: (e.getAttribute("aria-label") || e.value || e.textContent || "").trim().slice(0, 30), x: r.x, y: r.y, w: r.width, h: r.height, field }; });
     if (!info) break;
     const key = Math.round(info.x) + "," + Math.round(info.y) + info.label;

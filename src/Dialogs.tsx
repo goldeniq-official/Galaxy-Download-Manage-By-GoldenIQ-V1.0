@@ -519,12 +519,17 @@ export function Countdown() {
   const { t } = useTranslation();
   const cd = useStore((s) => s.countdown);
   const q = useStore((s) => s.queues.find((v) => v.def.id === cd?.id));
-  const btn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!cd) return;
-    btn.current?.focus();
+    // focus is not taken (Mazer: nothing steals focus); Esc cancels from anywhere while the countdown shows
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      void api.queueCancelAction(cd.id).then(() => useStore.setState({ countdown: null }));
+    };
+    window.addEventListener("keydown", esc, true);
     const tm = setInterval(() => void useStore.getState().refreshQueues(), 1000);
-    return () => clearInterval(tm);
+    return () => (clearInterval(tm), window.removeEventListener("keydown", esc, true));
   }, [cd]);
   useEffect(() => {
     if (cd && q && q.state.countdown == null) useStore.setState({ countdown: null });
@@ -536,13 +541,15 @@ export function Countdown() {
     useStore.setState({ countdown: null });
   };
   return (
-    <div className="cd" role="alertdialog" aria-label={t(`cd.${cd.action}`, { n, defaultValue: cd.action })}>
-      <Icon n="warning" lg />
+    <div className="cd toast" data-tone="warn" role="alertdialog" aria-label={t(`cd.${cd.action}`, { n, defaultValue: cd.action })}>
+      <span className="badge">
+        <Icon n="warning" />
+      </span>
       <div className="tt">
         <b>{t(`cd.${cd.action}`, { n, defaultValue: cd.action })}</b>
         <span>{t("cd.why", { q: qName(t, q?.def) })}</span>
       </div>
-      <button ref={btn} type="button" className="fx btn btn-p fx-strong" onClick={() => void cancel()}>
+      <button type="button" className="fx tact" onClick={() => void cancel()}>
         {t("cd.cancel")}
       </button>
     </div>

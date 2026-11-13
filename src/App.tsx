@@ -88,7 +88,6 @@ function Shell() {
   }, []);
   return (
     <>
-      <Countdown />
       <div id="shell" className="win">
         <div className="body">
           <nav className="rail" aria-label={t("nav.cats")}>
@@ -977,6 +976,9 @@ function WhyDialog({ k, onClose }: { k: string; onClose: () => void }) {
   );
 }
 
+/** Mazer toast tones: the card is washed from the left in the kind's colour, the badge is filled with it */
+const toneOf = (k: string) => (k === "blocked" || k === "failed" || k === "error" ? "err" : k === "unprotected" ? "warn" : k === "info" || k === "refresh" || k === "video-link" ? "info" : "ok");
+
 function Toasts() {
   const { t } = useTranslation();
   const toasts = useStore((s) => s.toasts);
@@ -992,9 +994,13 @@ function Toasts() {
   }, [toasts]);
   return (
     <div className="toasts" role="status" aria-live="polite">
+      {/* the shutdown countdown is the first card of the toast stack: it floats over the list corner, never over the toolbar */}
+      <Countdown />
       {toasts.map((x) => (
-        <div key={x.n} className={"toast " + x.kind}>
-          <Icon n={x.kind === "blocked" || x.kind === "failed" || x.kind === "error" ? "warning-circle" : x.kind === "info" ? "info" : x.kind === "video-link" ? "file-video" : "check-circle"} fill={x.kind !== "info"} />
+        <div key={x.n} className={"toast " + x.kind} data-tone={toneOf(x.kind)}>
+          <span className="badge">
+            <Icon n={x.kind === "blocked" || x.kind === "failed" || x.kind === "error" ? "warning-circle" : x.kind === "info" ? "info" : x.kind === "video-link" ? "file-video" : x.kind === "unprotected" ? "warning" : "check-circle"} />
+          </span>
           <div className="tt">
             <b>{x.kind === "info" ? t(`toast.infoMsg.${x.name}`, { defaultValue: x.name }) : t(`toast.${x.kind}`, { defaultValue: x.kind })}</b>
             {x.kind !== "info" && (

@@ -379,6 +379,15 @@ test("G7 countdown banner: Cancel calls queue_cancel_action", async ({ page }) =
   expect(await calls(page, "queue_cancel_action")).toEqual([{ id: "main" }]);
 });
 
+test("countdown: it takes no focus, and Esc cancels it", async ({ page }) => {
+  await open(page, "scene=states&lang=en&countdown=1", 1100, 700);
+  await expect(page.locator(".cd")).toBeVisible();
+  expect(await page.evaluate(() => !!document.activeElement?.closest(".cd"))).toBe(false);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".cd")).toHaveCount(0);
+  expect(await calls(page, "queue_cancel_action")).toEqual([{ id: "main" }]);
+});
+
 test("G7 video: DRM is refused with a clear message; a page with formats lists the qualities", async ({ page }) => {
   await open(page, "scene=states&lang=en", 1100, 700);
   await tasks(page, 1);

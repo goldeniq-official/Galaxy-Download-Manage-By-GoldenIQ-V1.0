@@ -101,19 +101,22 @@ button, input, select { font: inherit; color: inherit; border: 0; outline: none;
 .mono { font-family: var(--f-mono), var(--f-khmer), monospace; font-size: 12px; }
 
 /* keyboard focus = fill (D6). :focus-visible is the native keyboard-only signal. */
-.fx:not(.row):focus-visible { background: var(--focus-plate); color: var(--on-focus); }
-.fx:not(.row):focus-visible * { color: var(--on-focus); }
+.fx:where(:not(.row, .nav)):focus-visible { background: var(--focus-plate); color: var(--on-focus); }
+.fx:where(:not(.row, .nav)):focus-visible * { color: var(--on-focus); }
 /* list rows (owner 2026-11-13: the white focused row was unreadable): focus = a stronger blue wash than selection,
    every text keeps its own colour */
 .row.fx:focus-visible { background: var(--row-focus); }
+/* navigation items (rail, settings sections) like rows: never a white slab; selected = stronger blue wash, others = brighter fill */
+.nav.fx:focus-visible { background: var(--chip-hover); color: var(--tx-1); }
+.nav.fx.is-selected:focus-visible { background: var(--row-focus); color: var(--accent); }
 /* gradient-filled controls already sit near the plate's luminance, so they invert instead */
 /* fields (owner 2026-11-13, replaces the Q2 plate: "brighten a little, like Mazer"): the field's own fill brightens
    under the typed text, the label turns accent (.fld:focus-within), the caret is accent. Nothing is drawn round it. */
 .in:focus-within, .search:focus-within { background: var(--field-focus); }
 .in:focus-within input, .in:focus-within .mono, .in:focus-within textarea, .search:focus-within input { color: var(--tx-1); }
 .search:focus-within > .ico { color: var(--accent); }
-.fx.fx-strong:focus-visible, .fx.is-selected:not(.row):focus-visible, .fx[aria-selected="true"]:not(.row):focus-visible { background: var(--focus-strong); color: var(--on-focus-strong); }
-.fx.fx-strong:focus-visible *, .fx.is-selected:not(.row):focus-visible *, .fx[aria-selected="true"]:not(.row):focus-visible * { color: var(--on-focus-strong); }
+.fx.fx-strong:focus-visible, .fx.is-selected:not(.row):not(.nav):focus-visible, .fx[aria-selected="true"]:not(.row):focus-visible { background: var(--focus-strong); color: var(--on-focus-strong); }
+.fx.fx-strong:focus-visible *, .fx.is-selected:not(.row):not(.nav):focus-visible *, .fx[aria-selected="true"]:not(.row):focus-visible * { color: var(--on-focus-strong); }
 
 @media (forced-colors: active) {
   .is-selected, [aria-selected="true"] { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
