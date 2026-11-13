@@ -17,9 +17,9 @@ GDM ជាកម្មវិធីគ្រប់គ្រងការទាញ�
 
 ## ដំឡើង
 
-1. ទាញ `GDM_0.9.0_x64-setup.exe` ពី [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) តែប៉ុណ្ណោះ។ ផ្ទៀងផ្ទាត់ SHA-256 ជាមួយ `SHA256SUMS.txt` និង `gh attestation verify GDM_0.9.0_x64-setup.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0`។
+1. ទាញ `GDM-Setup_0.9.0_x64.exe` (Windows ARM: `_arm64`) ពី [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) តែប៉ុណ្ណោះ។ ផ្ទៀងផ្ទាត់ SHA-256 ជាមួយ `SHA256SUMS.txt` និង `gh attestation verify GDM-Setup_0.9.0_x64.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0`។
 2. Installer ដំឡើងសម្រាប់គណនីរបស់អ្នកប៉ុណ្ណោះ (គ្មាន admin)។ Beta នេះមិនទាន់មានហត្ថលេខា Authenticode ទេ ដូច្នេះ Windows SmartScreen អាចព្រមាន ("More info › Run anyway")។
-3. ដំឡើង extension ពីផ្ទាំង "ភ្ជាប់ browser" ក្នុង GDM។
+3. ទំព័រចុងក្រោយនៃ Setup បង្ហាញ browser ដែលមាននៅលើកុំព្យូទ័រ៖ ចុច "បន្ថែម" ក្បែរ browser នីមួយៗ ហើយក្នុងហាងចុច "Add to Chrome" (Edge: "Get", Firefox: "Add to Firefox")។ GDM បង្ហាញ "បានភ្ជាប់" ពេលរួចរាល់ (ក៏មាននៅ ការកំណត់ › Browser ដែរ)។ ឯកសារ `GDM_…-setup.exe` គឺជា installer NSIS ដដែល (សម្រាប់ winget ឬការដំឡើងស្ងាត់ `/S`)។
 
 ## អាជ្ញាប័ណ្ណ
 

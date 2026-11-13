@@ -6,8 +6,8 @@
 # ONE SIGNED latest.json naming every platform (U-01; each GDM checks its own key, update::platform_key, before
 # Tauri's updater runs), attests build provenance, and creates a DRAFT GitHub release the owner publishes.
 # Code signing: Windows Authenticode via SignPath when accepted (D8); macOS is ad-hoc signed until the owner
-# decides on an Apple Developer ID (notarization, $99/year): until then macOS users open it with right-click >
-# Open the first time. Linux packages are unsigned (sha256 + attestation).
+# decides on an Apple Developer ID (notarization, $99/year): until then macOS users allow it once in System Settings >
+# Privacy & Security > Open Anyway (macOS 15 removed right-click > Open). Linux packages are unsigned (sha256 + attestation).
 name: release
 on:
   push:
@@ -55,11 +55,11 @@ jobs:
           rustup default "$RUST_VERSION"
           rustup target add ${{ matrix.target }}
       - name: version in the tag == version in the app
-        run: test "v$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$GITHUB_REF_NAME"
+        run: test "v$(node scripts/version.mjs)" = "$GITHUB_REF_NAME" # the one version (tauri.conf.json has none)
+      # the updater key is NOT in this step: every dependency's build.rs runs here. Tauri builds without updater
+      # artifacts; the "sign" step below makes them, the only step that sees the key.
       - name: build
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: "-"
         run: |
           cargo build -p gdm-bridge --release --locked --target ${{ matrix.target }}
@@ -68,23 +68,27 @@ jobs:
           cp "target/${{ matrix.target }}/release/gdm-bridge$ext" "src-tauri/binaries/gdm-bridge-${{ matrix.target }}$ext"
           [ "$RUNNER_OS" = Windows ] && node scripts/nsis-khmer.mjs
           pnpm ext
-          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-      - name: collect (installers + the updater artifact and its minisign signature)
+          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+      - name: collect (installers + the updater artifact, signed in the next step)
         run: |
           v="${GITHUB_REF_NAME#v}"; a="${{ matrix.arch }}"; b="target/${{ matrix.target }}/release/bundle"
           mkdir -p out
           one() { ls $1 2>/dev/null | head -1; }
           case "$RUNNER_OS" in
             Windows)
-              s=$(one "$b/nsis/*-setup.exe"); cp "$s" "out/GDM_${v}_$a-setup.exe"; cp "$s.sig" "out/GDM_${v}_$a-setup.exe.sig"
-              echo "GDM_${v}_$a-setup.exe" > out/updater-$a.txt ;;
+              s=$(one "$b/nsis/*-setup.exe"); cp "$s" "out/GDM_${v}_$a-setup.exe"
+              echo "GDM_${v}_$a-setup.exe" > out/updater-$a.txt
+              # GDM Setup: the designed window people download; this exact NSIS installer is inside (the updater,
+              # winget and the uninstaller keep using NSIS itself)
+              GDM_SETUP_PAYLOAD="$(cygpath -w "$PWD/$s")" cargo build -p gdm-setup --release --locked --target ${{ matrix.target }}
+              cp "target/${{ matrix.target }}/release/gdm-setup.exe" "out/GDM-Setup_${v}_$a.exe" ;;
             macOS)
               cp "$(one "$b/dmg/*.dmg")" "out/GDM_${v}_$a.dmg"
-              t=$(one "$b/macos/*.app.tar.gz"); cp "$t" "out/GDM_${v}_$a.app.tar.gz"; cp "$t.sig" "out/GDM_${v}_$a.app.tar.gz.sig"
+              app=$(ls -d $b/macos/*.app | head -1); tar -czf "out/GDM_${v}_$a.app.tar.gz" -C "$(dirname "$app")" "$(basename "$app")" # what Tauri's updater unpacks
               echo "GDM_${v}_$a.app.tar.gz" > out/updater-$a.txt ;;
             Linux)
               cp "$(one "$b/deb/*.deb")" "out/GDM_${v}_$a.deb"; cp "$(one "$b/rpm/*.rpm")" "out/GDM_${v}_$a.rpm"
-              i=$(one "$b/appimage/*.AppImage"); cp "$i" "out/GDM_${v}_$a.AppImage"; cp "$i.sig" "out/GDM_${v}_$a.AppImage.sig"
+              i=$(one "$b/appimage/*.AppImage"); cp "$i" "out/GDM_${v}_$a.AppImage"
               echo "GDM_${v}_$a.AppImage" > out/updater-$a.txt ;;
           esac
           if [ "$a" = windows-x64 ]; then
@@ -93,6 +97,14 @@ jobs:
             pwsh -Command "Compress-Archive extension/dist/chrome/* out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox/* out/gdm-extension-firefox-$v.zip"
           fi
           ls -la out
+      - name: sign the updater artifact (minisign; the only step with the key)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          f="out/$(cat out/updater-${{ matrix.arch }}.txt)"
+          pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "$f"
+          test -s "$f.sig"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: out-${{ matrix.arch }}

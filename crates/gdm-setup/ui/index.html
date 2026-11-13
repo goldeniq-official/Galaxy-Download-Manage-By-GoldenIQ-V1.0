@@ -1,0 +1,92 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: RPL-1.5 -->
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<title>Galaxy Download Manager Setup</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+<aside data-drag>
+  <div class="brand" data-drag>
+    <img src="logo.png" alt="" width="52" height="52" data-drag>
+    <div data-drag><b data-drag>Galaxy</b><span data-drag>Download Manager</span></div>
+  </div>
+  <span class="ver" id="ver"></span>
+  <ol class="steps" id="steps">
+    <li data-s="1"><i></i><span data-t="s1"></span></li>
+    <li data-s="2"><i></i><span data-t="s2"></span></li>
+    <li data-s="3"><i></i><span data-t="s3"></span></li>
+  </ol>
+  <div class="lang" role="tablist" id="lang">
+    <button type="button" class="fx" role="tab" data-l="km">ខ្មែរ</button>
+    <button type="button" class="fx" role="tab" data-l="en">English</button>
+  </div>
+  <p class="by" data-t="by"></p>
+</aside>
+
+<main>
+  <div class="bar" data-drag>
+    <div class="wctl">
+      <button type="button" class="fx" id="min" data-tip="min"><svg class="ico" data-i="minus"></svg></button>
+      <button type="button" class="fx close" id="x" data-tip="close"><svg class="ico" data-i="x"></svg></button>
+    </div>
+  </div>
+
+  <section class="page" id="p-welcome">
+    <h1 data-t="welcomeT"></h1>
+    <p class="lead" data-t="welcomeP"></p>
+    <ul class="feats">
+      <li><span class="tile"><svg class="ico" data-i="zap"></svg></span><div><b data-t="f1"></b><span data-t="f1s"></span></div></li>
+      <li><span class="tile"><svg class="ico" data-i="puzzle"></svg></span><div><b data-t="f2"></b><span data-t="f2s"></span></div></li>
+      <li><span class="tile"><svg class="ico" data-i="shield"></svg></span><div><b data-t="f3"></b><span data-t="f3s"></span></div></li>
+    </ul>
+    <div class="where"><svg class="ico" data-i="folder"></svg><span data-t="where"></span><code id="dir"></code></div>
+    <p class="note" id="nopayload" hidden data-t="noPayload"></p>
+    <footer>
+      <span class="links"><button type="button" class="fx lnk" data-k="license" data-t="license"></button><button type="button" class="fx lnk" data-k="privacy" data-t="privacy"></button></span>
+      <button type="button" class="fx btn btn-g" data-act="close" data-t="cancel"></button>
+      <button type="button" class="fx btn btn-p fx-strong" id="go"><svg class="ico" data-i="download"></svg><span data-t="install"></span></button>
+    </footer>
+  </section>
+
+  <section class="page" id="p-run" hidden>
+    <h1 data-t="runT"></h1>
+    <p class="lead" data-t="runP"></p>
+    <div class="track" role="progressbar" aria-busy="true"><i></i></div>
+    <p class="note" data-t="runNote"></p>
+  </section>
+
+  <section class="page" id="p-done" hidden>
+    <div class="ok"><svg class="ico" data-i="check"></svg><span data-t="doneOk"></span></div>
+    <h1 data-t="doneT"></h1>
+    <p class="lead" data-t="doneP"></p>
+    <div class="browsers" id="browsers"></div>
+    <ol class="how">
+      <li><i>1</i><span data-t="h1"></span></li>
+      <li><i>2</i><span data-t="h2"></span></li>
+      <li><i>3</i><span data-t="h3"></span></li>
+    </ol>
+    <footer>
+      <span class="links"></span>
+      <button type="button" class="fx btn btn-g" data-act="close" data-t="close"></button>
+      <button type="button" class="fx btn btn-p fx-strong" id="open"><span data-t="open"></span></button>
+    </footer>
+  </section>
+
+  <section class="page" id="p-fail" hidden>
+    <div class="bad"><svg class="ico" data-i="alert"></svg><span data-t="failOk"></span></div>
+    <h1 data-t="failT"></h1>
+    <p class="lead" data-t="failP"></p>
+    <code class="err" id="err"></code>
+    <footer>
+      <span class="links"><button type="button" class="fx lnk" data-k="help" data-t="help"></button></span>
+      <button type="button" class="fx btn btn-g" data-act="close" data-t="close"></button>
+      <button type="button" class="fx btn btn-p fx-strong" id="retry"><span data-t="retry"></span></button>
+    </footer>
+  </section>
+</main>
+<script src="setup.js"></script>
+</body>
+</html>

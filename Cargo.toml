@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: RPL-1.5
 [workspace]
 resolver = "2"
-members = ["crates/gdm-core", "crates/gdm-bridge", "crates/gdm-media", "crates/gdm-auth", "fixtures/hostile", "src-tauri"]
+members = ["crates/gdm-core", "crates/gdm-bridge", "crates/gdm-media", "crates/gdm-auth", "crates/gdm-setup", "fixtures/hostile", "src-tauri"]
 # the G2/G3 throwaway spikes keep their own lock files
 exclude = ["spikes"]
 

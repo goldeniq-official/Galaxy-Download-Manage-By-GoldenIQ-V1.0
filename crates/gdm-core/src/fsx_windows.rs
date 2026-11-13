@@ -4,7 +4,7 @@
 //! the engine creates, opens or renames is addressed RELATIVE to that handle with a single sanitized leaf.
 use super::FsError;
 use std::fs::File;
-use std::os::windows::ffi::OsStrExt;
+use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::path::{Path, PathBuf};
 use windows::core::{GUID, HSTRING, PCWSTR};
@@ -58,6 +58,17 @@ fn norm(p: &Path) -> String {
     s.trim_end_matches('\\').to_lowercase()
 }
 
+/// `p` with its 8.3 short names expanded (`p` itself when that fails)
+fn long_path(p: &Path) -> PathBuf {
+    let w = wide(p.as_os_str());
+    let mut buf = vec![0u16; 32768];
+    let n = unsafe { GetLongPathNameW(PCWSTR(w.as_ptr()), Some(&mut buf)) } as usize;
+    if n == 0 || n >= buf.len() {
+        return p.to_path_buf();
+    }
+    PathBuf::from(std::ffi::OsString::from_wide(&buf[..n]))
+}
+
 /// A held destination directory.
 pub struct Dir {
     h: OwnedHandle,
@@ -88,7 +99,9 @@ impl Dir {
             return Err(FsError::Reparse(format!("{} is a junction or symbolic link", abs.display())));
         }
         let fp = final_path(raw)?;
-        if norm(&fp) != norm(&abs) {
+        // 8.3 names (C:\Users\RUNNER~1) are the same folder, not a junction: compare the long form. GetLongPathNameW
+        // only looks names up in each parent; it never follows a junction, so a swapped ancestor still differs.
+        if norm(&fp) != norm(&long_path(&abs)) {
             return Err(FsError::Reparse(format!("{} resolves to {}", abs.display(), fp.display())));
         }
         Ok(Dir { h, path: abs })

@@ -76,7 +76,7 @@ fn manifest(firefox: bool) -> Result<Vec<u8>, String> {
     if firefox {
         m["allowed_extensions"] = serde_json::json!(FIREFOX_IDS);
     } else {
-        m["allowed_origins"] = CHROME_IDS.iter().map(|i| format!("chrome-extension://{i}/")).collect();
+        m["allowed_origins"] = chrome_ids().map(|i| format!("chrome-extension://{i}/")).collect();
     }
     serde_json::to_vec_pretty(&m).map_err(|e| e.to_string())
 }
