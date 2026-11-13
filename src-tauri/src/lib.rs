@@ -1064,6 +1064,49 @@ pub fn request_quit() {
     }
 }
 
+/// A panic leaves a line in `crash.log` next to the data (the window app has no console, so it used to vanish
+/// with nothing to attach to an issue). At most 256 KiB, then the file starts over as crash.log.old. Only the
+/// version, place and message are written, and anything that looks like a link is cut to its host (links may
+/// carry tokens).
+fn crash_log(path: std::path::PathBuf) {
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let msg = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        let line = format!(
+            "{} GDM {} panic at {}: {}\n",
+            chrono::Utc::now().to_rfc3339(),
+            env!("CARGO_PKG_VERSION"),
+            info.location().map(|l| l.to_string()).unwrap_or_default(),
+            redact(&msg).chars().take(500).collect::<String>()
+        );
+        if std::fs::metadata(&path).is_ok_and(|m| m.len() > 256 * 1024) {
+            let _ = std::fs::rename(&path, path.with_extension("log.old"));
+        }
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            use std::io::Write;
+            let _ = f.write_all(line.as_bytes());
+        }
+        prev(info);
+    }));
+}
+
+/// every http(s) link in a text becomes scheme://host/… (no path, query or user info)
+fn redact(s: &str) -> String {
+    s.split_inclusive(char::is_whitespace)
+        .map(|w| match url::Url::parse(w.trim_end()) {
+            Ok(u) if matches!(u.scheme(), "http" | "https") => {
+                format!("{}://{}/…{}", u.scheme(), u.host_str().unwrap_or(""), &w[w.trim_end().len()..])
+            }
+            _ => w.to_string(),
+        })
+        .collect()
+}
+
 fn quit(h: &AppHandle, app: Arc<App>) {
     let h = h.clone();
     tauri::async_runtime::spawn(async move {
@@ -1124,6 +1167,7 @@ pub fn run() {
     }
     let background = argv.iter().any(|a| a == "--background");
     let data = app::data_dir();
+    crash_log(data.join("crash.log"));
     #[cfg(unix)]
     if let Err(e) = app::private_dir(&data) {
         eprintln!("GDM cannot use its data folder: {e}");
@@ -1360,4 +1404,13 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running GDM");
+}
+
+#[cfg(test)]
+mod crash_tests {
+    #[test]
+    fn links_in_a_panic_message_keep_only_their_host() {
+        assert_eq!(super::redact("bad https://u:p@x.com/a?t=SECRET here"), "bad https://x.com/… here");
+        assert_eq!(super::redact("plain text"), "plain text");
+    }
 }
