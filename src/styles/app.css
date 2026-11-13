@@ -4,13 +4,6 @@
 /* ---------- window + shell ---------- */
 html, body { height: 100%; overflow: hidden; }
 .win { height: 100vh; display: grid; grid-template-rows: 40px 1fr; background: var(--shell); }
-.title { display: flex; align-items: center; gap: 10px; padding: 0 0 0 14px; }
-.title img { width: 22px; height: 22px; }
-.title b { font-weight: 700; color: var(--tx-1); font-size: 13px; }
-.title .sp { flex: 1; }
-.wbtn { width: 46px; height: 40px; display: grid; place-items: center; background: transparent; color: var(--tx-3); cursor: pointer; transition: background var(--motion-hover); }
-.wbtn:hover { background: var(--chip); }
-.wbtn.close:hover { background: #c42b1c; color: #fff; }
 .body { display: grid; grid-template-columns: auto 1fr; min-height: 0; }
 .ico { width: 18px; height: 18px; flex: none; fill: currentColor; }
 .ico.lg { width: 22px; height: 22px; }
@@ -89,7 +82,6 @@ html:lang(km) .btn-p { font-size: 13px; font-weight: 600; }
 .foot .sp { flex: 1; }
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--r-pill); background: var(--chip); color: var(--tx-3); cursor: pointer; white-space: nowrap; }
 .pill:hover { background: var(--chip-hover); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--done); }
 
 /* details pane (wide) */
 .split { display: grid; grid-template-columns: minmax(0,1fr) 340px; min-height: 0; }
