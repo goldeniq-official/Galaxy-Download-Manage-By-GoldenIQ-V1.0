@@ -167,7 +167,8 @@ fn queue_cancel_action(app: A, id: String) {
 /// the WebView); the arguments are a list. `pick: false` keeps the program and changes the arguments only.
 #[tauri::command]
 fn hook_set(app: A, queue: String, pick: bool, args: Vec<String>, clear: bool) -> R<Option<hook::Hook>> {
-    if !app.queue_defs().iter().any(|q| q.id == queue) {
+    // "scan" = the user's own virus scanner, run with {file} after each download (§04 Safety row)
+    if queue != "scan" && !app.queue_defs().iter().any(|q| q.id == queue) {
         return Err("no-queue".into());
     }
     if clear {
@@ -411,6 +412,67 @@ fn basket_show(app: A, on: bool) -> R<()> {
     } else {
         w.hide().map_err(|e| e.to_string())
     }
+}
+
+/// P1 #19 "remember this folder for the category": the folder comes from the native picker only
+#[tauri::command]
+fn category_pick_dir(app: A, id: String, clear: bool) -> R<Option<String>> {
+    let cur = lock(&app.settings).categories.iter().find(|c| c.id == id).cloned().ok_or("no-category")?;
+    let dir = if clear {
+        String::new()
+    } else {
+        match os::pick_folder(&app.category_dir(&cur)) {
+            Some(p) => {
+                gdm_core::fsx::Dir::open(&p).map_err(|e| e.to_string())?; // no junction on the way (N-03)
+                p.display().to_string()
+            }
+            None => return Ok(None),
+        }
+    };
+    for c in lock(&app.settings).categories.iter_mut().filter(|c| c.id == id) {
+        c.dir = dir.clone();
+    }
+    app.save_settings()?;
+    Ok(Some(dir))
+}
+
+/// P1 #26 Properties: a stopped job downloads from a new address (same checks as a refreshed link: the
+/// validator is checked on the next run, a changed file stops with "file changed")
+#[tauri::command]
+fn job_set_url(app: A, id: String, url: String) -> R<()> {
+    if url.len() > gdm_bridge::MAX_URL || app.is_running(&id) {
+        return Err("bad-url".into());
+    }
+    app.engine.refresh_apply(&id, url.trim(), vec![]).map_err(|e| e.code())?;
+    app.bump();
+    Ok(())
+}
+
+/// P1 #26 Properties: another folder for a job that has not downloaded anything yet (native picker)
+#[tauri::command]
+async fn job_move(app: A<'_>, id: String) -> R<Option<String>> {
+    let j = app.engine.job(&id).map_err(|e| e.code())?;
+    if j.done > 0 || app.is_running(&id) || matches!(j.state.as_str(), "complete" | "unprotected") {
+        return Err("has-progress".into());
+    }
+    let Some(dir) = os::pick_folder(&j.dir) else { return Ok(None) };
+    let creds: Vec<(String, String)> = app.engine.creds_of(&id).into_iter().filter(|(k, _)| k.eq_ignore_ascii_case("cookie")).collect();
+    app.inner().clone().remove(&id, false).await?;
+    let nid = app
+        .engine
+        .add(gdm_core::NewJob {
+            url: j.url,
+            dir,
+            name: Some(j.name),
+            referrer: j.referrer,
+            creds,
+            typed: j.allow_private.is_some(),
+            ..Default::default()
+        })
+        .map_err(|e| e.code())?;
+    let _ = app.engine.stopped(&nid);
+    app.bump();
+    Ok(Some(nid))
 }
 
 #[tauri::command]
@@ -916,7 +978,10 @@ pub fn run() {
             media_start,
             components_state,
             components_install,
-            basket_show
+            basket_show,
+            category_pick_dir,
+            job_set_url,
+            job_move
         ])
         .setup(move |tapp| {
             let h = tapp.handle().clone();

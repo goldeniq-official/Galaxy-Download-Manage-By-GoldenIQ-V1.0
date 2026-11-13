@@ -57,6 +57,9 @@
     "allow-media-start",
     "allow-components-state",
     "allow-components-install",
-    "allow-basket-show"
+    "allow-basket-show",
+    "allow-category-pick-dir",
+    "allow-job-set-url",
+    "allow-job-move"
   ]
 }

@@ -52,6 +52,8 @@ pub struct Config {
     /// a 429/503 halved the connection target: the new target is written here so later jobs to the same host
     /// start at it (F11 "learn from 429")
     pub learned: Option<Arc<AtomicUsize>>,
+    /// User-Agent for this job (global setting or a per-site one, P1 #8); None = GDM's own
+    pub user_agent: Option<String>,
 }
 
 impl Default for Config {
@@ -70,6 +72,7 @@ impl Default for Config {
             unknown_cap: None,
             slots: vec![],
             learned: None,
+            user_agent: None,
         }
     }
 }
@@ -243,7 +246,7 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
         first_permits.push(s.clone().acquire_owned().await.map_err(|e| Fail::Io(e.to_string()))?);
     }
     let t0 = Instant::now();
-    let client = net::client(rq.policy.clone(), true, cfg.read_timeout).map_err(Fail::Io)?;
+    let client = net::client_ua(rq.policy.clone(), true, cfg.read_timeout, cfg.user_agent.as_deref()).map_err(Fail::Io)?;
     rq.policy.check_url(&rq.url).map_err(|e| Fail::Forbidden(e.0))?;
     let resume = rq.resume.clone();
     let mut epoch = resume.as_ref().map_or(0, |r| r.epoch);

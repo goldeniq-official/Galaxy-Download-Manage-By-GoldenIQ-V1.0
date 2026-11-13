@@ -85,6 +85,26 @@ pub enum Unverified {
     Restart,
 }
 
+/// `sha256sum` style text: "<hex>  name" lines or a bare hex; the line for `name` wins, a bare single hash
+/// counts only when there is exactly one
+pub fn parse_sha256_file(text: &str, name: &str) -> Option<String> {
+    let hex64 = |t: &str| t.len() == 64 && t.bytes().all(|b| b.is_ascii_hexdigit());
+    let mut bare = vec![];
+    for l in text.lines().take(200) {
+        let mut it = l.split_whitespace();
+        let Some(h) = it.next().map(|h| h.trim_start_matches('\\')) else { continue };
+        if !hex64(h) {
+            continue;
+        }
+        match it.next().map(|n| n.trim_start_matches('*')) {
+            Some(n) if n.rsplit(['/', '\\']).next() == Some(name) => return Some(h.to_ascii_lowercase()),
+            Some(_) => {}
+            None => bare.push(h.to_ascii_lowercase()),
+        }
+    }
+    (bare.len() == 1).then(|| bare.remove(0))
+}
+
 /// result of probing a refreshed link (R-01)
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct RefreshCheck {
@@ -121,6 +141,8 @@ pub struct Outcome {
 }
 
 pub struct Engine {
+    /// P1 #10: look for `<url>.sha256` on the same origin before downloading (on by default)
+    pub hash_sidecar: std::sync::atomic::AtomicBool,
     pub store: Mutex<store::Store>,
     pub report: store::OpenReport,
     pub cfg: seg::Config,
@@ -140,6 +162,9 @@ pub struct ConnPolicy {
     pub total_n: usize,
     /// (host pattern with `*`, max connections)
     pub profiles: Vec<(String, usize)>,
+    /// global User-Agent ("" = GDM's own) and per-site ones (host pattern, UA): P1 #8
+    pub user_agent: String,
+    pub site_agents: Vec<(String, String)>,
     hosts: std::collections::HashMap<String, (Arc<tokio::sync::Semaphore>, Arc<std::sync::atomic::AtomicUsize>)>,
 }
 
@@ -147,7 +172,14 @@ pub const TOTAL_CONNS: usize = 48;
 
 impl Default for ConnPolicy {
     fn default() -> Self {
-        ConnPolicy { total: Arc::new(tokio::sync::Semaphore::new(TOTAL_CONNS)), total_n: TOTAL_CONNS, profiles: vec![], hosts: Default::default() }
+        ConnPolicy {
+            total: Arc::new(tokio::sync::Semaphore::new(TOTAL_CONNS)),
+            total_n: TOTAL_CONNS,
+            profiles: vec![],
+            user_agent: String::new(),
+            site_agents: vec![],
+            hosts: Default::default(),
+        }
     }
 }
 
@@ -187,6 +219,12 @@ impl ConnPolicy {
         let l = learned.load(std::sync::atomic::Ordering::Relaxed);
         cfg.cap = cfg.cap.min(prof.unwrap_or(usize::MAX)).min(if l > 0 { l } else { usize::MAX }).max(1);
         cfg.slots = vec![self.total.clone(), sem];
+        cfg.user_agent = self
+            .site_agents
+            .iter()
+            .find(|(p, _)| host_match(p, host))
+            .map(|(_, ua)| ua.clone())
+            .or_else(|| (!self.user_agent.is_empty()).then(|| self.user_agent.clone()));
         cfg.learned = Some(learned);
         cfg
     }
@@ -220,6 +258,7 @@ impl Engine {
     pub fn open(db: &Path, cfg: seg::Config) -> Result<Engine, Fail> {
         let (st, report) = store::Store::open(db).map_err(Fail::Io)?;
         let e = Engine {
+            hash_sidecar: std::sync::atomic::AtomicBool::new(true),
             store: Mutex::new(st),
             report,
             cfg,
@@ -475,6 +514,13 @@ impl Engine {
         if job.target.is_some() && !dir.exists(&part) {
             if let Some(o) = self.reconcile(&job, &dir)? {
                 return Ok(o);
+            }
+        }
+        let mut job = job;
+        if job.sha256_expected.is_none() && job.done == 0 && self.hash_sidecar.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(h) = self.sidecar_hash(&job).await {
+                self.st().conn.execute("UPDATE jobs SET sha256_expected = ?2 WHERE id = ?1", rusqlite::params![id, h]).map_err(s)?;
+                job.sha256_expected = Some(h);
             }
         }
         let segs = self.st().segments(id).map_err(Fail::Io)?;
@@ -822,6 +868,29 @@ impl Engine {
         let prot = if finalize::zone_internet(zone.as_deref()) { "protected" } else { "unprotected" };
         st.finish(&id, if prot == "protected" { "complete" } else { "unprotected" }, &got, sha256, prot).map_err(Fail::Io)?;
         Ok(id)
+    }
+
+    /// P1 #10: `<url>.sha256` from the SAME origin (no redirect elsewhere counts), <= 4 KiB, text; the first
+    /// 64-hex token, and when the line names a file it must be this file's name. Anything else => None.
+    async fn sidecar_hash(&self, job: &store::Job) -> Option<String> {
+        let mut u = url::Url::parse(&job.url).ok()?;
+        let leaf = u.path_segments()?.next_back()?.to_string();
+        if leaf.is_empty() || leaf.to_ascii_lowercase().ends_with(".sha256") {
+            return None;
+        }
+        u.set_path(&format!("{}.sha256", u.path()));
+        u.set_query(None);
+        let policy = Arc::new(net::Policy { allow_private: job.allow_private.iter().filter(|h| !h.is_empty()).cloned().collect() });
+        let c = net::client(policy, true, std::time::Duration::from_secs(5)).ok()?;
+        let r = tokio::time::timeout(std::time::Duration::from_secs(5), c.get(u.clone()).send()).await.ok()?.ok()?;
+        if r.status().as_u16() != 200 || net::origin(r.url()) != net::origin(&u) || r.content_length().is_some_and(|n| n > 4096) {
+            return None;
+        }
+        let b = tokio::time::timeout(std::time::Duration::from_secs(5), r.bytes()).await.ok()?.ok()?;
+        if b.len() > 4096 {
+            return None;
+        }
+        parse_sha256_file(&String::from_utf8_lossy(&b), &leaf)
     }
 
     /// the in-memory credentials of a job (to carry them to a re-added job; never persisted)

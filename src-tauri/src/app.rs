@@ -21,6 +21,12 @@ pub struct Category {
     /// sub-folder of the download folder ("" = the folder itself)
     pub sub: String,
     pub exts: Vec<String>,
+    /// site patterns (`*.example.com`) whose downloads go to this category whatever the type (P1 #19)
+    #[serde(default)]
+    pub sites: Vec<String>,
+    /// "remember this folder for the category": an absolute folder chosen in the native picker only
+    #[serde(default)]
+    pub dir: String,
 }
 
 fn cat(id: &str, km: &str, en: &str, sub: &str, exts: &str) -> Category {
@@ -30,6 +36,8 @@ fn cat(id: &str, km: &str, en: &str, sub: &str, exts: &str) -> Category {
         name_en: en.into(),
         sub: sub.into(),
         exts: exts.split(' ').filter(|s| !s.is_empty()).map(String::from).collect(),
+        sites: vec![],
+        dir: String::new(),
     }
 }
 
@@ -47,6 +55,13 @@ pub fn default_categories() -> Vec<Category> {
 
 /// IDM's default "File Types" list (catch rules, §22), as lower-case extensions
 pub const CATCH_EXTS: &str = "3gp 7z aac ace aif apk arj asf avi bin bz2 exe gz gzip img iso lzh m4a m4v mkv mov mp3 mp4 mpa mpe mpeg mpg msi msu ogg ogv pdf plj pps ppt qt ra rar rm rmvb sea sit sitx tar tif tiff wav wma wmv xz z zip";
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(default)]
+pub struct SiteAgent {
+    pub host: String,
+    pub ua: String,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(default)]
@@ -129,6 +144,11 @@ pub struct Settings {
     /// per-server connection limits (IDM "Exceptions"): host pattern (`*.example.com`) -> connections
     pub host_limits: Vec<HostLimit>,
     pub proxy: ProxySettings,
+    /// User-Agent for every download ("" = GDM's own) and per site (P1 #8)
+    pub user_agent: String,
+    pub site_agents: Vec<SiteAgent>,
+    /// P1 #10: check `<file>.sha256` published next to a download (same origin)
+    pub hash_sidecar: bool,
     /// the drop basket is shown (Tasks > Show drop target)
     pub basket: bool,
     /// site logins (P-01): address prefix + user; the password is in Credential Manager only
@@ -175,6 +195,9 @@ impl Default for Settings {
             site_logins: vec![],
             proxy: ProxySettings::default(),
             basket: false,
+            user_agent: String::new(),
+            site_agents: vec![],
+            hash_sidecar: true,
         }
     }
 }
@@ -356,6 +379,18 @@ impl App {
         {
             let old = lock(&self.settings);
             s.hooks = old.hooks.clone();
+            for c in &mut s.categories {
+                c.dir = old.categories.iter().find(|o| o.id == c.id).map(|o| o.dir.clone()).unwrap_or_default();
+                c.sites = c
+                    .sites
+                    .iter()
+                    .map(|p| p.trim().to_ascii_lowercase())
+                    .filter(|p| !p.is_empty() && p.len() <= 253 && !p.contains(['/', ' ']))
+                    .take(64)
+                    .collect();
+            }
+            s.user_agent = s.user_agent.chars().filter(|c| !c.is_control()).take(512).collect();
+            s.site_agents.retain(|a| !a.host.trim().is_empty() && !a.ua.chars().any(|c| c.is_control()) && a.ua.len() <= 512);
             s.site_logins = old.site_logins.clone();
             // a sound is off, a built-in one, or the WAV already picked in the file dialog (never a path from the UI)
             for (ev, v) in s.sounds.iter_mut() {
@@ -397,7 +432,13 @@ impl App {
         crate::proxy::apply(&s.proxy);
         let prof: Vec<(String, usize)> =
             s.host_limits.iter().filter(|h| !h.host.trim().is_empty()).map(|h| (h.host.trim().to_string(), h.conns.clamp(1, 32))).collect();
-        self.engine.conns.lock().unwrap_or_else(|p| p.into_inner()).set(s.total_conns, prof);
+        {
+            let mut c = self.engine.conns.lock().unwrap_or_else(|p| p.into_inner());
+            c.set(s.total_conns, prof);
+            c.user_agent = s.user_agent.clone();
+            c.site_agents = s.site_agents.iter().map(|a| (a.host.trim().to_string(), a.ua.clone())).collect();
+        }
+        self.engine.hash_sidecar.store(s.hash_sidecar, Ordering::Relaxed);
         let mut b = lock(&self.qbuckets);
         for q in &s.queues {
             b.entry(q.id.clone()).or_insert_with(|| limiter::Bucket::new(0)).set_rate(q.speed_kbps * 1024);
@@ -414,7 +455,17 @@ impl App {
         cats.iter().find(|c| !e.is_empty() && c.exts.iter().any(|x| x == &e)).cloned().unwrap_or_else(|| cats[0].clone())
     }
 
+    /// a site pattern decides first (P1 #19), then the file type
+    pub fn category_for_url(&self, name: &str, url: &str) -> Category {
+        let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(String::from)).unwrap_or_default();
+        let cats = lock(&self.settings).categories.clone();
+        cats.into_iter().find(|c| c.sites.iter().any(|p| gdm_core::host_match(p, &host))).unwrap_or_else(|| self.category_for(name))
+    }
+
     pub fn category_dir(&self, c: &Category) -> PathBuf {
+        if !c.dir.is_empty() {
+            return PathBuf::from(&c.dir); // remembered folder (picked in the native dialog)
+        }
         let base = PathBuf::from(&lock(&self.settings).download_dir);
         if c.sub.is_empty() {
             base
@@ -544,6 +595,16 @@ impl App {
         }
         if r.is_ok() && lock(&self.quit_after).remove(id) && self.running() == 0 {
             crate::request_quit(); // CLI /q
+        }
+        // §04 "virus scan with your own scanner" (IDM Virus checking): the program set in Settings (hooks["scan"],
+        // UI-only like Q-01) runs with {file} after every finished download
+        if let Ok(o) = &r {
+            let scan = lock(&self.settings).hooks.get("scan").cloned();
+            if let Some(h) = scan {
+                if let Err(e) = crate::hook::run(&h, &o.path) {
+                    self.push_toast("failed", id, &format!("scanner: {e}"));
+                }
+            }
         }
         match &r {
             Ok(_) => self.play("complete"),
@@ -697,7 +758,7 @@ impl App {
     ) -> Result<String, String> {
         let u = url::Url::parse(nj_url).map_err(|_| "bad-url".to_string())?;
         let guess = name.clone().unwrap_or_else(|| gdm_core::name::file_name(None, &u));
-        let c = self.category_for(&guess);
+        let c = self.category_for_url(&guess, nj_url);
         let dir = self.category_dir(&c);
         std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
         let id = self.engine.add(NewJob { url: nj_url.into(), dir, name, referrer, creds, sha256: None, typed }).map_err(|e| e.code())?;
@@ -718,7 +779,7 @@ impl App {
         for it in items {
             let u = url::Url::parse(&it.url).map_err(|_| "bad-url".to_string())?;
             let guess = it.name.clone().unwrap_or_else(|| gdm_core::name::file_name(None, &u));
-            let dir = self.category_dir(&self.category_for(&guess));
+            let dir = self.category_dir(&self.category_for_url(&guess, &it.url));
             if dirs.insert(dir.clone()) {
                 std::fs::create_dir_all(&dir).map_err(|e| format!("dir: {e}"))?;
             }

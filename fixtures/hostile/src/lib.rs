@@ -161,6 +161,18 @@ impl Fixture {
         let (path, q) = target.split_once('?').unwrap_or((target, ""));
         // /p/<size>/<seed>/<rate>/<name> == /file?size=&seed=&rate=
         let pq;
+        // /p/<size>/<seed>/<rate>/<name>.sha256 => "<hash>  <name>" (a name starting with "bad" gets a wrong hash)
+        if let Some(v) = path.strip_prefix("/p/").map(|r| r.split('/').collect::<Vec<_>>()) {
+            if v.len() >= 4 && v[3].ends_with(".sha256") {
+                let (size, seed) = (v[0].parse().unwrap_or(0u64), v[1].parse().unwrap_or(0u64));
+                let name = v[3].trim_end_matches(".sha256");
+                let h = if name.starts_with("bad") { "0".repeat(64) } else { expected_sha256(seed, size) };
+                let body = format!("{h}  {name}\n");
+                s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes())
+                    .await?;
+                return Ok(true);
+            }
+        }
         let (path, q) = match path.strip_prefix("/p/").map(|r| r.split('/').collect::<Vec<_>>()) {
             Some(v) if v.len() >= 3 => {
                 pq = format!("size={}&seed={}&rate={}", v[0], v[1], v[2]);
