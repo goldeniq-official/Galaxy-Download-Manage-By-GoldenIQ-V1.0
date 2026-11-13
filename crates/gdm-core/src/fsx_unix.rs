@@ -8,7 +8,11 @@
 //!   replace and hard-link races all need that): like OpenSSH's StrictModes, every component must be owned by
 //!   root or by us and not writable by others unless sticky, and the destination itself must be ours and not
 //!   writable by group or others. A folder that fails this is refused (fail closed), e.g. an exFAT stick
-//!   mounted 0777.
+//!   mounted 0777. On macOS an ACL entry that ALLOWS others to add/delete names counts the same (macacl.rs).
+//!   Accepted limit (council r2): another user who can traverse the folder may hard-link GDM's file into a folder
+//!   of their own (where Linux protected_hardlinks is off, or on macOS). That gives them a second name for a file
+//!   they could already read; GDM then refuses to rename it (one-link rule): a denial of service, never a write
+//!   into someone else's file.
 //! - Files: openat(O_NOFOLLOW|O_NONBLOCK) relative to that descriptor, regular files only (a symlink, FIFO or
 //!   device planted at the leaf is refused, never followed), one hard link only for files GDM writes into.
 //! - "Busy" (Windows share modes): GDM's own handles take flock(LOCK_EX|LOCK_NB); flock belongs to the open file
@@ -160,6 +164,9 @@ fn strict(fd: &OwnedFd, at: &Path, last: bool) -> Result<(), FsError> {
     let (uid, mode) = (st.st_uid, st.st_mode as u32);
     let sticky = mode & 0o1000 != 0;
     let bad = if last { uid != me || mode & 0o022 != 0 } else { (uid != 0 && uid != me) || (mode & 0o022 != 0 && !sticky) };
+    // macOS: an ACL can grant what the mode bits do not show (Linux POSIX ACLs widen the group bits: covered above)
+    #[cfg(target_vendor = "apple")]
+    let bad = bad || crate::macacl::grants_write(std::os::fd::AsFd::as_fd(fd));
     if bad {
         return Err(FsError::Reparse(format!("{} can be changed by other users (owner {uid}, mode {:o})", at.display(), mode & 0o7777)));
     }
@@ -316,9 +323,12 @@ pub fn os_protected(f: &File, zone: Option<&str>) -> Result<(), String> {
         let mut buf = [0u8; 1024];
         let n = rfs::fgetxattr(f, ORIGIN_XATTR, &mut buf[..]).map_err(|_| "no quarantine record (Gatekeeper will not check it)".to_string())?;
         let v = String::from_utf8_lossy(&buf[..n]).into_owned();
-        let flags = v.get(..4).filter(|_| v.as_bytes().get(4) == Some(&b';')).and_then(|h| u16::from_str_radix(h, 16).ok());
+        // "flags;time;agent[;uuid]": 4 hex flags (non-zero, not user-approved 0x0040), 8 hex seconds, an agent
+        let f: Vec<&str> = v.split(';').collect();
+        let hex = |s: &str, n: usize| s.len() == n && s.bytes().all(|b| b.is_ascii_hexdigit());
+        let flags = (f.len() >= 3 && hex(f[0], 4) && hex(f[1], 8) && !f[2].is_empty()).then(|| u16::from_str_radix(f[0], 16).ok()).flatten();
         match flags {
-            Some(fl) if fl & 0x0040 == 0 => Ok(()),
+            Some(fl) if fl != 0 && fl & 0x0040 == 0 => Ok(()),
             _ => Err(format!("quarantine record {v:?} does not make Gatekeeper check the file")),
         }
     }
@@ -444,6 +454,24 @@ mod tests {
         std::fs::create_dir(d.join("open")).unwrap();
         std::fs::set_permissions(d.join("open"), std::fs::Permissions::from_mode(0o777)).unwrap();
         assert!(matches!(dir.subdir("open"), Err(FsError::Reparse(_))));
+        // macOS: an ACL that ALLOWS another principal to add names is refused even with mode 0755; a DENY entry
+        // (what macOS puts on ~/Downloads) is fine
+        #[cfg(target_vendor = "apple")]
+        {
+            let acl =
+                |a: &str| assert!(std::process::Command::new("/bin/chmod").arg(a).arg("everyone deny delete").arg(&d).status().unwrap().success());
+            acl("+a");
+            assert!(Dir::open(&d).is_ok(), "deny entries take rights away");
+            assert!(std::process::Command::new("/bin/chmod")
+                .args(["+a", "everyone allow add_file,delete_child"])
+                .arg(&d)
+                .status()
+                .unwrap()
+                .success());
+            assert!(matches!(Dir::open(&d), Err(FsError::Reparse(_))), "an ACL allow entry for others is refused");
+            assert!(std::process::Command::new("/bin/chmod").arg("-N").arg(&d).status().unwrap().success());
+            assert!(Dir::open(&d).is_ok());
+        }
     }
     #[test]
     fn origin_mark_and_not_executable() {

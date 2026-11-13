@@ -10,6 +10,8 @@ pub mod fsx;
 pub mod grab;
 pub mod http;
 pub mod limiter;
+#[cfg(target_vendor = "apple")]
+mod macacl;
 pub mod name;
 pub mod net;
 pub mod relay;

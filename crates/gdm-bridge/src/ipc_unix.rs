@@ -41,10 +41,9 @@ pub fn private_dir(create: bool) -> Result<PathBuf, String> {
     let d = endpoint_dir();
     if create {
         std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&d).map_err(|e| format!("{}: {e}", d.display()))?;
-        #[cfg(target_vendor = "apple")]
-        let _ = std::process::Command::new("/bin/chmod").arg("-N").arg(&d).status();
-        // drop inherited ACL entries
     }
+    // the folders on the way first: nobody else can change names there (mode and, on macOS, ACL), so the path
+    // checked below is the path every later step uses (council r2: nothing runs on an unvalidated path)
     let mut at = PathBuf::from("/");
     for c in d.parent().map(Path::components).into_iter().flatten() {
         if let std::path::Component::Normal(n) = c {
@@ -52,7 +51,7 @@ pub fn private_dir(create: bool) -> Result<PathBuf, String> {
             let m = std::fs::symlink_metadata(&at).map_err(|e| format!("no GDM: {e}"))?;
             let mode = m.permissions().mode();
             let sticky = mode & 0o1000 != 0;
-            if m.file_type().is_symlink() || (m.uid() != 0 && m.uid() != uid()) || (mode & 0o002 != 0 && !sticky) {
+            if m.file_type().is_symlink() || (m.uid() != 0 && m.uid() != uid()) || (mode & 0o022 != 0 && !sticky) || acl_grants(&at) {
                 return Err(format!("refused: {} can be changed by other users", at.display()));
             }
         }
@@ -61,13 +60,42 @@ pub fn private_dir(create: bool) -> Result<PathBuf, String> {
     if !m.is_dir() || m.uid() != uid() {
         return Err(format!("refused: {} is not a folder of this user", d.display()));
     }
-    if m.permissions().mode() & 0o077 != 0 {
-        if !create {
-            return Err(format!("refused: {} is open to other users", d.display()));
+    if create {
+        if m.permissions().mode() & 0o077 != 0 {
+            std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
         }
-        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
+        #[cfg(target_vendor = "apple")]
+        if acl_grants(&d) {
+            // drop inherited ACL entries; the result is checked below, never assumed
+            let ok = std::process::Command::new("/bin/chmod").arg("-N").arg(&d).status().is_ok_and(|s| s.success());
+            if !ok {
+                return Err(format!("refused: could not remove the ACL of {}", d.display()));
+            }
+        }
+    }
+    let m = std::fs::symlink_metadata(&d).map_err(|e| format!("no GDM: {e}"))?;
+    if m.permissions().mode() & 0o077 != 0 || acl_grants(&d) {
+        return Err(format!("refused: {} is open to other users", d.display()));
     }
     Ok(d)
+}
+
+#[cfg(target_vendor = "apple")]
+#[path = "../../gdm-core/src/macacl.rs"]
+mod macacl;
+
+/// macOS: an ACL entry on the folder lets someone else write or delete names in it (Linux: the mode check covers it)
+fn acl_grants(p: &Path) -> bool {
+    #[cfg(target_vendor = "apple")]
+    {
+        // an unreadable folder counts as unsafe
+        std::fs::File::open(p).map(|f| macacl::grants_write(std::os::fd::AsFd::as_fd(&f))).unwrap_or(true)
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        let _ = p;
+        false
+    }
 }
 
 pub fn uid() -> u32 {
