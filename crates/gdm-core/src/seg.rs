@@ -560,7 +560,8 @@ pub async fn download(rq: Request<'_>, cfg: Config) -> Result<Done, Fail> {
                         // an expired signed link (GitHub release, S3, Drive: valid for minutes): get a fresh one
                         // from the user's address (IDM parity). A connection that failed with an OLDER link (many
                         // die together) just retries with the current one; at most 20 refreshes per run.
-                        Some(WErr::Fatal(Fail::Auth | Fail::Gone)) if ranged && sh.url() != rq.url && refreshes < 20 => {
+                        // (only with a validator: without one a same-length different file could be mixed in)
+                        Some(WErr::Fatal(Fail::Auth | Fail::Gone)) if ranged && validator.is_some() && sh.url() != rq.url && refreshes < 20 => {
                             if segs[i].url_gen == refreshes {
                                 match refresh(&sh, &rq.url).await {
                                     Ok(u) => *sh.url.write().unwrap_or_else(|p| p.into_inner()) = u,
@@ -717,10 +718,12 @@ async fn seam(sh: &Shared, f: &File, a: u64, b: u64) -> Seam {
     let mut r = r;
     let mut body = Vec::with_capacity(want);
     while body.len() < want {
-        match r.chunk().await {
-            Ok(Some(c)) => body.extend_from_slice(&c[..c.len().min(want - body.len())]), // a longer reply is cut here
-            Ok(None) => return Seam::Unknown("short body".into()),
-            Err(e) => return Seam::Unknown(e.to_string()),
+        // a server that stalls mid-body must not hang the resume (each read is bounded like any other)
+        match tokio::time::timeout(sh.cfg.read_timeout, r.chunk()).await {
+            Ok(Ok(Some(c))) => body.extend_from_slice(&c[..c.len().min(want - body.len())]), // a longer reply is cut here
+            Ok(Ok(None)) => return Seam::Unknown("short body".into()),
+            Ok(Err(e)) => return Seam::Unknown(e.to_string()),
+            Err(_) => return Seam::Unknown("timeout".into()),
         }
     }
     let mut disk = vec![0u8; want];
@@ -747,7 +750,8 @@ async fn refresh(sh: &Shared, origin: &Url) -> Result<Url, Fail> {
     }
     let same = r.status() == StatusCode::PARTIAL_CONTENT
         && http::content_range(r.headers()).is_some_and(|(a, _, t)| a == 0 && t == sh.total)
-        && (sh.validator.is_none() || http::validator(r.headers()) == sh.validator);
+        && sh.validator.is_some()
+        && http::validator(r.headers()) == sh.validator;
     if !same {
         return Err(Fail::FileChanged);
     }

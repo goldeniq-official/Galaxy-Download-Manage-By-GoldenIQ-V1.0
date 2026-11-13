@@ -71,7 +71,7 @@ async fn range_end_ignored_by_server_still_downloads() {
 async fn expired_signed_link_is_refreshed_from_the_users_address() {
     // every signed link answers 2 requests, then 403: a segmented download needs several links (IDM parity)
     let a = fx().await;
-    let t = engine("signed", quick());
+    let t = engine("signed", gdm_core::seg::Config { fixed: Some(4), ..quick() }); // 4 connections: a link must expire
     let o = t.get(&a.url(&format!("/expiring?size={}&seed=33&rate=4000000&after=2", 24 * MIB))).await.1.unwrap();
     assert_eq!(o.sha256, expected_sha256(33, 24 * MIB));
     let log: Vec<_> =
