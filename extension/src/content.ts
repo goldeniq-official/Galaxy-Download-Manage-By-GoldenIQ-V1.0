@@ -22,3 +22,24 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
   const pick = m.selection && sel && !sel.isCollapsed ? all.filter((a) => sel.containsNode(a, true)) : all;
   reply(pick.map((a) => a.href).filter((h) => /^https?:/i.test(h)));
 });
+
+// D5 page video button: only on sites the user turned it on for. Counts <video> elements with an http(s)
+// source (a count of video elements, not proof that a download is possible) and tells the extension icon.
+void (async () => {
+  if (window.top !== window || !/^https?:/.test(location.href)) return;
+  const v = await chrome.storage.local.get("videoSites").catch(() => ({}) as Record<string, unknown>);
+  const sites = Array.isArray((v as { videoSites?: unknown }).videoSites) ? ((v as { videoSites: string[] }).videoSites) : [];
+  if (!sites.includes(location.host)) return;
+  const count = () =>
+    [...document.querySelectorAll("video")].filter((e) => /^https?:/i.test(e.currentSrc || e.src || e.querySelector("source")?.src || "")).length;
+  let last = -1;
+  const report = () => {
+    const n = count();
+    if (n !== last) {
+      last = n;
+      void chrome.runtime.sendMessage({ t: "videos", n }).catch(() => {});
+    }
+  };
+  setInterval(report, 2000);
+  report();
+})();

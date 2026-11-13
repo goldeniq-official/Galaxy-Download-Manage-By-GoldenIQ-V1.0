@@ -32,6 +32,30 @@ void (async () => {
     site.textContent = next.includes(host) ? `${msg("siteSkipped")}: ${host}` : `${msg("thisSite")}: ${host}`;
   };
   const r = await chrome.runtime.sendMessage({ t: "popup" }).catch(() => null);
+  // D5: the page video button is off everywhere until the user turns it on for this site (and GDM allows it)
+  const vrow = $("vrow");
+  const vt = $("video");
+  const vget = $("vget") as HTMLButtonElement;
+  $("lVideo").textContent = msg("videoSite");
+  vt.setAttribute("aria-label", msg("videoSite"));
+  vget.textContent = msg("videoGet");
+  const vs = await chrome.storage.local.get("videoSites");
+  const vsites: string[] = Array.isArray(vs.videoSites) ? vs.videoSites : [];
+  vrow.hidden = !host || !r?.policy?.video;
+  vt.setAttribute("aria-checked", String(vsites.includes(host)));
+  vt.onclick = async () => {
+    const cur: string[] = ((await chrome.storage.local.get("videoSites")).videoSites as string[]) ?? [];
+    const on = !cur.includes(host);
+    await chrome.storage.local.set({ videoSites: on ? [...cur, host].slice(-500) : cur.filter((x) => x !== host) });
+    vt.setAttribute("aria-checked", String(on));
+    if (tab?.id != null) await chrome.tabs.reload(tab.id);
+  };
+  const count = tab?.id != null ? await chrome.action.getBadgeText({ tabId: tab.id }).catch(() => "") : "";
+  vget.hidden = vrow.hidden || !vsites.includes(host) || !count;
+  vget.onclick = async () => {
+    await chrome.runtime.sendMessage({ t: "video", page: tab?.url }).catch(() => null);
+    window.close();
+  };
   const st = $("state");
   st.textContent = r?.connected ? msg("connected") : msg("offline");
   st.className = "st " + (r?.connected ? "ok" : "off");

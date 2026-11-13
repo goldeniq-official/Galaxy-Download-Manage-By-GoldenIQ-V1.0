@@ -43,6 +43,8 @@ pub enum Msg {
     Links { urls: Vec<String>, referrer: Option<String> },
     /// popup: recent downloads
     Status {},
+    /// popup "download a video from this page" (D5, opt-in per site): GDM asks in its own window (D10)
+    Video { page: String },
     /// gdm.exe command line (I-02). Never accepted from a browser: `parse` (the bridge's decoder) refuses it,
     /// and the pipe server accepts it only from a client process whose image is gdm.exe itself.
     Cli {
@@ -92,6 +94,7 @@ impl Msg {
                 !urls.is_empty() && urls.len() <= MAX_LINKS && urls.iter().all(|u| http_url(u)) && referrer.as_deref().is_none_or(http_url)
             }
             Msg::Status {} => true,
+            Msg::Video { page } => http_url(page),
             Msg::Cli { cmd, url, dir, name, .. } => {
                 matches!(cmd.as_str(), "d" | "s" | "list")
                     && (cmd != "d" || url.as_deref().is_some_and(http_url))

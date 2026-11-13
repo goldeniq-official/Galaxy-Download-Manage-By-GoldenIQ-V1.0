@@ -184,6 +184,12 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
         Msg::Cli { cmd, url, dir, name, add_only, silent, quit_after } => {
             crate::cli::serve(app, &cmd, url, dir, name, add_only, silent, quit_after).await
         }
+        Msg::Video { page } => {
+            // never starts anything: the app shows "download this video?" and the quality list on request
+            app.push_toast("video-link", "", &page);
+            crate::show_main(app, true);
+            json!({"ok": true})
+        }
         Msg::Links { urls, referrer } => {
             if lock(&app.pending).len() + urls.len() > 600 {
                 return json!({"ok": false, "error": "busy"});

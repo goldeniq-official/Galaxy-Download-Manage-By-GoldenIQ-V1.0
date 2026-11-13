@@ -146,6 +146,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
+// ---- page video button (D5) ----
+chrome.runtime.onMessage.addListener((m, sender) => {
+  if (sender.id !== chrome.runtime.id) return;
+  if (m?.t === "videos" && sender.tab?.id != null && typeof m.n === "number") {
+    void chrome.action.setBadgeText({ tabId: sender.tab.id, text: m.n > 0 ? String(Math.min(m.n, 99)) : "" });
+  }
+  if (m?.t === "video" && typeof m.page === "string" && /^https?:/i.test(m.page) && m.page.length <= 8192 && !onYouTube(m.page)) {
+    void send({ t: "video", page: m.page }); // GDM opens its own quality flow (yt-dlp in the app, D10)
+  }
+});
+
 // ---- popup ----
 chrome.runtime.onMessage.addListener((m, sender, reply) => {
   if (sender.id !== chrome.runtime.id || m?.t !== "popup") return;
