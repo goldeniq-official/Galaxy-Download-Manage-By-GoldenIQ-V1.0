@@ -885,11 +885,22 @@ async fn install_update(app: &Arc<App>) {
     let Some((up, bytes)) = lock(&STAGED).take() else { return };
     set_update(|u| u.state = update::State::Installing);
     app.pause_all().await;
-    let _ = up; // Tauri verified the minisign signature of `bytes`; GDM runs them itself (U-06)
-    let res: Result<(), String> = update::stage_and_hold(&app.data.join("updates"), &bytes).and_then(|(held, path)| {
-        update::launch_held(&path)?;
-        drop(held); // the installer has opened its own image (share READ) before we let go
-        std::process::exit(0)
+    #[cfg(windows)]
+    let res: Result<(), String> = {
+        let _ = up; // Tauri verified the minisign signature of `bytes`; GDM runs them itself (U-06)
+        update::stage_and_hold(&app.data.join("updates"), &bytes).and_then(|(held, path)| {
+            update::launch_held(&path)?;
+            drop(held); // the installer has opened its own image (share READ) before we let go
+            std::process::exit(0)
+        })
+    };
+    // macOS / Linux: the bytes Tauri verified (minisign) and GDM bound to its signed manifest replace the .app /
+    // AppImage in place; then GDM restarts
+    #[cfg(unix)]
+    let res: Result<(), String> = up.install(&bytes).map_err(|e| e.to_string()).map(|()| {
+        if let Some(h) = HANDLE.get() {
+            h.restart();
+        }
     });
     if let Err(e) = res {
         let n = {
@@ -940,6 +951,7 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
 
 /// the main window's behaviour: closing hides it (§07); a WebView2 process failure rebuilds it (council G7,
 /// ADR-1: the engine keeps downloading through a WebView crash, the window must come back too)
+#[cfg_attr(not(windows), allow(unused_variables))]
 fn attach_main(h: &AppHandle, w: &tauri::WebviewWindow) {
     let w2 = w.clone();
     w.on_window_event(move |e| {
@@ -948,7 +960,10 @@ fn attach_main(h: &AppHandle, w: &tauri::WebviewWindow) {
             let _ = w2.hide();
         }
     });
+    // WebView2 only: WKWebView / WebKitGTK reload a crashed web process inside the same view
+    #[cfg(windows)]
     let h2 = h.clone();
+    #[cfg(windows)]
     let _ = w.with_webview(move |pw| unsafe {
         use webview2_com::ProcessFailedEventHandler;
         let Ok(core) = pw.controller().CoreWebView2() else { return };
@@ -965,6 +980,7 @@ fn attach_main(h: &AppHandle, w: &tauri::WebviewWindow) {
     });
 }
 
+#[cfg(windows)]
 fn wv_log(h: &AppHandle, m: &str) {
     if let Some(a) = h.try_state::<Arc<App>>() {
         use std::io::Write;
@@ -974,9 +990,11 @@ fn wv_log(h: &AppHandle, m: &str) {
     }
 }
 
+#[cfg(windows)]
 static REBUILDS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 /// a new main window from the same config; it reads all state from the engine again (no job is touched)
+#[cfg(windows)]
 fn rebuild_main(h: &AppHandle) {
     use std::sync::atomic::Ordering;
     if REBUILDS.fetch_add(1, Ordering::SeqCst) > 20 {
@@ -1149,6 +1167,17 @@ pub fn run() {
             notifier(h.clone(), &app);
             if let Err(e) = pipe::serve(app.clone(), tauri::async_runtime::handle()) {
                 *lock(&app.banner) = Some(e); // B-02: never serve on a pipe someone else owns
+            }
+            // macOS / Linux: no per-user installer step runs (Windows: NSIS calls it), so GDM writes the browsers'
+            // native-messaging manifests itself on every start (idempotent; a browser installed later is picked up)
+            #[cfg(unix)]
+            if let Some(b) = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("gdm-bridge"))) {
+                let _ = std::process::Command::new(b)
+                    .arg("register")
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
             }
             let tray_menu = Menu::with_items(&h, &[&MenuItem::with_id(&h, "open", "GDM", true, None::<&str>)?])?;
             let a2 = app.clone();

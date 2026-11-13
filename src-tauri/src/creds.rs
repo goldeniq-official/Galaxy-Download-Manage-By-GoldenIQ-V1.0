@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: RPL-1.5
-//! Site logins (F16, P-01; IDM "Site Logins", per site or folder). The password lives only in Windows
-//! Credential Manager (DPAPI underneath) under target `GDM/site/<id>`; settings.json keeps the id, the address
-//! prefix and the user name. Exports never include passwords. DPAPI does not protect against malware running
-//! as the same user (§10): that is outside what this can promise.
+//! Site logins (F16, P-01; IDM "Site Logins", per site or folder). The password lives only in the system's
+//! secret store under `GDM/site/<id>`: Windows Credential Manager (DPAPI underneath), the macOS Keychain, or the
+//! Linux Secret Service (GNOME Keyring / KWallet); with no store available the login is not saved, never written
+//! in plaintext. settings.json keeps the id, the address prefix and the user name. Exports never include
+//! passwords. None of these stores protects against malware running as the same user (§10).
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
 use windows::core::{HSTRING, PWSTR};
+#[cfg(windows)]
 use windows::Win32::Security::Credentials::{
     CredDeleteW, CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_FLAGS, CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC,
 };
@@ -53,6 +56,33 @@ pub fn matching<'a>(logins: &'a [SiteLogin], url: &str) -> Option<&'a SiteLogin>
         .max_by_key(|l| l.prefix.len())
 }
 
+#[cfg(unix)]
+fn entry(id: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new("Galaxy Download Manager", &target(id)).map_err(|e| e.to_string())
+}
+
+/// the secret is [user, password] as JSON (one item per login, like the Windows credential)
+#[cfg(unix)]
+pub fn save(id: &str, user: &str, password: &str) -> Result<(), String> {
+    let v = serde_json::to_string(&[user, password]).map_err(|e| e.to_string())?;
+    entry(id)?.set_password(&v).map_err(|e| e.to_string())
+}
+
+#[cfg(unix)]
+pub fn load(id: &str) -> Option<(String, String)> {
+    let v: [String; 2] = serde_json::from_str(&entry(id).ok()?.get_password().ok()?).ok()?;
+    let [u, p] = v;
+    Some((u, p))
+}
+
+#[cfg(unix)]
+pub fn delete(id: &str) {
+    if let Ok(e) = entry(id) {
+        let _ = e.delete_credential();
+    }
+}
+
+#[cfg(windows)]
 pub fn save(id: &str, user: &str, password: &str) -> Result<(), String> {
     let t = HSTRING::from(target(id));
     let u = HSTRING::from(user);
@@ -71,6 +101,7 @@ pub fn save(id: &str, user: &str, password: &str) -> Result<(), String> {
 }
 
 /// (user, password) from Credential Manager
+#[cfg(windows)]
 pub fn load(id: &str) -> Option<(String, String)> {
     unsafe {
         let mut p: *mut CREDENTIALW = std::ptr::null_mut();
@@ -84,6 +115,7 @@ pub fn load(id: &str) -> Option<(String, String)> {
     }
 }
 
+#[cfg(windows)]
 pub fn delete(id: &str) {
     unsafe {
         let _ = CredDeleteW(&HSTRING::from(target(id)), CRED_TYPE_GENERIC, None);
@@ -123,7 +155,9 @@ mod tests {
         assert_eq!(basic("Aladdin", "open sesame"), "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==", "RFC 7617 example");
     }
 
-    /// P-01: the password is in Credential Manager only; the round trip works and delete removes it
+    /// P-01: the password is in Credential Manager only; the round trip works and delete removes it (a CI Linux
+    /// runner has no Secret Service session, so the Unix store is checked on real machines)
+    #[cfg(windows)]
     #[test]
     fn p01_credential_manager_round_trip() {
         let id = format!("l-t{}", std::process::id());

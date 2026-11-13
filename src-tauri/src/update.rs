@@ -159,6 +159,8 @@ pub fn may_install(state: &State, mode: &str, failures: u32, running: usize, idl
 /// U-06 (verify-to-execute): write the verified installer into GDM's own updates folder, close it, reopen it
 /// READ-only with share mode READ (nobody can write, delete or rename it while held), check its SHA-256 through
 /// that handle against the bytes the minisign check accepted, and keep the handle until the installer runs.
+/// (Windows: the NSIS installer GDM runs itself. macOS / Linux: Tauri installs the verified bytes in place.)
+#[cfg(windows)]
 pub fn stage_and_hold(dir: &std::path::Path, bytes: &[u8]) -> Result<(std::fs::File, std::path::PathBuf), String> {
     use std::io::Write;
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
@@ -184,12 +186,32 @@ pub fn stage_and_hold(dir: &std::path::Path, bytes: &[u8]) -> Result<(std::fs::F
     Ok((held, path))
 }
 
+#[cfg(windows)]
 fn sha256(b: &[u8]) -> Vec<u8> {
     use sha2::Digest;
     sha2::Sha256::digest(b).to_vec()
 }
 
+/// macOS / Linux: open read-only without following a link, a regular file with one name, and compare the hash
+/// read through this descriptor (Unix cannot deny other writers: the file lives in GDM's own 0700 data folder,
+/// and a same-user process is outside the threat model, §10)
+#[cfg(unix)]
+pub fn hold(path: &std::path::Path, want_sha: &str) -> Result<std::fs::File, String> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    let f = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path).map_err(|e| e.to_string())?;
+    let m = f.metadata().map_err(|e| e.to_string())?;
+    if !m.is_file() || m.nlink() != 1 {
+        return Err("installer is not a plain file".into());
+    }
+    let got = gdm_core::finalize::sha_handle(&f).map_err(|e| e.to_string())?;
+    if !got.eq_ignore_ascii_case(want_sha) {
+        return Err("installer changed after verification".into());
+    }
+    Ok(f)
+}
+
 /// open read-only, deny writers and deleters, refuse a reparse point, and compare the hash read through this handle
+#[cfg(windows)]
 pub fn hold(path: &std::path::Path, want_sha: &str) -> Result<std::fs::File, String> {
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     let f = std::fs::OpenOptions::new()
@@ -209,6 +231,7 @@ pub fn hold(path: &std::path::Path, want_sha: &str) -> Result<std::fs::File, Str
 }
 
 /// run the held installer like Tauri does (NSIS passive, /UPDATE, restart GDM afterwards), then exit
+#[cfg(windows)]
 pub fn launch_held(path: &std::path::Path) -> Result<(), String> {
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::UI::Shell::ShellExecuteW;
@@ -277,6 +300,7 @@ mod tests {
         #[cfg(all(windows, target_arch = "aarch64"))]
         assert_eq!(platform_key(), "windows-aarch64");
     }
+    #[cfg(windows)]
     #[test]
     fn u06_held_installer_cannot_be_swapped_and_tampering_is_seen() {
         let d = std::env::temp_dir().join(format!("gdm-u06-{}", std::process::id()));
@@ -298,6 +322,7 @@ mod tests {
         let _ = std::fs::remove_dir(&j);
         let _ = std::fs::remove_dir_all(&d);
     }
+    #[cfg(windows)]
     #[test]
     fn u06_a_held_installer_still_starts() {
         // the Windows loader opens the image with share READ, compatible with our hold: a real exe must run

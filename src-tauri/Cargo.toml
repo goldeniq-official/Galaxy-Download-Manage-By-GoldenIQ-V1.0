@@ -28,7 +28,6 @@ gdm-core = { path = "../crates/gdm-core" }
 gdm-bridge = { path = "../crates/gdm-bridge" }
 gdm-auth = { path = "../crates/gdm-auth" }
 gdm-media = { path = "../crates/gdm-media" }
-webview2-com = "0.39"
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"
@@ -47,7 +46,17 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 gdm-fixture = { path = "../fixtures/hostile" }
 gdm-core = { path = "../crates/gdm-core" }
 
-[dependencies.windows]
+# macOS / Linux (P4): native dialogs from Rust (no dialog plugin reaches the WebView, X-02), passwords in the
+# Keychain / Secret Service (never a plaintext fallback), peer/process calls
+[target.'cfg(unix)'.dependencies]
+rfd = "0.18"
+keyring = { version = "3", features = ["apple-native", "sync-secret-service", "crypto-rust"] }
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+
+[target.'cfg(windows)'.dependencies.windows]
 version = "0.61"
 features = [
   "Win32_Foundation",

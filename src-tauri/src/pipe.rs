@@ -2,19 +2,30 @@
 //! Named pipe server for gdm-bridge (ADR-2: no localhost port). B-02: FILE_FLAG_FIRST_PIPE_INSTANCE (a squatter
 //! that came first makes GDM refuse to serve and say so), protected DACL user + SYSTEM, remote clients rejected,
 //! name carries the user SID. One request per connection, message mode, 256 KiB max.
+//! macOS / Linux (P4): a Unix socket in the user's private 0700 folder (gdm_bridge::private_dir), mode 0600; a
+//! socket that already answers means another GDM or a squatter, and GDM refuses to serve, as on Windows; the peer
+//! must run as this user; CLI messages only from this very executable; each connection has read/write deadlines
+//! so a stalled client cannot hold the channel.
 use crate::app::{lock, App};
 use gdm_bridge::{Envelope, Msg, MAX_MSG};
 use serde_json::{json, Value};
 use std::sync::Arc;
+#[cfg(windows)]
 use windows::core::HSTRING;
+#[cfg(windows)]
 use windows::Win32::Foundation::{CloseHandle, GetLastError, ERROR_MORE_DATA, ERROR_PIPE_CONNECTED, HANDLE};
+#[cfg(windows)]
 use windows::Win32::Security::Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1};
+#[cfg(windows)]
 use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+#[cfg(windows)]
 use windows::Win32::Storage::FileSystem::{FlushFileBuffers, ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
+#[cfg(windows)]
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE, PIPE_WAIT,
 };
 
+#[cfg(windows)]
 fn create(name: &str) -> Result<HANDLE, u32> {
     let sid = gdm_bridge::user_sid().ok_or(0u32)?;
     unsafe {
@@ -50,7 +61,54 @@ fn create(name: &str) -> Result<HANDLE, u32> {
     }
 }
 
+/// start the server thread; Err = the socket is already served (another GDM, or a squatter: B-02)
+#[cfg(unix)]
+pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(), String> {
+    use std::io::{Read, Write};
+    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::net::{UnixListener, UnixStream};
+    use std::time::Duration;
+    gdm_bridge::private_dir(true).map_err(|e| format!("pipe-taken:{e}"))?;
+    let path = gdm_bridge::pipe_name();
+    if UnixStream::connect(&path).is_ok() {
+        return Err("pipe-taken:served".into());
+    }
+    let _ = std::fs::remove_file(&path); // a stale socket of a GDM that ended (nobody answered it)
+    let l = UnixListener::bind(&path).map_err(|e| format!("pipe-taken:{e}"))?;
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())?;
+    let me = std::env::current_exe().ok().map(|p| gdm_bridge::norm(&p));
+    std::thread::spawn(move || {
+        for c in l.incoming() {
+            let Ok(mut c) = c else { continue };
+            let Some((uid, pid)) = gdm_bridge::peer(&c) else { continue };
+            if uid != gdm_bridge::uid() {
+                continue; // another user: nothing read, nothing answered
+            }
+            let _ = c.set_read_timeout(Some(Duration::from_secs(5)));
+            let _ = c.set_write_timeout(Some(Duration::from_secs(5)));
+            let mut buf = Vec::new();
+            let reply = match (&mut c).take(MAX_MSG as u64 + 1).read_to_end(&mut buf) {
+                Err(_) => continue,
+                Ok(_) if buf.len() > MAX_MSG as usize => json!({"ok": false, "error": "too-large"}),
+                Ok(_) => match serde_json::from_slice::<Envelope>(&buf) {
+                    Ok(env)
+                        if env.msg.validate().is_ok()
+                            && (!matches!(env.msg, Msg::Cli { .. }) || gdm_bridge::image_of(pid).map(|p| gdm_bridge::norm(&p)) == me) =>
+                    {
+                        let (a, m, o) = (app.clone(), env.msg, env.origin);
+                        rt.block_on(async move { handle(&a, &o, m).await })
+                    }
+                    _ => json!({"ok": false, "error": "rejected"}),
+                },
+            };
+            let _ = c.write_all(&serde_json::to_vec(&reply).unwrap_or_default());
+        }
+    });
+    Ok(())
+}
+
 /// start the server thread; Err = the pipe name is already taken (another GDM, or a squatter: B-02)
+#[cfg(windows)]
 pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(), String> {
     let h = create(&gdm_bridge::pipe_name()).map_err(|e| format!("pipe-taken:{e}"))?;
     let h = h.0 as isize;
@@ -101,6 +159,7 @@ pub fn serve(app: Arc<App>, rt: tauri::async_runtime::RuntimeHandle) -> Result<(
 
 /// I-02: a CLI message counts only when the connected client process IS this gdm.exe (same image path), read
 /// through the process handle; the origin string alone is never trusted
+#[cfg(windows)]
 fn client_is_gdm(h: HANDLE) -> bool {
     let mut pid = 0;
     let ok = unsafe { windows::Win32::System::Pipes::GetNamedPipeClientProcessId(h, &mut pid).is_ok() };

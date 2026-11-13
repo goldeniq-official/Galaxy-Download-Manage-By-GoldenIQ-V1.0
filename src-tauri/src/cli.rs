@@ -38,6 +38,7 @@ pub fn parse(args: &[String]) -> Option<Msg> {
 
 /// client side: send, print the JSON reply, return the exit code (0 ok, 1 refused, 2 no GDM)
 pub fn main(msg: Msg) -> i32 {
+    #[cfg(windows)]
     unsafe {
         use windows::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
         let _ = AttachConsole(ATTACH_PARENT_PROCESS); // gdm.exe is a GUI program: print into the caller's console
@@ -56,7 +57,8 @@ pub fn main(msg: Msg) -> i32 {
     let spawn = || {
         use std::process::Stdio;
         // CreateProcess inherits every inheritable handle, not only stdio: the caller's output pipe must not
-        // reach the tray GDM, or the caller never sees end-of-file
+        // reach the tray GDM, or the caller never sees end-of-file (Unix: Rust opens every fd close-on-exec)
+        #[cfg(windows)]
         unsafe {
             use windows::Win32::Foundation::{SetHandleInformation, HANDLE_FLAGS, HANDLE_FLAG_INHERIT};
             use windows::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE};
@@ -89,6 +91,7 @@ pub fn main(msg: Msg) -> i32 {
 }
 
 /// the user's final path of a folder, lower case, without the \\?\ prefix (junctions resolved)
+#[cfg(windows)]
 fn real(p: &Path) -> Option<String> {
     let c = std::fs::canonicalize(p).ok()?;
     let s = c.to_string_lossy().to_string();
@@ -96,6 +99,14 @@ fn real(p: &Path) -> Option<String> {
     Some(s.trim_end_matches('\\').to_lowercase())
 }
 
+/// the final path of a folder (symlinks resolved), lower case: macOS volumes are case-insensitive by default,
+/// and on Linux a lower-case compare can only refuse more, never less
+#[cfg(unix)]
+fn real(p: &Path) -> Option<String> {
+    Some(std::fs::canonicalize(p).ok()?.to_string_lossy().to_lowercase())
+}
+
+#[cfg(windows)]
 fn known(id: &windows::core::GUID) -> Option<PathBuf> {
     use windows::Win32::UI::Shell::{SHGetKnownFolderPath, KF_FLAG_DEFAULT};
     unsafe {
@@ -106,7 +117,37 @@ fn known(id: &windows::core::GUID) -> Option<PathBuf> {
     }
 }
 
+/// folders a script must never make GDM write into (I-02), resolved to their real paths: autostart places,
+/// program and system folders, GDM's own install folder
+#[cfg(unix)]
+pub fn dangerous_roots() -> Vec<String> {
+    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let mut v: Vec<PathBuf> = ["/etc", "/usr", "/bin", "/sbin", "/lib", "/opt", "/boot", "/System", "/Library", "/Applications", "/private/etc"]
+        .iter()
+        .map(PathBuf::from)
+        .collect();
+    for rel in [
+        ".config/autostart",
+        ".config/systemd",
+        ".config/environment.d",
+        ".local/bin",
+        ".local/share/applications",
+        "bin",
+        ".ssh",
+        "Library/LaunchAgents",
+        "Library/StartupItems",
+        "Applications",
+    ] {
+        v.push(home.join(rel));
+    }
+    if let Some(d) = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf)) {
+        v.push(d);
+    }
+    v.iter().filter_map(|p| real(p)).collect()
+}
+
 /// folders a script must never make GDM write into (I-02), resolved to their real paths
+#[cfg(windows)]
 pub fn dangerous_roots() -> Vec<String> {
     use windows::Win32::UI::Shell::*;
     let mut v: Vec<PathBuf> =
@@ -124,7 +165,7 @@ pub fn dangerous_roots() -> Vec<String> {
 /// neither a dangerous folder nor inside one (boundary-aware: C:\Windows2 is not C:\Windows)
 pub fn safe_dir(p: &str) -> Result<PathBuf, String> {
     let roots = dangerous_roots();
-    let bad = |r: &str| roots.iter().any(|root| r == root || r.starts_with(&format!("{root}\\")));
+    let bad = |r: &str| roots.iter().any(|root| r == root || r.starts_with(&format!("{root}{}", std::path::MAIN_SEPARATOR)));
     // before opening (junctions resolved by canonicalize) and again on the held handle's path
     if real(Path::new(p)).as_deref().is_some_and(bad) {
         return Err("dangerous-folder".into());
@@ -232,6 +273,7 @@ mod tests {
     /// I-02: Startup, Windows, Program Files and GDM's folder are refused, also through a junction; a normal
     /// user folder is fine
     #[test]
+    #[cfg(windows)]
     fn i02_dangerous_folders_refused_even_through_a_junction() {
         let startup = known(&windows::Win32::UI::Shell::FOLDERID_Startup).unwrap();
         assert_eq!(safe_dir(&startup.display().to_string()), Err("dangerous-folder".into()));

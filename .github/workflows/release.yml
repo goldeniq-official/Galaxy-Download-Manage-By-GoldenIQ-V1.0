@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: RPL-1.5
-# Release (§15): the owner pushes a tag vX.Y.Z; this builds the per-user NSIS installers for Windows x64 and
-# Windows ARM64 (ARM64 cross-compiled on the same x64 runner: no ARM runner needed, public or private repo),
+# Release (§15, P4 every OS/CPU): the owner pushes a tag vX.Y.Z; this builds GDM for six targets
+#   Windows x64 + ARM64 (NSIS, ARM64 cross-compiled on the x64 runner), macOS Apple Silicon + Intel (.dmg; the
+#   updater uses .app.tar.gz), Linux x64 + ARM64 (.deb, .rpm, .AppImage; the updater uses the AppImage),
 # signs the updater artifacts with minisign (secret only in the "release" environment, reviewer = owner), writes
-# ONE SIGNED latest.json naming both (U-01: version, channel, expires; each GDM checks its own platform key,
-# update::platform_key, before Tauri's updater runs), attests build provenance, and creates a DRAFT GitHub
-# release. The owner reviews and publishes. Authenticode via SignPath is added when SignPath accepts the project
-# (D8); until then the installers are unsigned (sha256 + attestation).
+# ONE SIGNED latest.json naming every platform (U-01; each GDM checks its own key, update::platform_key, before
+# Tauri's updater runs), attests build provenance, and creates a DRAFT GitHub release the owner publishes.
+# Code signing: Windows Authenticode via SignPath when accepted (D8); macOS is ad-hoc signed until the owner
+# decides on an Apple Developer ID (notarization, $99/year): until then macOS users open it with right-click >
+# Open the first time. Linux packages are unsigned (sha256 + attestation).
 name: release
 on:
   push:
@@ -19,12 +21,19 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - { target: x86_64-pc-windows-msvc, arch: x64, key: windows-x86_64 }
-          - { target: aarch64-pc-windows-msvc, arch: arm64, key: windows-aarch64 }
-    runs-on: windows-2025
+          - { os: windows-2025, target: x86_64-pc-windows-msvc, arch: windows-x64, bundles: nsis }
+          - { os: windows-2025, target: aarch64-pc-windows-msvc, arch: windows-arm64, bundles: nsis }
+          - { os: macos-15, target: aarch64-apple-darwin, arch: macos-arm64, bundles: "app,dmg" }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, arch: macos-x64, bundles: "app,dmg" }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, arch: linux-x64, bundles: "deb,rpm,appimage" }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, arch: linux-arm64, bundles: "deb,rpm,appimage" }
+    runs-on: ${{ matrix.os }}
     environment: release
     permissions:
       contents: read
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -36,34 +45,51 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
-      - name: toolchain (ring needs clang for aarch64-pc-windows-msvc; the runner image has LLVM)
+      - name: Linux build libraries (WebKitGTK 4.1, tray, D-Bus for the Secret Service)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf rpm
+      - name: toolchain (ring needs clang for aarch64-pc-windows-msvc; the Windows image has LLVM)
         run: |
-          rustup toolchain install $env:RUST_VERSION --profile minimal; rustup default $env:RUST_VERSION
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
           rustup target add ${{ matrix.target }}
-          clang --version
       - name: version in the tag == version in the app
-        shell: bash
         run: test "v$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$GITHUB_REF_NAME"
       - name: build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: "-"
         run: |
           cargo build -p gdm-bridge --release --locked --target ${{ matrix.target }}
-          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
-          Copy-Item target/${{ matrix.target }}/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-${{ matrix.target }}.exe
-          node scripts/nsis-khmer.mjs
+          mkdir -p src-tauri/binaries
+          ext=""; [ "$RUNNER_OS" = Windows ] && ext=".exe"
+          cp "target/${{ matrix.target }}/release/gdm-bridge$ext" "src-tauri/binaries/gdm-bridge-${{ matrix.target }}$ext"
+          [ "$RUNNER_OS" = Windows ] && node scripts/nsis-khmer.mjs
           pnpm ext
-          pnpm tauri build --target ${{ matrix.target }}
-      - name: collect
-        shell: pwsh
+          pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: collect (installers + the updater artifact and its minisign signature)
         run: |
-          $v = $env:GITHUB_REF_NAME.TrimStart('v')
-          $setup = Get-ChildItem target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe | Select-Object -First 1
-          $name = "GDM_${v}_${{ matrix.arch }}-setup.exe"
-          New-Item -ItemType Directory -Force out | Out-Null
-          Copy-Item $setup.FullName "out/$name"; Copy-Item "$($setup.FullName).sig" "out/$name.sig"
-          if ('${{ matrix.arch }}' -eq 'x64') { Compress-Archive extension/dist/chrome out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox out/gdm-extension-firefox-$v.zip }
+          v="${GITHUB_REF_NAME#v}"; a="${{ matrix.arch }}"; b="target/${{ matrix.target }}/release/bundle"
+          mkdir -p out
+          one() { ls $1 2>/dev/null | head -1; }
+          case "$RUNNER_OS" in
+            Windows)
+              s=$(one "$b/nsis/*-setup.exe"); cp "$s" "out/GDM_${v}_$a-setup.exe"; cp "$s.sig" "out/GDM_${v}_$a-setup.exe.sig"
+              echo "GDM_${v}_$a-setup.exe" > out/updater-$a.txt ;;
+            macOS)
+              cp "$(one "$b/dmg/*.dmg")" "out/GDM_${v}_$a.dmg"
+              t=$(one "$b/macos/*.app.tar.gz"); cp "$t" "out/GDM_${v}_$a.app.tar.gz"; cp "$t.sig" "out/GDM_${v}_$a.app.tar.gz.sig"
+              echo "GDM_${v}_$a.app.tar.gz" > out/updater-$a.txt ;;
+            Linux)
+              cp "$(one "$b/deb/*.deb")" "out/GDM_${v}_$a.deb"; cp "$(one "$b/rpm/*.rpm")" "out/GDM_${v}_$a.rpm"
+              i=$(one "$b/appimage/*.AppImage"); cp "$i" "out/GDM_${v}_$a.AppImage"; cp "$i.sig" "out/GDM_${v}_$a.AppImage.sig"
+              echo "GDM_${v}_$a.AppImage" > out/updater-$a.txt ;;
+          esac
+          if [ "$a" = windows-x64 ]; then
+            (cd extension/dist && zip -qr "../../out/gdm-extension-chrome-$v.zip" chrome && zip -qr "../../out/gdm-extension-firefox-$v.zip" firefox) || pwsh -Command "Compress-Archive extension/dist/chrome out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox out/gdm-extension-firefox-$v.zip"
+          fi
+          ls -la out
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: out-${{ matrix.arch }}
@@ -102,12 +128,15 @@ jobs:
         run: |
           $v = $env:GITHUB_REF_NAME.TrimStart('v')
           $base = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME"
+          # Tauri's platform keys (update::platform_key) => the build that serves them
+          $keys = [ordered]@{ 'windows-x86_64' = 'windows-x64'; 'windows-aarch64' = 'windows-arm64'; 'darwin-aarch64' = 'macos-arm64'; 'darwin-x86_64' = 'macos-x64'; 'linux-x86_64' = 'linux-x64'; 'linux-aarch64' = 'linux-arm64' }
           $platforms = [ordered]@{}
-          foreach ($p in @(@{ key = 'windows-x86_64'; arch = 'x64' }, @{ key = 'windows-aarch64'; arch = 'arm64' })) {
-            $name = "GDM_${v}_$($p.arch)-setup.exe"
-            if (-not (Test-Path "out/$name.sig")) { throw "missing $name" }
-            $platforms[$p.key] = @{ signature = (Get-Content "out/$name.sig" -Raw).Trim(); url = "$base/$name" }
+          foreach ($k in $keys.Keys) {
+            $name = (Get-Content "out/updater-$($keys[$k]).txt" -Raw).Trim()
+            if (-not (Test-Path "out/$name.sig")) { throw "missing $name.sig" }
+            $platforms[$k] = @{ signature = (Get-Content "out/$name.sig" -Raw).Trim(); url = "$base/$name" }
           }
+          Remove-Item out/updater-*.txt
           $notes = Get-Content docs/release/notes-$v.json -Raw | ConvertFrom-Json
           $m = [ordered]@{ version = $v; channel = $(if ($v -match '-') { 'beta' } else { 'stable' }); expires = [int][double]::Parse((Get-Date).AddDays(90).ToUniversalTime().Subtract([datetime]'1970-01-01').TotalSeconds); security = [bool]$notes.security; notes_km = $notes.km; notes_en = $notes.en; notes = $notes.en; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = $platforms }
           $m | ConvertTo-Json -Depth 5 -Compress | Set-Content -NoNewline -Encoding utf8NoBOM out/latest.json

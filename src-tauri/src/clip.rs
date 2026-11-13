@@ -4,15 +4,26 @@
 //! `ExcludeClipboardContentFromMonitorProcessing` present, or `CanIncludeInClipboardHistory` = 0 (password
 //! managers set these) => nothing is read. Text is read only when the monitor is on, at most 8 KiB, and kept
 //! only when the whole text is one http(s) URL whose path ends in a caught extension. Nothing is logged.
-use std::sync::atomic::{AtomicU64, Ordering};
+//! macOS / Linux (P4): not available yet. Password managers mark secrets differently there
+//! (org.nspasteboard.ConcealedType, x-kde-passwordManagerHint) and a monitor that cannot honour every marker
+//! would read passwords, so the monitor stays off rather than read what it must not.
+use std::sync::atomic::AtomicU64;
+#[cfg(windows)]
+use std::sync::atomic::Ordering;
+#[cfg(windows)]
 use windows::core::w;
+#[cfg(windows)]
 use windows::Win32::Foundation::HGLOBAL;
+#[cfg(windows)]
 use windows::Win32::System::DataExchange::{
     AddClipboardFormatListener, CloseClipboard, GetClipboardData, GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard,
     RegisterClipboardFormatW,
 };
+#[cfg(windows)]
 use windows::Win32::System::Memory::{GlobalLock, GlobalSize, GlobalUnlock};
+#[cfg(windows)]
 use windows::Win32::System::Ole::CF_UNICODETEXT;
+#[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub const MAX_TEXT: usize = 8 * 1024;
@@ -47,6 +58,7 @@ pub fn pick_video(text: &str) -> Option<String> {
 }
 
 /// what the clipboard holds right now, if the monitor may read it (None = excluded, empty, or not text)
+#[cfg(windows)]
 fn read_allowed() -> Option<String> {
     unsafe {
         let excl = RegisterClipboardFormatW(w!("ExcludeClipboardContentFromMonitorProcessing"));
@@ -96,6 +108,10 @@ pub type Enabled = Box<dyn Fn() -> Option<(Vec<String>, bool)> + Send>;
 
 /// run the monitor on its own thread for the life of the process. `enabled()` returns the caught extensions
 /// when the monitor is on (None = off: nothing is opened or read).
+#[cfg(unix)]
+pub fn spawn(_enabled: Enabled, _on_url: OnUrl) {}
+
+#[cfg(windows)]
 pub fn spawn(enabled: Enabled, on_url: OnUrl) {
     std::thread::spawn(move || unsafe {
         let Ok(hwnd) =
@@ -176,6 +192,7 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
     unsafe fn put(text: &str, exclude: bool) {
         use windows::Win32::System::DataExchange::{EmptyClipboard, SetClipboardData};
         use windows::Win32::System::Memory::{GlobalAlloc, GMEM_MOVEABLE};
@@ -200,6 +217,7 @@ mod tests {
         let _ = CloseClipboard();
     }
 
+    #[cfg(windows)]
     unsafe fn current() -> Option<String> {
         if OpenClipboard(None).is_err() {
             return None;
@@ -222,6 +240,7 @@ mod tests {
     /// (the text-read counter does not move); an ordinary URL copy is proposed once. The user's clipboard text is
     /// put back afterwards.
     #[test]
+    #[cfg(windows)]
     fn i01_excluded_clipboard_is_never_read() {
         let saved = unsafe { current() };
         let (tx, rx) = std::sync::mpsc::channel::<String>();

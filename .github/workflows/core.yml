@@ -47,9 +47,8 @@ jobs:
         env:
           GDM_NET_TESTS: "1"
 
-  # P4 (every OS/CPU): the download core + browser bridge on real macOS and Linux machines, x64 and ARM64. The
-  # Tauri app (pipe server, creds, clipboard, power, updater) is ported in later steps; until this job is green on a runner,
-  # nothing outside Windows counts as working (decisions 2026-11-13 P4).
+  # P4 (every OS/CPU): the core, the browser bridge and the app on real macOS and Linux machines, x64 and ARM64.
+  # Until this job is green on a runner, nothing outside Windows counts as working (decisions 2026-11-13 P4).
   unix:
     strategy:
       fail-fast: false
@@ -63,9 +62,18 @@ jobs:
           persist-credentials: false
       - name: toolchain
         run: rustup toolchain install "$RUST_VERSION" --profile minimal -c clippy; rustup default "$RUST_VERSION"
-      - run: cargo clippy -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture -p gdm-bridge --all-targets --locked -- -D warnings
+      - name: Linux build libraries (WebKitGTK 4.1, tray, D-Bus)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev
+      - name: bridge sidecar for the Tauri build script + the frontend it embeds
+        run: |
+          cargo build -p gdm-bridge --locked
+          mkdir -p src-tauri/binaries dist
+          cp target/debug/gdm-bridge "src-tauri/binaries/gdm-bridge-$(rustc -vV | sed -n 's/^host: //p')"
+          [ -f dist/index.html ] || echo '<!doctype html>' > dist/index.html
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: "tests (fsx_unix O_NOFOLLOW, hard links, flock Busy, quarantine/origin mark; bridge socket peer check B-02; E/N/W cards)"
-        run: cargo test -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture -p gdm-bridge --locked
+        run: cargo test -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture -p gdm-bridge -p galaxy-download-manager --locked
 
   kill1000:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 18 * * *')
