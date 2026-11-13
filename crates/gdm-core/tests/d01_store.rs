@@ -192,3 +192,23 @@ async fn l01_job_limit_under_global() {
     // lower bound only catches a stalled limiter, as above (failed at 310 540 B/s while another build loaded the PC)
     assert!((250_000.0..=525_000.0).contains(&rate), "{rate:.0} B/s vs job limit 500 000");
 }
+
+/// a database that is only unavailable (held exclusively by another process: a second GDM, a backup tool) is an
+/// error, never "corrupt": it is not renamed away and the list is intact afterwards
+#[cfg(windows)]
+#[test]
+fn d01_busy_database_is_never_quarantined() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let root = tmpdir("d01busy");
+    let db = root.join("data").join("gdm.db");
+    drop(Store::open(&db).unwrap());
+    let hold = std::fs::OpenOptions::new().read(true).write(true).share_mode(0).open(&db).unwrap();
+    let r = Store::open(&db);
+    assert!(r.is_err(), "unavailable, not opened");
+    drop(hold);
+    let names: Vec<String> =
+        std::fs::read_dir(db.parent().unwrap()).unwrap().flatten().map(|f| f.file_name().to_string_lossy().to_string()).collect();
+    assert!(!names.iter().any(|n| n.contains(".corrupt-")), "nothing quarantined: {names:?}");
+    let (_, rep) = Store::open(&db).unwrap();
+    assert!(rep.quarantined.is_none() && rep.restored_from.is_none());
+}

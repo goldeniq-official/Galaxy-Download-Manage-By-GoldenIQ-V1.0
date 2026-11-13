@@ -168,8 +168,11 @@ impl Store {
             std::fs::create_dir_all(d).map_err(err)?;
         }
         let conn = match Self::try_open(db) {
-            Some(c) => c,
-            None => {
+            Ok(Some(c)) => c,
+            // busy, locked, no access, disk error: the file is not proven corrupt and is never moved away (a second
+            // GDM starting while the first one holds the database used to quarantine the live list)
+            Err(e) => return Err(format!("database not available: {e}")),
+            Ok(None) => {
                 // D-01: quarantine db + wal + shm together, then restore the newest backup that checks out
                 let tag = format!("corrupt-{}", now());
                 for p in sidecars(db) {
@@ -185,7 +188,7 @@ impl Store {
                         break;
                     }
                 }
-                Self::try_open(db).ok_or("database unusable after restore")?
+                Self::try_open(db)?.ok_or("database unusable after restore")?
             }
         };
         let mut st = Store { conn, path: db.to_path_buf(), read_only: false };
@@ -215,13 +218,35 @@ impl Store {
         Ok((st, rep))
     }
 
-    fn try_open(db: &Path) -> Option<Connection> {
-        let c = Connection::open(db).ok()?;
-        c.busy_timeout(Duration::from_secs(10)).ok()?;
-        c.pragma_update(None, "journal_mode", "WAL").ok()?;
-        c.pragma_update(None, "synchronous", "NORMAL").ok()?;
-        c.pragma_update(None, "foreign_keys", "ON").ok()?;
-        quick_ok(&c).then_some(c)
+    /// Ok(Some) usable, Ok(None) proven corrupt (SQLite says corrupt / not a database, or quick_check fails),
+    /// Err anything else (busy, locked, permission, I/O): only Ok(None) may lead to quarantine (D-01)
+    fn try_open(db: &Path) -> Result<Option<Connection>, String> {
+        let corrupt =
+            |e: &rusqlite::Error| matches!(e.sqlite_error_code(), Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase));
+        let step = |r: rusqlite::Result<()>| -> Result<bool, String> {
+            match r {
+                Ok(()) => Ok(true),
+                Err(e) if corrupt(&e) => Ok(false),
+                Err(e) => Err(e.to_string()),
+            }
+        };
+        let c = match Connection::open(db) {
+            Ok(c) => c,
+            Err(e) if corrupt(&e) => return Ok(None),
+            Err(e) => return Err(e.to_string()),
+        };
+        c.busy_timeout(Duration::from_secs(10)).map_err(err)?;
+        for (k, v) in [("journal_mode", "WAL"), ("synchronous", "NORMAL"), ("foreign_keys", "ON")] {
+            if !step(c.pragma_update(None, k, v))? {
+                return Ok(None);
+            }
+        }
+        match c.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)) {
+            Ok(s) if s == "ok" => Ok(Some(c)),
+            Ok(_) => Ok(None),
+            Err(e) if corrupt(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     /// VACUUM INTO a temporary file, quick_check it, then publish under its final name; keep 7
