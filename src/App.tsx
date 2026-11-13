@@ -275,8 +275,9 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
       ].filter((g) => g.items.length),
     });
   // IDM context menu: Refresh download address, Add to queue, Delete from queue
-  const removeDone = () => {
-    for (const j of useStore.getState().jobs.filter(isDone)) void api.remove(j.id, false);
+  // every completed download, not only those matching the search box (the list in the store is the searched one)
+  const removeDone = async () => {
+    for (const j of (await api.snapshot(null)).jobs.filter(isDone)) await api.remove(j.id, false).catch(() => {});
   };
   const rowMenu = (r: Row, x: number, y: number) => {
     const st = view(r, live[r.id]);
@@ -308,7 +309,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
           items: [
             { label: t("act.remove"), disabled: isActive(r), onClick: () => void api.remove(r.id, false) },
             ...(isDone(r) ? [{ label: t("act.removeFile"), onClick: () => void api.remove(r.id, true) }] : []),
-            { label: t("act.removeDone"), disabled: !jobs.some(isDone), onClick: removeDone },
+            { label: t("act.removeDone"), disabled: !jobs.some(isDone), onClick: () => void removeDone() },
           ],
         },
       ],
@@ -335,7 +336,7 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
         {
           items: [
             { label: t("tasks.scheduler"), onClick: () => s.openSettings("queues") },
-            { label: t("act.removeDone"), disabled: !s.jobs.some(isDone), onClick: removeDone },
+            { label: t("act.removeDone"), onClick: () => void removeDone() },
           ],
         },
         { items: [{ label: t("tasks.grab"), onClick: () => s.setDlg({ k: "grab" }) }] },
@@ -390,7 +391,14 @@ function Main({ onWhy }: { onWhy: (k: string) => void }) {
   // P1 #21: links dropped on the window (the WebView gets the drop: dragDropEnabled is false), at most 50
   const onDrop = async (e: DragEvent) => {
     e.preventDefault();
-    for (const u of droppedLinks(e.dataTransfer.getData("text/uri-list"), e.dataTransfer.getData("text/plain"))) await api.addUrl(u).catch(() => {});
+    // a dropped video page opens Add video (the first one; one dialog at a time), every other link is a download
+    let video = false;
+    for (const u of droppedLinks(e.dataTransfer.getData("text/uri-list"), e.dataTransfer.getData("text/plain"))) {
+      if (videoPage(u)) {
+        if (!video) void addLink(u);
+        video = true;
+      } else await api.addUrl(u).catch(() => {});
+    }
   };
   const upd = tick?.update;
   const banner = tick?.banner;
