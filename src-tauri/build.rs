@@ -65,7 +65,10 @@ const COMMANDS: &[&str] = &[
 fn main() {
     // test executables reach tao/wry code that imports TaskDialogIndirect (comctl32 v6 only): give them the
     // same Common-Controls v6 dependency the app manifest has, or they fail with STATUS_ENTRYPOINT_NOT_FOUND
-    println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
-    println!("cargo:rustc-link-arg-tests=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'");
+    // (MSVC linker flags: Windows targets only; on Linux/macOS cc would read them as file names)
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg-tests=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'");
+    }
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMMANDS))).expect("tauri build");
 }
