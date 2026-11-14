@@ -56,6 +56,18 @@ if (exited !== null || Date.now() - t0 >= 90000) {
   const wins = await run("powershell", ["-NoProfile", "-Command", "Get-Process gdm -ErrorAction SilentlyContinue | ForEach-Object { 'title=[' + $_.MainWindowTitle + '] responding=' + $_.Responding }"]);
   console.log(`FAIL WebView2 DevTools port 9339 never opened: gdm.exe ${exited === null ? "still running after 90 s" : `exited with ${exited}`}\n${ps}\n${wins}`);
   console.log(`--- msedgewebview2 processes:\n${wv || "(none)"}\n--- data dir: ${fs.readdirSync(data).join(", ")}\n${logs.join("\n")}`);
+  // the browser process (no --type): did --remote-debugging-port reach it, what does it listen on, and is remote
+  // debugging turned off by an Edge / WebView2 policy on this machine
+  console.log(
+    await run("powershell", [
+      "-NoProfile",
+      "-Command",
+      "$b = Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" | Where-Object { $_.CommandLine -notlike '*--type=*' }; " +
+        "$b | ForEach-Object { '--- browser ' + $_.ProcessId + ': ' + $_.CommandLine; '--- listening: ' + ((Get-NetTCPConnection -OwningProcess $_.ProcessId -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $_.LocalAddress + ':' + $_.LocalPort }) -join ', ') }; " +
+        "foreach ($k in 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge', 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2', 'HKCU:\\SOFTWARE\\Policies\\Microsoft\\Edge', 'HKCU:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2') { if (Test-Path $k) { '--- policy ' + $k; (Get-ItemProperty $k | Out-String).Trim() } }; " +
+        "'--- env WEBVIEW2_*: ' + ((Get-ChildItem env: | Where-Object Name -like 'WEBVIEW2*' | ForEach-Object { $_.Name + '=' + $_.Value }) -join '; ')",
+    ]),
+  );
   app.kill();
   process.exit(1);
 }
