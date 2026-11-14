@@ -60,6 +60,7 @@ settings.queues = [
   queueDef("sync", "", true, { schedule: { enabled: true, start: "08:00", stop: null, days: 31, date: null, every_min: 120 } }),
   queueDef("q-1", "មេរៀនយប់", false),
 ];
+if (P.get("scene") === "showcase") settings.queues.pop(); // README shots: English-only queue names
 
 const catOf = (n: string) => {
   const e = n.split(".").pop()!.toLowerCase();
@@ -98,11 +99,11 @@ function scene(): Row[] {
       return XSS.map((n, i) => row(n, i % 2 ? "complete" : "paused", 1000 + i, i % 2 ? 1000 + i : 10, { url: `https://e.com/${i}?q=<script>window.__xss=1</script>`, description: n }));
     case "showcase": // README screenshots: ordinary downloads, no error states
       return [
-        row("ubuntu-24.04.3-desktop-amd64.iso", "downloading", 5.9 * 1024 * MB, 3.7 * 1024 * MB),
-        row("blender-windows-x64.zip", "downloading", 410 * MB, 150 * MB),
+        row("system-image-x64.iso", "downloading", 5.9 * 1024 * MB, 3.7 * 1024 * MB),
+        row("project-assets-2026.zip", "downloading", 410 * MB, 150 * MB),
         row("សៀវភៅណែនាំ-គណិតវិទ្យា-ថ្នាក់ទី១២.pdf", "complete", 18 * MB, 18 * MB),
         row("annual-report-2026.pdf", "complete", 4 * MB, 4 * MB),
-        row("python-amd64.exe", "complete", 28 * MB, 28 * MB),
+        row("setup-tool-x64.exe", "complete", 28 * MB, 28 * MB),
         row("lecture-recording-week-08.mp4", "complete", 860 * MB, 860 * MB),
         row("dataset-2026-q3.zip", "paused", 2.4 * 1024 * MB, 900 * MB),
         row("podcast-episode-112.mp3", "paused", 58 * MB, 12 * MB),

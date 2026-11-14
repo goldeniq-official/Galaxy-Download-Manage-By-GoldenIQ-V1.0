@@ -1,100 +1,108 @@
-# Galaxy Download Manager (GDM)
+<div align="center">
 
-Galaxy Download Manager is a desktop download manager for Windows. It downloads files over multiple connections, resumes interrupted transfers, and gives a file its final name only after every byte has been verified. It is free for individuals and organisations alike, and contains no advertising, no telemetry and no account system. The interface is available in Khmer and English.
+<img src="logo/gdm-icon-256.png" alt="Galaxy Download Manager logo" width="128">
 
-**Current release:** 1.0.0 · [Release notes and known limitations](docs/release/notes-1.0.0.md) · Officially supported platform: Windows 11 x64
+# Galaxy Download Manager
 
-![Galaxy Download Manager main window](docs/images/main-window.png)
+**A download manager for Windows that resumes every transfer and checks every file before it is finished.**
+
+[![Release](https://img.shields.io/badge/release-1.0.0-1f6feb)](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2011-1f6feb)](#installation)
+[![Licence](https://img.shields.io/badge/licence-RPL--1.5-1f6feb)](LICENSE)
+[![Languages](https://img.shields.io/badge/languages-Khmer%20%7C%20English-1f6feb)](#features)
+[![Telemetry](https://img.shields.io/badge/telemetry-none-2ea043)](PRIVACY.md)
+
+[Website](https://gdm.goldeniq.app) · [Download](https://gdm.goldeniq.app/download) · [Release notes](docs/release/notes-1.0.0.md) · [Code signing policy](https://gdm.goldeniq.app/code-signing-policy) · [Privacy](PRIVACY.md)
+
+<img src="docs/images/main-window.png" alt="Galaxy Download Manager main window" width="900">
+
+</div>
+
+## Overview
+
+Galaxy Download Manager (GDM) is a desktop download manager for Windows. It downloads over multiple connections, resumes interrupted transfers, and gives a file its final name only after the download is complete, scanned by the system antivirus and hashed with SHA-256. It is free for individuals and organisations alike, with no advertising, no telemetry and no account. The interface is available in Khmer and English.
+
+Officially supported platform for release 1.0.0: Windows 11 x64. Known limitations are listed in the [release notes](docs/release/notes-1.0.0.md).
 
 ## Features
 
 **Downloading**
-- Multi-connection transfers: 2 connections at start, scaling to 8 by default and up to 32, adjustable while a download is running.
-- Automatic resume after network loss, application exit or a system restart.
-- Total and per-file speed limits, file categories, and search in Khmer and Latin script.
+- Multiple connections per file: 2 at start, up to 8 by default and up to 32, adjustable while a download is running.
+- Resume after network loss or a system restart.
+- Download queues with start and stop times, total and per-file speed limits, file categories, and search in Khmer and Latin script.
 
-**Integrity**
-- Every completed file is verified with SHA-256 before it receives its final name.
-- Partial and unverified data is never presented as a finished file. This is tested against 1,000 forced process terminations and deliberately faulty servers, with no corrupted file published.
-
-**Security**
-- Mark-of-the-Web is applied and the system antivirus scans each completed file.
-- Potentially dangerous file types are never opened automatically.
-- Downloads from the local network require confirmation; invalid TLS certificates stop the transfer, with no override.
-- No local network port is opened. Browser extensions communicate with the application through native messaging only.
-- Application updates are cryptographically signed, checked once a day, installed only while GDM is idle, and can be turned off.
+**Integrity and safety**
+- Each file receives its final name only after the antivirus scan and the SHA-256 hash are complete. In testing with 1,000 forced process terminations and deliberately faulty servers, no incomplete or incorrect file received its final name.
+- When the server publishes a `.sha256` file, GDM compares the download against it. This check can be turned off.
+- Mark-of-the-Web is applied to every completed file. Potentially dangerous file types are never opened automatically.
+- Downloads from addresses on the local network require confirmation. An invalid TLS certificate stops the download; there is no option to bypass it.
+- Application updates are signed, checked once a day, installed only while GDM is idle, and can be turned off.
 
 **Browser integration**
-- Extensions for Google Chrome, Microsoft Edge and Firefox. Brave, Vivaldi and Opera are registered but not yet tested.
+- Extensions for Google Chrome, Microsoft Edge and Firefox communicate with GDM through native messaging.
 - <kbd>Ctrl</kbd>+click sends a link to GDM; <kbd>Alt</kbd>+click leaves it to the browser.
-- Context menu entries "Download with GDM" and "Download all links", and a per-site exclusion.
-- By default, when a download is received, the Download File Info dialog opens for the file name, category and destination. The transfer has already started while the dialog is open.
+- Context menu entries "Download with GDM" and "Download all links with GDM", and an option to stop capturing downloads on a specific site.
+- By default, each captured download opens the Download File Info dialog for the file name, category and destination. The transfer starts while the dialog is open.
 
-![Download File Info dialog](docs/images/download-info.png)
+<div align="center">
+<img src="docs/images/download-info.png" alt="Download File Info dialog" width="900">
+</div>
 
-**Site grabber** (Tasks menu)
-- Explores a website and lists the images, videos or documents that match your selection. It only reads pages, skips logout and delete links, and enforces limits against crawler traps. See [docs/site-grabber.md](docs/site-grabber.md).
-
-![Site grabber](docs/images/site-grabber.png)
+**Site grabber**
+- Explores a website from a start page and lists the images, videos or documents that match your selection, for you to choose from. It sends read-only requests, never submits forms, never opens logout or delete links, and stops at fixed limits on pages, requests and time. See [docs/site-grabber.md](docs/site-grabber.md).
 
 Screenshots show the application with example data.
 
 ## Installation
 
-1. Download `GDM-Setup_1.0.0_windows-x64.exe` (Windows on Arm: `GDM-Setup_1.0.0_windows-arm64.exe`) from the [official GitHub Releases page](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) or the official website.
-2. Verify the file before running it:
-   - compare its SHA-256 hash with `SHA256SUMS.txt` from the same release, and
-   - confirm its build provenance:
-     ```
-     gh attestation verify GDM-Setup_1.0.0_windows-x64.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
-     ```
-3. Run the installer. It installs for the current user and does not require administrator rights. Release 1.0.0 does not yet carry an Authenticode signature, so Windows SmartScreen may display a warning; select **More info › Run anyway** only after the verification above succeeds.
-4. On the final page of Setup, select **Add** next to each detected browser and confirm in the browser's extension store. GDM shows **Connected** when the extension is linked. The same option is available later under **Settings › Browser**.
+1. Download `GDM-Setup_1.0.0_windows-x64.exe` from the [GitHub Releases page](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) or from https://gdm.goldeniq.app/download.
+2. Verify the file before running it. Its SHA-256 hash must match the entry in `SHA256SUMS.txt` from the same release, and its build provenance can be confirmed with the GitHub CLI:
+   ```
+   gh attestation verify GDM-Setup_1.0.0_windows-x64.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
+   ```
+3. Run the installer. It installs for the current user and does not require administrator rights. Release 1.0.0 does not yet carry an Authenticode signature, so Windows SmartScreen may show a warning. After the verification in step 2 succeeds, select **More info › Run anyway**.
+4. On the final page of Setup, select **Add** next to each detected browser and follow the instructions shown. Until the extension is published in the Chrome Web Store and Edge Add-ons, Chromium-based browsers load it from the folder installed with GDM, with Developer mode turned on. The same option is available later under **Settings › Browsers**.
 
-The file `GDM_…-setup.exe` in each release is the underlying NSIS installer, intended for winget and silent installation (`/S`). An uninstaller is included and removes the browser registration and autostart entries.
+Each release also contains `GDM_1.0.0_windows-x64-setup.exe`, the underlying installer used by the updater and for silent installation (`/S`). The included uninstaller removes the browser registration and the autostart entry.
 
 ## Official sources
 
-GDM is distributed only through the channels below. A build, extension or store listing obtained elsewhere is not an official release, and the project accepts no responsibility for it.
-
-- Source code and releases: https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
-- Website: https://gdm.goldeniq.app
-- Browser extensions: only the store listings linked from inside the GDM application.
+Official builds are published only on the [GitHub Releases page](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) of this repository and on https://gdm.goldeniq.app. Browser extensions are official only when installed from GDM itself or from a store listing linked from GDM. Any other build, extension or listing is not an official release.
 
 ## Code signing policy
 
-Release builds are produced from this repository by GitHub Actions and published with SHA-256 checksums and build-provenance attestations. The full code signing policy, including team roles, is published at https://gdm.goldeniq.app/code-signing-policy.
+Release builds are produced from this repository by GitHub Actions and published with SHA-256 checksums and build provenance attestations. The full code signing policy, including team roles, is published at https://gdm.goldeniq.app/code-signing-policy.
 
 ## Privacy
 
-GDM collects no usage data and sends nothing to its authors. It connects to the network only to perform the downloads you request, to check for updates (which can be turned off), and to fetch optional components after you have agreed. Full details: [PRIVACY.md](PRIVACY.md) · https://gdm.goldeniq.app/privacy
+GDM collects no usage data and has no account system. Apart from the downloads you start, it makes network requests only for the update check, `.sha256` verification files, synchronisation queues you configure, and optional video components after you agree to install them. Each of these is described in [PRIVACY.md](PRIVACY.md), together with how to turn it off.
 
 ## Licence and intellectual property
 
-Galaxy Download Manager is copyright © 2026 Golden IQ and Chhit Sungchhay (the Licensor). The source code is published under the **Reciprocal Public License 1.5** (SPDX: `RPL-1.5`), an OSI-approved open source licence. The licence text is in [LICENSE](LICENSE); its application to this project is set out in [NOTICE.md](NOTICE.md). The Licensor offers GDM under no other licence. The summary below is for convenience only; [LICENSE](LICENSE) is the binding text.
+Galaxy Download Manager is copyright © 2026 Golden IQ and Chhit Sungchhay (the Licensor). The source code is published under the **Reciprocal Public License 1.5** (SPDX: `RPL-1.5`), an OSI-approved open source licence. The licence text is in [LICENSE](LICENSE); its application to this project is set out in [NOTICE.md](NOTICE.md). The Licensor offers GDM under no other licence. This summary is for convenience only; [LICENSE](LICENSE) is the binding text.
 
 **Use.** Anyone may download, install and use the official release free of charge, including businesses, schools and public institutions.
 
-**Modification.** Any person or organisation that modifies GDM and Deploys the result accepts the following obligations. Under RPL-1.5, Deploy includes internal use within a business or organisation, not only public distribution (§1.2). The only exceptions are Research and Personal Use.
-- The complete source code of the modified version, including any components required to install and run it, must be published under RPL-1.5 within one month of Deployment and kept available for at least twelve months after Deployment ends (§1.12, §6.1). No fee may be charged for that source beyond the actual cost of copying and distribution.
+**Modification.** Any person or organisation that modifies GDM and Deploys the result must meet the following obligations. Under RPL-1.5, Deploy includes internal use within a business or organisation, not only public distribution (§1.2). The only exceptions are Research and Personal Use.
+- The complete source code of the modified version, including any components required to install and run it, must be published under RPL-1.5 within one month of Deployment and remain available for at least twelve months after Deployment ends (§1.12, §6.1). No fee may be charged for that source beyond the actual cost of copying and distribution.
 - The modified version must carry a distinct title (§6.0). It may not be named "Galaxy Download Manager" or "GDM".
-- Every modification must be documented, the modified version must state that it is derived from Galaxy Download Manager, and the names of the Licensor must appear in its source and in its user-visible copyright notices (§6.2, §6.4(d)).
+- Every modification must be documented, the modified version must state that it is derived from Galaxy Download Manager, and the names of the Licensor must appear in its source code and in its user-visible copyright notices (§6.2, §6.4(d)).
 - Existing copyright notices, change notices and licence text may not be modified or removed without the Licensor's written permission (§6.2).
 - Everyone who creates or contributes to a modified version grants the Licensor a worldwide, royalty-free licence to use and distribute those changes (§6.0).
 
 **Trademarks.** The licence grants no rights to the Licensor's trademarks (§5.0). The names "Galaxy Download Manager", "GDM" (for download software) and "Golden IQ", and the Galaxy Download Manager logo, may not be used for any modified version, website, store listing or product, or in any way that suggests official status or endorsement, without the Licensor's written permission. Truthful statements such as "based on Galaxy Download Manager" remain permitted. See [TRADEMARKS.md](TRADEMARKS.md).
 
-**Enforcement.** A use that does not comply with RPL-1.5 or the trademark policy is not licensed. The Licensor will act against infringing builds, websites, store listings and extensions. Failure to act in one case does not waive the right to act in another (§13.4). To report a suspected infringement or request trademark permission, open an issue titled "Trademark request" in this repository.
+**Enforcement.** Any use that does not comply with RPL-1.5 or the trademark policy is not licensed. Failure to enforce a provision in one case does not waive the right to enforce it in another (§13.4). To report a suspected infringement or to request trademark permission, open an issue titled "Trademark request" in this repository.
 
-**Third-party components** remain under their own licences, listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Optional external tools that GDM downloads at the user's request, such as yt-dlp and FFmpeg, are separate programs under their own licences and are not part of the installer.
+**Third-party components** remain under their own licences, listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Optional tools that GDM downloads at the user's request, such as yt-dlp and FFmpeg, are separate programs under their own licences and are not included in the installer.
 
 ## Supporting the project
 
-GDM is free for everyone. Financial support is voluntary: it unlocks no feature, grants no priority in support or development decisions, and is not the purchase of a product or service. Contributions can be made by scanning the KHQR code below with any banking app that supports KHQR; the same code is shown on the application's About page.
+GDM is free for everyone. Financial support is voluntary: it unlocks no feature, grants no priority in support or development decisions, and is not the purchase of a product or service. Support can be sent by scanning the KHQR code below with a banking app that supports KHQR. The same code is shown on the application's About page.
 
-<img src="src/assets/khqr.png" alt="KHQR code for supporting Galaxy Download Manager" width="220">
+<img src="src/assets/khqr.png" alt="KHQR code for supporting Galaxy Download Manager" width="200">
 
-Organisations that require deployment assistance or training: [docs/services.md](docs/services.md). Sponsors: [docs/sponsors.md](docs/sponsors.md).
+Organisations that require deployment assistance or training: [docs/services.md](docs/services.md). Sponsorship terms: [docs/sponsors.md](docs/sponsors.md).
 
 ## Contributing and security
 
