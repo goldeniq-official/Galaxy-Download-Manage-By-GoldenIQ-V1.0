@@ -181,7 +181,8 @@ mod tests {
     /// B-02 on Unix: a socket served by another executable never receives the payload; the genuine one does
     #[test]
     fn b02_refuses_a_socket_served_by_another_image() {
-        let d = std::env::temp_dir().join(format!("gdm-ipc-{}", std::process::id()));
+        // canonical: macOS's temp folder is under the /var -> /private/var symlink, which private_dir refuses
+        let d = std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("gdm-ipc-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         std::env::set_var("XDG_RUNTIME_DIR", &d);

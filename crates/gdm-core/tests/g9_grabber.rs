@@ -3,6 +3,7 @@
 //! paths), G-04 (W-02 on every link, other domains by filter only), G-05 (static JS scan, nothing executed).
 mod common;
 use common::*;
+#[cfg(windows)]
 use gdm_core::fsx::Dir;
 use gdm_core::grab::{self, Config, Report, Robots};
 use gdm_fixture::{pct_encode, Fixture};
@@ -324,6 +325,8 @@ fn g03_mirror_segments_table() {
     assert_eq!(d("http://h/a//b/z.zip"), ["h", "a", "b"], "empty segments dropped");
 }
 
+/// Windows only (junction, share mode); a symlinked mirror folder on Unix is refused by Dir::subdir (fsx_unix.rs)
+#[cfg(windows)]
 #[test]
 fn g03_mirror_folders_are_held_and_junctions_refused() {
     let root = tmpdir("g03");
@@ -361,7 +364,8 @@ async fn g03_results_become_paused_jobs_in_mirror_folders() {
     assert!(c.referrer.as_deref().unwrap_or("").ends_with("page2.html"), "the page that linked it");
     // one folder: everything flat in the chosen folder
     let (jobs, _h) = grab::jobs(&r.files, &t.dl, false, None).unwrap();
-    assert!(jobs.iter().all(|j| j.dir == t.dl && !j.typed));
+    let dl = std::fs::canonicalize(&t.dl).unwrap(); // macOS: /var/folders/... is /private/var/folders/...
+    assert!(jobs.iter().all(|j| std::fs::canonicalize(&j.dir).unwrap() == dl && !j.typed));
 }
 
 // ---------------- G-04 ----------------

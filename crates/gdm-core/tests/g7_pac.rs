@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: RPL-1.5
 //! G7 proxy row: a PAC script evaluated by Windows (WinHttpGetProxyForUrl), per destination host.
 use gdm_core::relay::{ProxyAuth, Route};
+#[cfg(windows)]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+/// macOS / Linux have no system PAC evaluator and GDM never runs the script: every destination is blocked
+#[cfg(unix)]
+#[test]
+fn pac_blocked_fail_closed_on_unix() {
+    let r = gdm_core::sysproxy::pac_routes(Some("http://127.0.0.1:1/proxy.pac"), true, "https://files.example.com/", &ProxyAuth::None);
+    assert!(matches!(r.as_deref(), Some([Route::Block(_)])), "{r:?}");
+}
+
+#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 async fn pac_script_routes_per_host() {
     let pac = r#"function FindProxyForURL(url, host) {

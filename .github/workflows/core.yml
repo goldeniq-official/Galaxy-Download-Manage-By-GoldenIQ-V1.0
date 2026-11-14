@@ -74,11 +74,13 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: "tests (fsx_unix O_NOFOLLOW, hard links, flock Busy, quarantine/origin mark; bridge socket peer check B-02; E/N/W cards)"
         # Linux: site logins live in the Secret Service (keyring; GDM never stores them in plain text), which a
-        # runner does not have: an unlocked gnome-keyring on a private D-Bus session stands in for the desktop's
+        # runner does not have: an unlocked gnome-keyring on a private D-Bus session stands in for the desktop's.
+        # The password must not be empty: with an empty one no "login" keyring is made, so there is no default
+        # collection and every login fails "Secret Service: no result found" (third CI run).
         run: |
           t="cargo test -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture -p gdm-bridge -p galaxy-download-manager --locked --no-fail-fast"
           if [ "$RUNNER_OS" = Linux ]; then
-            dbus-run-session -- sh -c "printf '' | gnome-keyring-daemon --unlock --components=secrets >/dev/null && $t"
+            dbus-run-session -- sh -c "printf 'gdm-ci' | gnome-keyring-daemon --unlock --components=secrets >/dev/null && $t"
           else
             $t
           fi

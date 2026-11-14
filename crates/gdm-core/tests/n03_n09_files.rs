@@ -5,13 +5,16 @@ use common::*;
 use gdm_core::finalize::Protection;
 use gdm_core::{Fail, NewJob, Unverified};
 use gdm_fixture::{expected_sha256, Fixture};
+#[cfg(windows)]
 use std::path::Path;
+#[cfg(windows)]
 use std::process::Command;
 
 async fn fx() -> Fixture {
     Fixture::start("127.0.0.1:0").await
 }
 
+#[cfg(windows)]
 fn junction(link: &Path, target: &Path) {
     let st = Command::new("cmd").args(["/c", "mklink", "/J"]).arg(link).arg(target).output().unwrap();
     assert!(st.status.success(), "mklink /J: {}", String::from_utf8_lossy(&st.stderr));
@@ -28,6 +31,7 @@ async fn n02_rtlo_name_on_disk() {
     assert!(gdm_core::name::dangerous(&o.name) && gdm_core::name::real_extension(&o.name) == "exe");
 }
 
+#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 async fn n03_destination_is_a_junction_refused() {
     let root = tmpdir("n03a");
@@ -43,6 +47,7 @@ async fn n03_destination_is_a_junction_refused() {
     assert!(matches!(r, Err(Fail::Reparse(_))), "ancestor junction: {r:?}");
 }
 
+#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 async fn n03_junction_planted_at_part_name_job_fails_target_untouched() {
     let a = fx().await;
@@ -58,6 +63,7 @@ async fn n03_junction_planted_at_part_name_job_fails_target_untouched() {
     assert_eq!(std::fs::read_dir(&victim_dir).unwrap().count(), 1, "nothing written through the junction");
 }
 
+#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 async fn n03_destination_cannot_be_swapped_while_downloading() {
     let a = fx().await;
@@ -85,11 +91,16 @@ async fn n04_two_jobs_same_name_and_existing_file() {
     let j2 = t.engine.add(NewJob { name: Some("SETUP.EXE".into()), ..t.job(&url) }).unwrap();
     let (r1, r2) = tokio::join!(t.engine.run(&j1, Unverified::Ask, None), t.engine.run(&j2, Unverified::Ask, None));
     let (n1, n2) = (r1.unwrap().name, r2.unwrap().name);
-    assert_ne!(n1.to_lowercase(), n2.to_lowercase(), "two different names");
-    assert!(n1 != "setup.exe" && !n2.eq_ignore_ascii_case("setup.exe"), "{n1} {n2}");
+    assert!(n1 != "setup.exe" && n2 != "setup.exe" && n1 != n2, "{n1} {n2}");
+    // Linux names are case-sensitive: SETUP.EXE is a different file there, not a clash
+    if !cfg!(target_os = "linux") {
+        assert_ne!(n1.to_lowercase(), n2.to_lowercase(), "two different names");
+        assert!(!n2.eq_ignore_ascii_case("setup.exe"), "{n1} {n2}");
+    }
     assert_eq!(std::fs::read(t.dl.join("setup.exe")).unwrap(), b"user's own file", "existing file never overwritten");
 }
 
+#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 async fn n05_mark_of_the_web_zone3_without_query_secrets() {
     let a = fx().await;
@@ -237,6 +248,7 @@ async fn n03_foreign_part_not_adopted() {
 
 /// the folder's ancestors cannot be renamed away while a job holds the folder (the full path given to
 /// IAttachmentExecute stays the same object)
+#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 async fn n03_ancestor_cannot_be_renamed_while_held() {
     let root = tmpdir("anc");

@@ -240,11 +240,30 @@ fn single_link(f: File) -> Result<File, FsError> {
     Ok(f)
 }
 
-/// (device, inode): the identity of the file object (the device folded to 32 bits like a volume serial)
+/// (device + birth time, inode): the identity of the file object. The inode alone is not enough: ext4 hands a
+/// deleted file's inode number to the next new file at once, so a user's file that took the name of a file GDM
+/// published looked like GDM's own, and a sync re-download replaced it (Q-05, seen on the ARM Linux runner).
+/// NTFS file ids carry a sequence number for this; here the birth time (ns) tells the two apart.
 pub fn file_id(f: &File) -> Result<(u32, u64), FsError> {
     let st = rfs::fstat(f).map_err(io)?;
     let dev = st.st_dev as u64;
-    Ok(((dev ^ (dev >> 32)) as u32, st.st_ino as u64))
+    let (sec, nsec) = birth(f, &st);
+    let born = (sec as u32) ^ nsec.rotate_left(16);
+    Ok(((dev ^ (dev >> 32)) as u32 ^ born, st.st_ino as u64))
+}
+
+// ponytail: a filesystem without birth time (Linux vfat/exFAT on older kernels) gives (0, 0), so a reused inode
+// is not told apart there; add a content check to the sync replace if that matters
+#[cfg(target_vendor = "apple")]
+fn birth(_: &File, st: &rfs::Stat) -> (i64, u32) {
+    (st.st_birthtime, st.st_birthtime_nsec as u32)
+}
+#[cfg(not(target_vendor = "apple"))]
+fn birth(f: &File, _: &rfs::Stat) -> (i64, u32) {
+    match rfs::statx(f, "", AtFlags::EMPTY_PATH, rfs::StatxFlags::BTIME) {
+        Ok(x) if x.stx_mask & rfs::StatxFlags::BTIME.bits() != 0 => (x.stx_btime.tv_sec, x.stx_btime.tv_nsec),
+        _ => (0, 0),
+    }
 }
 
 /// the filesystem's name ("apfs", "ext4", "btrfs"...)
