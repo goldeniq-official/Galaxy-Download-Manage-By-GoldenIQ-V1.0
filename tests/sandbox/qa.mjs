@@ -191,7 +191,7 @@ ${Object.keys(FILES)
 <a id="khmer" href="http://${host}/cd">Khmer name (Content-Disposition)</a>
 <a id="redir" href="http://${host}/redir">Redirect</a>
 <a id="auth" href="http://${host}/auth/gdm-qa-auth.zip">Cookie-protected</a>
-<button id="many" onclick="for (const f of ['m1','m2','m3']) { const a = document.createElement('a'); a.href='/f/gdm-qa-'+f+'.zip'; document.body.append(a); a.click(); }">Three files at once</button>
+<button id="many" onclick="for (const f of ['m1','m2','m3']) { const a = document.createElement('a'); a.href='/f/gdm-qa-'+f+'.zip'; a.download = ''; document.body.append(a); a.click(); }">Three files at once</button>
 <script>document.cookie = "sess=gdm-qa; path=/";</script>`;
 // a Wi-Fi drop as the client sees it: while `outage` is on, open connections go silent (no FIN, no RST) and new
 // ones get no answer; connections from before the outage stay dead afterwards (their path is gone)
