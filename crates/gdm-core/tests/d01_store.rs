@@ -189,8 +189,10 @@ async fn l01_job_limit_under_global() {
     let t0 = Instant::now();
     t.engine.run(&id, Unverified::Ask, Some(lim)).await.unwrap();
     let rate = (3 * MIB) as f64 / t0.elapsed().as_secs_f64();
-    // lower bound only catches a stalled limiter, as above (failed at 310 540 B/s while another build loaded the PC)
-    assert!((250_000.0..=525_000.0).contains(&rate), "{rate:.0} B/s vs job limit 500 000");
+    // lower bound only catches a stalled limiter, as above (failed at 310 540 B/s while another build loaded the PC,
+    // and at 249 841 B/s on the macOS Intel runner: the time includes start, sha256 and fsync next to the 10 s
+    // global-limit test); the upper bound is the guarantee
+    assert!((125_000.0..=525_000.0).contains(&rate), "{rate:.0} B/s vs job limit 500 000");
 }
 
 /// a database that is only unavailable (held exclusively by another process: a second GDM, a backup tool) is an
