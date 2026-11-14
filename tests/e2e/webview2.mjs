@@ -35,11 +35,12 @@ const run = (cmd, args, env = process.env) =>
     c.stdout.on("data", (d) => (o += d));
     c.on("close", () => r(o.trim()));
   });
-// The port reaches WebView2 by WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, or (CI runners: the env route left the
-// browser without the switch, no policy set) by the documented per-user registry value named after the exe, which
-// WebView2 reads only when no WEBVIEW2_* variable exists (learn.microsoft.com .../webview2-idl,
-// CreateCoreWebView2EnvironmentWithOptions). Test only; the value is removed again on exit.
-const REG = "HKCU\\Software\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments";
+// The port reaches WebView2 by WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (a normal, non-elevated session), or by the
+// machine-wide HKLM policy value named after the exe: since Runtime 150 an ELEVATED host (CI runners run as admin)
+// ignores WEBVIEW2_* variables and HKCU overrides; only HKLM and the app's own API arguments count
+// (github.com/MicrosoftEdge/WebView2Feedback/issues/5640, learn.microsoft.com/microsoft-edge/webview2/concepts/security).
+// Test only; the value is removed again on exit.
+const REG = "HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments";
 let app, exited, t0;
 const start = async (route, ms) => {
   const env = { ...process.env, GDM_DATA: data };
@@ -63,7 +64,7 @@ let ok = await start("env", 30000);
 if (!ok) {
   // did the variable reach a child of this process at all (evidence for the env route)
   console.log(`--- child sees: ${await run("cmd", ["/c", "set WEBVIEW2"], { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: ARGS })}`);
-  console.log(`--- env route: no DevTools port after 30 s (gdm.exe ${exited === null ? "running" : `exited ${exited}`}); trying the registry route`);
+  console.log(`--- env route: no DevTools port after 30 s (gdm.exe ${exited === null ? "running" : `exited ${exited}`}; an elevated host ignores it); trying the HKLM policy route`);
   // end this gdm and its WebView2 browser (a new gdm would join that browser and keep its switches)
   await run("taskkill", ["/F", "/T", "/PID", String(app.pid)]);
   const left = "@(Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" | Where-Object { $_.CommandLine -like '*GoldenIQ.GalaxyDownloadManager*' }).Count";
