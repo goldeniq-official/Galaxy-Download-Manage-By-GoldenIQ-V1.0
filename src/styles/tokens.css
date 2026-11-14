@@ -60,7 +60,8 @@
   --r-sm: 9px; --r-md: 12px; --r-lg: 14px; --r-xl: 20px; --r-shell: 24px; --r-pill: 999px;
   --motion-press: 90ms; --motion-hover: 150ms; --motion-quick: 180ms; --motion-base: 220ms; --motion-slow: 320ms;
   --ease-out: cubic-bezier(.16,1,.3,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-in-out: cubic-bezier(.45,0,.35,1);
-  --z-sticky: 10; --z-toast: 150; --z-modal: 100; --z-menu: 200; --z-titlebar: 300; --z-tooltip: 400;
+  /* toasts under dialogs: a toast covered the Download info dialog's Start button (Windows Sandbox QA) */
+  --z-sticky: 10; --z-toast: 90; --z-modal: 100; --z-menu: 200; --z-titlebar: 300; --z-tooltip: 400;
 
   --f-latin: "Outfit"; --f-khmer: "GDM Khmer"; --f-mono: "JetBrains Mono";
 }

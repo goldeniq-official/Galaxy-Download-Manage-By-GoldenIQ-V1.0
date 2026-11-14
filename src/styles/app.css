@@ -115,7 +115,7 @@ html:lang(km) .btn-p { font-size: 13px; font-weight: 600; }
 .in { display: flex; align-items: center; gap: 8px; min-height: 40px; background: var(--field); border-radius: var(--r-md); padding: 0 6px 0 12px; transition: background var(--motion-hover); }
 .in input { flex: 1; min-width: 0; background: transparent; color: var(--tx-1); caret-color: var(--accent); padding: 7px 0; line-height: 1.6; }
 .in .mono { color: var(--tx-3); }
-.two { display: grid; grid-template-columns: 180px 1fr; gap: 12px; }
+.two { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 12px; } /* minmax: a long one-line path ellipsizes instead of running out of the dialog */
 .sel { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; width: 100%; background: var(--field); border-radius: var(--r-md); padding: 0 12px; cursor: pointer; color: var(--tx-1); }
 .sel:hover { background: var(--field-focus); }
 .mini { width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--chip); color: var(--tx-2); display: grid; place-items: center; cursor: pointer; flex: none; }

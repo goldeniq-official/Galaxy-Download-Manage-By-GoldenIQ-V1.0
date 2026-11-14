@@ -112,7 +112,12 @@ export async function boot() {
       // a countdown is a banner with [Cancel], never a toast that times out
       const cd = t.toasts.filter((x) => x.kind === "countdown").pop();
       if (cd) set({ countdown: { id: cd.id, action: cd.name } });
-      set({ tick: t, live, toasts: [...st.toasts, ...t.toasts.filter((x) => x.kind !== "countdown")].slice(-4) });
+      // the array changes only when a toast arrives: a new array every tick restarted the 8 s dismiss timer, so
+      // toasts never went away. A newer toast for the same download replaces its older one (an "error" for a
+      // file that then finished stayed next to its "downloaded" one; Windows Sandbox QA 2026-11-14)
+      const fresh = t.toasts.filter((x) => x.kind !== "countdown");
+      const ids = new Set(fresh.map((x) => x.id).filter(Boolean));
+      set({ tick: t, live, ...(fresh.length ? { toasts: [...st.toasts.filter((x) => !ids.has(x.id)), ...fresh].slice(-4) } : {}) });
       if (t.rev !== st.rev) {
         await st.refresh();
         // settings changed outside this window (tray speed limit) bump rev too
