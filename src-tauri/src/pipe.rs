@@ -243,7 +243,10 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
                 }
             }
             let start = app.handoff_allowed();
-            match app.add_and_start(&url, name, referrer, creds, false, start) {
+            // a click on a LAN-form host (IP, NAS, router, .local): allowed like a typed address (W-02 keeps every
+            // other host and every redirect hop checked)
+            let lan = url::Url::parse(&url).is_ok_and(|u| gdm_core::net::lan_host(&u));
+            match app.add_and_start(&url, name, referrer, creds, lan, start) {
                 Ok(id) => {
                     lock(&app.handoff_jobs).insert(hid, (id.clone(), std::time::Instant::now()));
                     if s.show_info || !start {

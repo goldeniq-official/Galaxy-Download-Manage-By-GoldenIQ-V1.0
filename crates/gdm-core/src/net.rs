@@ -30,6 +30,39 @@ pub struct Policy {
     pub allow_private: Vec<String>,
 }
 
+/// A host that names the local network by its form: an IP literal, a single-label name, or a LAN suffix. A
+/// download the user clicked in the browser on such a host may be private without the "Allow" step (IDM never
+/// asks; NAS, router, intranet and dev-server downloads are common). A public-looking name that resolves private
+/// still needs "Allow": the attacker's own domain could be re-pointed at the LAN between the browser and GDM
+/// (DNS rebinding; council 2026-11-15).
+pub fn lan_host(u: &Url) -> bool {
+    match u.host() {
+        Some(url::Host::Ipv4(_) | url::Host::Ipv6(_)) => true,
+        Some(url::Host::Domain(d)) => {
+            let d = d.trim_end_matches('.').to_ascii_lowercase();
+            !d.is_empty()
+                && (!d.contains('.')
+                    || [".local", ".lan", ".home.arpa", ".internal", ".localhost"].iter().any(|s| d.ends_with(s)))
+        }
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod lan_tests {
+    #[test]
+    fn only_names_that_say_lan_count() {
+        let l = |s: &str| super::lan_host(&url::Url::parse(s).unwrap());
+        for y in ["http://192.168.1.10/a.zip", "http://127.0.0.1:8765/x", "http://[fe80::1]/x", "http://nas/f.iso", "http://localhost:3000/a",
+            "http://router.lan/fw.bin", "http://pi.local/x", "http://box.home.arpa/x", "http://files.corp.internal/x", "http://NAS.LOCAL./x"] {
+            assert!(l(y), "{y}");
+        }
+        for n in ["https://example.com/a.zip", "http://evil.example/x", "http://local.example.com/x", "http://lan.attacker.io/x", "http://xn--lan-9za.com/"] {
+            assert!(!l(n), "{n}");
+        }
+    }
+}
+
 pub fn public(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v) => {
