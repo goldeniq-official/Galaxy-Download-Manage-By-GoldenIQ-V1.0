@@ -256,7 +256,8 @@ pub fn ext_of(name: &str) -> String {
 /// the per-user data folder (db, settings, backups): %LOCALAPPDATA%\<identifier>, the folder the NSIS
 /// uninstaller's "delete the application data" box removes (T-03: the user chooses; downloads stay)
 pub fn data_dir() -> PathBuf {
-    const ID: &str = "GoldenIQ.GalaxyDownloadManager";
+    // a debug build (`pnpm tauri dev`) never opens the installed GDM's downloads (same suffix as run())
+    const ID: &str = if cfg!(debug_assertions) { "GoldenIQ.GalaxyDownloadManager.dev" } else { "GoldenIQ.GalaxyDownloadManager" };
     if let Some(d) = std::env::var_os("GDM_DATA") {
         return PathBuf::from(d);
     }

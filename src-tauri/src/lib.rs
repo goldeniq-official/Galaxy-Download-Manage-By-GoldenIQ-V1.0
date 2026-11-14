@@ -106,11 +106,16 @@ fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
     *lock(&app.settings) = s.clone();
     app.save_settings()?;
     app.apply_limit();
-    os::sync_wake_tasks(&wake);
+    // a debug build never rewrites the installed GDM's wake tasks or Run entry (they point at gdm.exe)
+    if !cfg!(debug_assertions) {
+        os::sync_wake_tasks(&wake);
+    }
     if let Some(h) = HANDLE.get() {
         use tauri_plugin_autostart::ManagerExt;
-        let al = h.autolaunch();
-        let _ = if autostart { al.enable() } else { al.disable() };
+        if !cfg!(debug_assertions) {
+            let al = h.autolaunch();
+            let _ = if autostart { al.enable() } else { al.disable() };
+        }
         let _ = rebuild_tray(h, app);
     }
     Ok(s)
@@ -836,6 +841,10 @@ async fn check_update_inner(h: &AppHandle, app: &Arc<App>, manual: bool) {
         let s = lock(&app.settings);
         (s.update_mode.clone(), s.update_channel.clone(), s.highest_seen.clone())
     };
+    if cfg!(debug_assertions) {
+        // a debug build would install the released GDM over the installed one
+        return set_update(|u| (u.state, u.error) = (update::State::Idle, Some("debug build: no updates".into())));
+    }
     if (mode == "off" && !manual) || matches!(lock(&UPDATE).state, update::State::Downloading | update::State::Ready | update::State::Installing) {
         return;
     }
@@ -1438,8 +1447,19 @@ pub fn run() {
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(context())
         .expect("error while running GDM");
+}
+
+/// a debug build is its own app: single-instance mutex, WebView2 data and window state follow the identifier,
+/// so `pnpm tauri dev` and the installed GDM run side by side instead of the dev window swallowing the
+/// installed one (owner 2026-11-14: the browser caught nothing while a dev build ran)
+fn context() -> tauri::Context<tauri::Wry> {
+    let mut ctx = tauri::generate_context!();
+    if cfg!(debug_assertions) {
+        ctx.config_mut().identifier.push_str(".dev");
+    }
+    ctx
 }
 
 #[cfg(test)]

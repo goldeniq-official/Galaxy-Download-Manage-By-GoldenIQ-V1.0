@@ -104,7 +104,10 @@ pub fn call(pipe: &str, expected: &Path, msg: &[u8], wait: Duration) -> Result<V
     }
 }
 
-/// B-02: the pipe name carries the user's SID
+/// B-02: the pipe name carries the user's SID. A debug build (`pnpm tauri dev`) has its own pipe: on the
+/// shared one it took the installed GDM's place, the installed bridge refused it (not the gdm.exe next to it)
+/// and the browser silently caught nothing (owner 2026-11-14)
 pub fn pipe_name() -> String {
-    format!(r"\\.\pipe\GDM-{}", user_sid().unwrap_or_else(|| "nosid".into()))
+    let dev = if cfg!(debug_assertions) { "dev-" } else { "" };
+    format!(r"\\.\pipe\GDM-{dev}{}", user_sid().unwrap_or_else(|| "nosid".into()))
 }

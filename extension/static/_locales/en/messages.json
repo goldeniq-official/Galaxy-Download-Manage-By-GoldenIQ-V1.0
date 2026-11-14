@@ -20,6 +20,9 @@
   "offlineHelp": {
     "message": "Install or open Galaxy Download Manager. Until then your browser downloads normally."
   },
+  "untrustedHelp": {
+    "message": "Another copy of GDM is running that is not the installed one, so GDM refused the connection. Close that copy and open the installed GDM. Until then your browser downloads normally."
+  },
   "getGdm": {
     "message": "Download Galaxy Download Manager"
   },

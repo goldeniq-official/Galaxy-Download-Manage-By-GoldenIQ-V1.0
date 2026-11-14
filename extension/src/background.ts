@@ -11,6 +11,7 @@ const VER = chrome.runtime.getManifest().version;
 interface Catch { enabled: boolean; exts: string[]; min_kb: number; skip: string[]; force: string; bypass: string }
 let policy: Catch | null = null; // null = GDM not reachable: catch nothing
 let lastHello = 0;
+let lastError = ""; // "untrusted" = the pipe is served by a GDM that is not the installed one, "offline" = none
 
 const send = (msg: object, ms = 3000): Promise<Record<string, unknown> | null> =>
   Promise.race([
@@ -28,13 +29,30 @@ const sendCompat = async (msg: Record<string, unknown>, ms = 3000) => {
   return send(old, ms);
 };
 
-async function hello(force = false): Promise<Catch | null> {
-  if (!force && Date.now() - lastHello < 60_000) return policy;
-  lastHello = Date.now();
+let asking: Promise<Catch | null> | null = null;
+/** single flight: downloads that start while GDM is still starting all wait for that one answer */
+function hello(force = false): Promise<Catch | null> {
+  if (asking) return asking;
+  // a failure is retried soon: once the user opens GDM (or closes the wrong copy) the next download is caught
+  if (!force && Date.now() - lastHello < (policy ? 60_000 : 5_000)) return Promise.resolve(policy);
+  asking = ask().finally(() => {
+    lastHello = Date.now();
+    asking = null;
+  });
+  return asking;
+}
+
+async function ask(): Promise<Catch | null> {
   const browser = BUILD === "firefox" ? "firefox" : navigator.userAgent.includes("Edg/") ? "edge" : navigator.userAgent.includes("OPR/") ? "opera" : "chrome";
-  const r = await send({ t: "hello", browser, ver: VER });
+  // the bridge may have to start GDM first (up to 15 s); the browser download runs on meanwhile
+  const r = await send({ t: "hello", browser, ver: VER }, 20_000);
   policy = r && r.ok ? (r.catch as Catch) : null;
+  lastError = policy ? "" : typeof r?.error === "string" ? r.error : "offline";
   await chrome.storage.local.set({ connected: !!policy });
+  // never fail silently (owner 2026-11-14): "!" on the toolbar button while downloads are not caught
+  void chrome.action.setBadgeText({ text: policy ? "" : "!" }).catch(() => {});
+  // every open tab: a tab's own text (kept by the browser across worker restarts) would hide the global one
+  for (const t of await chrome.tabs.query({}).catch(() => [] as chrome.tabs.Tab[])) if (t.id != null) badge(t.id);
   return policy;
 }
 
@@ -242,7 +260,9 @@ chrome.storage.onChanged.addListener((c) => {
 });
 const badge = (tabId: number) => {
   const n = (players.get(tabId) ?? 0) + (streams.get(tabId)?.length ?? 0);
-  void chrome.action.setBadgeText({ tabId, text: n > 0 ? String(Math.min(n, 99)) : "" }).catch(() => {});
+  // a tab's text overrides the global one: the not-connected "!" wins over a stream count
+  const text = lastError ? "!" : n > 0 ? String(Math.min(n, 99)) : "";
+  void chrome.action.setBadgeText({ tabId, text }).catch(() => {});
 };
 chrome.webRequest.onBeforeRequest.addListener(
   (d) => {
@@ -299,7 +319,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
   void (async () => {
     const p = await hello(true);
     const st = p ? await send({ t: "status" }) : null;
-    reply({ connected: !!p, policy: p, status: st, streams: typeof m.tab === "number" ? (streams.get(m.tab) ?? []) : [] });
+    reply({ connected: !!p, error: lastError, policy: p, status: st, streams: typeof m.tab === "number" ? (streams.get(m.tab) ?? []) : [] });
   })();
   return true;
 });

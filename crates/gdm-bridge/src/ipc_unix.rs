@@ -32,7 +32,8 @@ pub fn endpoint_dir() -> PathBuf {
 
 /// the socket path (kept under this name: callers share it with the Windows pipe name)
 pub fn pipe_name() -> String {
-    endpoint_dir().join("gdm.sock").display().to_string()
+    // a debug build has its own socket (see the Windows pipe_name)
+    endpoint_dir().join(if cfg!(debug_assertions) { "gdm-dev.sock" } else { "gdm.sock" }).display().to_string()
 }
 
 /// create (server) or check (client) the private folder: a real directory, owned by us, mode 0700, no ACL

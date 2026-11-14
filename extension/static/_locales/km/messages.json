@@ -20,6 +20,9 @@
   "offlineHelp": {
     "message": "ដំឡើង ឬបើក Galaxy Download Manager។ មុនពេលនោះ browser ទាញធម្មតា។"
   },
+  "untrustedHelp": {
+    "message": "មាន GDM មួយទៀតដែលមិនមែនជាកម្មវិធីដែលបានដំឡើងកំពុងបើក ដូច្នេះ GDM បដិសេធការភ្ជាប់។ បិទវា ហើយបើក GDM ដែលបានដំឡើង។ មុនពេលនោះ browser ទាញធម្មតា។"
+  },
   "getGdm": {
     "message": "ទាញយក Galaxy Download Manager"
   },

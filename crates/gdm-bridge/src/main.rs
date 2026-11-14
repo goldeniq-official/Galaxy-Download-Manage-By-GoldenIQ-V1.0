@@ -55,7 +55,10 @@ fn host(origin: String) -> i32 {
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
                         .spawn();
-                    r = call(&pipe, &exe, &env, Duration::from_millis(2500));
+                    // a cold start (first download after boot; autostart is off by default) takes several seconds:
+                    // 2.5 s lost that download to the browser. Waiting is harmless: the browser keeps downloading
+                    // until GDM acknowledges (the extension's hello waits 20 s)
+                    r = call(&pipe, &exe, &env, Duration::from_secs(15));
                 }
                 r.unwrap_or_else(|e| {
                     serde_json::to_vec(&serde_json::json!({"ok": false, "error": if e.starts_with("refused") { "untrusted" } else { "offline" }}))
@@ -212,6 +215,11 @@ fn unregister() {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
+        // the browsers know one host: a debug bridge must never replace (or remove) the installed one's entry
+        Some("register" | "unregister") if cfg!(debug_assertions) => {
+            eprintln!("a debug build does not change the browsers' native host (install GDM for that)");
+            std::process::exit(1)
+        }
         Some("register") => std::process::exit(match register() {
             Ok(()) => 0,
             Err(e) => {

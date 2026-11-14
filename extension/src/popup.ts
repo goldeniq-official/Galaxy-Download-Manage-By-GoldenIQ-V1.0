@@ -82,9 +82,10 @@ void (async () => {
   st.textContent = r?.connected ? msg("connected") : msg("offline");
   st.className = "st " + (r?.connected ? "ok" : "off");
   ($("help") as HTMLElement).hidden = !!r?.connected;
-  $("help").textContent = msg("offlineHelp");
+  const untrusted = r?.error === "untrusted";
+  $("help").textContent = msg(untrusted ? "untrustedHelp" : "offlineHelp");
   const get = $("get") as HTMLButtonElement; // a store user may have the extension before GDM itself
-  get.hidden = !!r?.connected;
+  get.hidden = !!r?.connected || untrusted; // GDM is installed: getting it again would not help
   get.textContent = msg("getGdm");
   get.onclick = () => chrome.tabs.create({ url: "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases/latest" });
   const ul = $("recent");
