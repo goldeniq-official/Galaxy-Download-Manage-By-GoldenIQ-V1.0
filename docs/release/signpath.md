@@ -42,9 +42,9 @@
 - **Download URL:** https://gdm.goldeniq.app/download
 - **Privacy Policy URL:** https://gdm.goldeniq.app/privacy
 - **Wikipedia URL:** (ទទេ)
-- **Tagline:** A free, open source download manager for Windows that resumes downloads and verifies every file.
+- **Tagline:** A free, open source download manager for Windows, macOS and Linux that resumes downloads and verifies every file.
 - **Category:** Productivity (បញ្ជីពិត 2026-11-14: Accessibility, AI Tools, Audio, Developer Tools, Educational, Gaming, Graphics, Productivity, Science, Other; គ្មាន Utilities)
-- **Description:** Galaxy Download Manager (GDM) is a desktop download manager for Windows. It downloads files over several connections, resumes after network loss or a restart, and only gives a file its final name once every byte is verified with SHA-256 and checked by the user's antivirus. Browser extensions for Chromium browsers and Firefox hand downloads to the app through native messaging. It is free for everyone, has no ads, no telemetry and no account, and its interface is in Khmer and English.
+- **Description:** Galaxy Download Manager (GDM) is a desktop download manager for Windows, macOS and Linux. It downloads files over several connections, resumes after network loss or a restart, and only gives a file its final name once every byte is hashed with SHA-256 and, on Windows, checked by the user's antivirus. Browser extensions for Chromium browsers and Firefox hand downloads to the app through native messaging. It is free for everyone, has no ads, no telemetry and no account, and its interface is in Khmer and English.
 - **Reputation:** (សរសេរតែការពិត ពេលដាក់) ឧ. GitHub stars/downloads ពី release, ការប្រើក្នុងសហគមន៍ខ្មែរ, វីដេអូ YouTube @GoldenIQ, ការចុះផ្សាយ។ កុំដាក់លេខដែលមិនទាន់មាន។
 - **Maintainer Type:** Individual maintainer(s)
 - **Build System:** GitHub Actions

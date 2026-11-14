@@ -4,10 +4,10 @@
 
 # Galaxy Download Manager
 
-**A download manager for Windows that resumes every transfer and checks every file before it is finished.**
+**A download manager for Windows, macOS and Linux that resumes every transfer and checks every file before it is finished.**
 
 [![Release](https://img.shields.io/badge/release-1.0.0-1f6feb)](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2011-1f6feb)](#installation)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-1f6feb)](#installation)
 [![Licence](https://img.shields.io/badge/licence-RPL--1.5-1f6feb)](LICENSE)
 [![Languages](https://img.shields.io/badge/languages-Khmer%20%7C%20English-1f6feb)](#features)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-2ea043)](PRIVACY.md)
@@ -20,9 +20,9 @@
 
 ## Overview
 
-Galaxy Download Manager (GDM) is a desktop download manager for Windows. It downloads over multiple connections, resumes interrupted transfers, and gives a file its final name only after the download is complete, scanned by the system antivirus and hashed with SHA-256. It is free for individuals and organisations alike, with no advertising, no telemetry and no account. The interface is available in Khmer and English.
+Galaxy Download Manager (GDM) is a desktop download manager for Windows, macOS and Linux. It downloads over multiple connections, resumes interrupted transfers, and gives a file its final name only after the download is complete and hashed with SHA-256 (on Windows, also after the system antivirus has scanned it). It is free for individuals and organisations alike, with no advertising, no telemetry and no account. The interface is available in Khmer and English.
 
-Officially supported platform for release 1.0.0: Windows 11 x64. Known limitations are listed in the [release notes](docs/release/notes-1.0.0.md).
+Release 1.0.0 is produced for Windows (x64 and ARM64), macOS (Apple silicon and Intel) and Linux (x64 and ARM64). Windows 11 x64 is the tested platform; the other builds are previews until they have been tested on real machines. Known limitations are listed in the [release notes](docs/release/notes-1.0.0.md).
 
 ## Features
 
@@ -32,9 +32,9 @@ Officially supported platform for release 1.0.0: Windows 11 x64. Known limitatio
 - Download queues with start and stop times, total and per-file speed limits, file categories, and search in Khmer and Latin script.
 
 **Integrity and safety**
-- Each file receives its final name only after the antivirus scan and the SHA-256 hash are complete. In testing with 1,000 forced process terminations and deliberately faulty servers, no incomplete or incorrect file received its final name.
+- Each file receives its final name only after the SHA-256 hash, and on Windows the antivirus scan, are complete. In Windows 11 x64 testing with 1,000 forced process terminations and deliberately faulty servers, no incomplete or incorrect file received its final name.
 - When the server publishes a `.sha256` file, GDM compares the download against it. This check can be turned off.
-- Mark-of-the-Web is applied to every completed file. Potentially dangerous file types are never opened automatically.
+- Every completed file is marked with its origin: Mark-of-the-Web on Windows, the quarantine attribute on macOS (checked by Gatekeeper), and origin attributes on Linux where the file system supports them; on macOS and Linux GDM removes the execute permission from every downloaded file. Potentially dangerous file types are never opened automatically.
 - Downloads from addresses on the local network require confirmation. An invalid TLS certificate stops the download; there is no option to bypass it.
 - Application updates are signed, checked once a day, installed only while GDM is idle, and can be turned off.
 
@@ -55,7 +55,9 @@ Screenshots show the application with example data.
 
 ## Installation
 
-1. Download `GDM-Setup_1.0.0_windows-x64.exe` from the [GitHub Releases page](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) or from https://gdm.goldeniq.app/download.
+### Windows
+
+1. Download `GDM-Setup_1.0.0_windows-x64.exe` (or `GDM-Setup_1.0.0_windows-arm64.exe` for ARM64) from the [GitHub Releases page](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) or from https://gdm.goldeniq.app/download.
 2. Verify the file before running it. Its SHA-256 hash must match the entry in `SHA256SUMS.txt` from the same release, and its build provenance can be confirmed with the GitHub CLI:
    ```
    gh attestation verify GDM-Setup_1.0.0_windows-x64.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
@@ -64,6 +66,14 @@ Screenshots show the application with example data.
 4. On the final page of Setup, select **Add** next to each detected browser and follow the instructions shown. Until the extension is published in the Chrome Web Store and Edge Add-ons, Chromium-based browsers load it from the folder installed with GDM, with Developer mode turned on. The same option is available later under **Settings › Browsers**.
 
 Each release also contains `GDM_1.0.0_windows-x64-setup.exe`, the underlying installer used by the updater and for silent installation (`/S`). The included uninstaller removes the browser registration and the autostart entry.
+
+### macOS
+
+Download `GDM_1.0.0_macos-arm64.dmg` (Apple silicon) or `GDM_1.0.0_macos-x64.dmg` (Intel), verify it with `SHA256SUMS.txt` and `gh attestation verify` as above, and drag GDM to **Applications** (browser integration requires it there). The build is not notarized yet: open it the first time once, then select **System Settings › Privacy & Security › Open Anyway**.
+
+### Linux
+
+Download the `.deb`, `.rpm` or `.AppImage` for `linux-x64` or `linux-arm64` and verify it as above. Install the `.deb` or `.rpm` for browser integration; the AppImage runs without installing (`chmod +x`, then run it) but cannot register the browser extension.
 
 ## Official sources
 

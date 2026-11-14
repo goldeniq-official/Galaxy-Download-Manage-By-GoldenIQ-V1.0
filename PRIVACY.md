@@ -9,7 +9,7 @@ GDM គ្មាន telemetry គ្មាន account គ្មាន ID អ្�
 | បញ្ជីការទាញយក (link, ឈ្មោះ, ថត, ស្ថានភាព, SHA-256, queue) | `%LOCALAPPDATA%\GoldenIQ.GalaxyDownloadManager\gdm.db` (macOS: `~/Library/Application Support/GoldenIQ.GalaxyDownloadManager`, Linux: `~/.local/share/GoldenIQ.GalaxyDownloadManager`, ថតឯកជន 0700) + backup ៧ ថ្ងៃ | ទេ |
 | ការកំណត់ (រួមទាំង queue, proxy, ឈ្មោះអ្នកប្រើ site login, ផ្លូវកម្មវិធីដែលអ្នកជ្រើសឱ្យរត់ពេលបញ្ចប់) | `…\settings.json` ក្នុងថតដដែល | ទេ |
 | Crash log (ពេល GDM គាំង): ម៉ោង កំណែ កន្លែងក្នុងកូដ និងសារ (link កាត់នៅត្រឹម host) | `…\crash.log` ក្នុងថតដដែល ≤ 256 KiB | ទេ (អ្នកអាចភ្ជាប់ទៅ issue ដោយខ្លួនឯង) |
-| ពាក្យសម្ងាត់ site login និង proxy | Windows Credential Manager (`GDM/site/…`, `GDM/proxy`) តែប៉ុណ្ណោះ; មិនដែលក្នុង settings, DB ឬឯកសារ export | ផ្ញើតែទៅ site/proxy ដែលអ្នកកំណត់វាសម្រាប់ |
+| ពាក្យសម្ងាត់ site login និង proxy | កន្លែងទុកពាក្យសម្ងាត់របស់ប្រព័ន្ធ តែប៉ុណ្ណោះ: Windows Credential Manager (`GDM/site/…`, `GDM/proxy`), macOS Keychain, Linux Secret Service; មិនដែលក្នុង settings, DB ឬឯកសារ export | ផ្ញើតែទៅ site/proxy ដែលអ្នកកំណត់វាសម្រាប់ |
 | Cookie/Authorization ដែល extension ផ្ញើសម្រាប់ link មួយ | memory តែប៉ុណ្ណោះ, ផ្ញើតែទៅ origin របស់ link នោះ | តែទៅ site ដែលអ្នកកំពុងទាញ |
 | Clipboard (ពេលអ្នកបើក "មើល clipboard", បិទលំនាំដើម) | មិនរក្សាទុក: GDM អានតែអត្ថបទ ≤ 8 KiB ហើយយកតែពេលវាជា link http(s) មួយដែលមានប្រភេទឯកសារដែលចាប់ (ឬទំព័រវីដេអូ YouTube ពេលមាន component វីដេអូ)។ មាតិកាដែលកម្មវិធីសម្គាល់ថា "កុំយកទៅ clipboard history" (ឧ. password manager) មិនត្រូវអានទាល់តែសោះ | ទេ |
 | Component វីដេអូ (yt-dlp, FFmpeg) ពេលអ្នកយល់ព្រម | `…\components` | ទាញពី GitHub release ផ្លូវការរបស់គម្រោងទាំងនោះ |
@@ -30,7 +30,7 @@ GitHub និង server ដែលអ្នកទាញពី ឃើញ IP រប
 
 **Export:** ឯកសារ JSON ដែលអ្នក export មានបញ្ជីការទាញ និងការកំណត់ ប៉ុន្តែគ្មានពាក្យសម្ងាត់ គ្មានកម្មវិធីដែលរត់ពេលបញ្ចប់ និងគ្មានផ្លូវថត។
 
-**ការលុប:** ពេលលុប GDM ប្រអប់ "លុបបញ្ជីការទាញយក និងការកំណត់" លុបថតខាងលើ (រួមទាំង component)។ ពាក្យសម្ងាត់ក្នុង Credential Manager លុបបានក្នុង ការកំណត់ › Site logins ឬ Windows Credential Manager។ ឯកសារដែលអ្នកបានទាញមិនដែលត្រូវលុបទេ។ ការលុប job ពីបញ្ជីមិនមែនជា secure erase ទេ។
+**ការលុប:** ពេលលុប GDM លើ Windows ប្រអប់ "លុបបញ្ជីការទាញយក និងការកំណត់" លុបថតខាងលើ (រួមទាំង component)។ លើ macOS/Linux លុបថតខាងលើដោយដៃ។ ពាក្យសម្ងាត់លុបបានក្នុង ការកំណត់ › Site logins ឬក្នុងកន្លែងទុកពាក្យសម្ងាត់របស់ប្រព័ន្ធ។ ឯកសារដែលអ្នកបានទាញមិនដែលត្រូវលុបទេ។ ការលុប job ពីបញ្ជីមិនមែនជា secure erase ទេ។
 
 **ការគាំទ្រ (KHQR):** រូប KHQR ក្នុងទំព័រ About ជារូបភ្ជាប់ក្នុង app (គ្មាន request ទៅខាងក្រៅ, គ្មានការតាមដាន)។ ពេលអ្នកស្កេន ហើយបង់ ការទូទាត់ធ្វើក្នុងកម្មវិធីធនាគាររបស់អ្នក។ App មិនប្រមូល ឬទទួលការបញ្ជាក់ការទូទាត់ណាមួយទេ។ អ្នកទទួល (ម្ចាស់គម្រោង) ឃើញតែព័ត៌មានដែលធនាគារបង្ហាញ (ឧ. ឈ្មោះគណនី ចំនួនទឹកប្រាក់ ការកត់សម្គាល់)។
 
@@ -43,7 +43,7 @@ GDM has no telemetry, no account, no user ID and no ads.
 
 - **Stored on your PC only:** the download list (links, names, folders, states, SHA-256, queues) in `%LOCALAPPDATA%\GoldenIQ.GalaxyDownloadManager\gdm.db` (macOS: `~/Library/Application Support/GoldenIQ.GalaxyDownloadManager`, Linux: `~/.local/share/GoldenIQ.GalaxyDownloadManager`, a private 0700 folder) with 7 daily backups, and `settings.json` next to it (queues, proxy, site-login user names, the program you chose to run when a queue finishes).
 - **Crash log:** if GDM crashes it writes one line (time, version, code place, message with links cut to their host) to `crash.log` in the same folder, at most 256 KiB. It never leaves your PC; you can attach it to an issue yourself.
-- **Site-login and proxy passwords** live only in Windows Credential Manager (`GDM/site/…`, `GDM/proxy`), never in the settings, the database or an export, and are sent only to the site folder or proxy you set them for.
+- **Site-login and proxy passwords** live only in the system's password store (Windows Credential Manager `GDM/site/…`, `GDM/proxy`; macOS Keychain; Linux Secret Service), never in the settings, the database or an export, and are sent only to the site folder or proxy you set them for.
 - **Cookies/Authorization** that the extension passes for a link live in memory only and are sent only to that link's own origin.
 - **Clipboard monitor** (off by default): GDM reads at most 8 KiB of text and keeps it only when it is a single http(s) link with a caught file type (or a YouTube video page when the video component is installed). Content that its program marks as "do not keep in clipboard history" (password managers) is never read. Nothing is stored or logged.
 - **Private windows:** the extension does not run in private/incognito windows at all.
@@ -51,7 +51,7 @@ GDM has no telemetry, no account, no user ID and no ads.
 - **Wake to download** (off by default) creates a Windows Task Scheduler task "GDM wake <queue>" on your PC.
 - **The extension** sends GDM, through native messaging on this PC (no network), only: link, referrer, suggested name, size, mime type and that link's cookie. It reads nothing from pages except `<a href>` links and, only on sites where you turned on "Show videos", the number of `<video>` elements for the icon badge. Your site lists stay in the extension's storage on this PC.
 - **Export:** an exported JSON file holds the list and the settings, but no passwords, no program to run and no folder paths.
-- **Uninstall:** the box "Delete the application data" removes the folder above (including the components). Passwords in Credential Manager can be removed in Settings › Site logins or in Windows Credential Manager. Files you downloaded are never deleted. Removing a job from the list is not a secure erase.
+- **Uninstall:** on Windows, the box "Delete the application data" removes the folder above (including the components). On macOS and Linux, delete that folder yourself. Passwords can be removed in Settings › Site logins or in the system's password store. Files you downloaded are never deleted. Removing a job from the list is not a secure erase.
 
 - **Support (KHQR):** the KHQR on the About page is an image bundled in the app (no external request, no tracking). If you scan it and pay, the payment happens in your banking app; The app does not collect or receive payment confirmations. The recipient (the project's owners) sees only what the bank shows (for example account name, amount, note).
 

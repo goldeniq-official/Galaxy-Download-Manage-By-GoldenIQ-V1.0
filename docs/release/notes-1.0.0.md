@@ -20,7 +20,7 @@
 6. បើ GDM ឆ្លើយយឺតជាង 3 វិ browser ក៏បន្តទាញដែរ ⇒ អាចមានឯកសារពីរ (ក្នុង test kill មិនបាត់ទេ)។
 7. បន្ថយចំនួនការតភ្ជាប់ពេលកំពុងទាញ មានប្រសិទ្ធភាពពេល segment បច្ចុប្បន្នបញ្ចប់។
 8. Update ដំឡើងជំនួសកំណែចាស់ (NSIS) គ្មានការត្រឡប់ទៅកំណែមុនដោយស្វ័យប្រវត្តិ; មិនទាន់កំណត់ល្បឿន update 20% ឬផ្អាកលើ metered។
-9. Windows 10 និង arm64 មិនទាន់សាក; ការគាំទ្រផ្លូវការ = Windows 11 x64។ ការដាច់ភ្លើងមិនទាន់សាក (សាកតែ kill process ×1000)។
+9. Build មានសម្រាប់ Windows (x64, ARM64), macOS (Apple silicon, Intel) និង Linux (x64, ARM64)។ បានសាកលើម៉ាស៊ីនពិតតែ Windows 11 x64; Windows 10, ARM64, macOS និង Linux ជា preview រហូតសាកលើម៉ាស៊ីនពិត។ macOS មិនទាន់ notarize (បើកម្ដង រួច System Settings › Privacy & Security › Open Anyway); លើ macOS/Linux GDM មិនហៅ antivirus ទេ។ ការដាច់ភ្លើងមិនទាន់សាក (សាកតែ kill process ×1000)។
 
 <a id="english"></a>
 ## English
@@ -43,4 +43,4 @@
 6. If GDM answers the browser later than 3 s, the browser keeps downloading too: you may get two copies (none was lost at the tested crash points).
 7. Lowering the connection count while downloading takes effect as the current segments finish.
 8. Updates install in place (NSIS); no automatic rollback to the previous version; the 20 % update bandwidth cap and metered-network pause are not in this release yet.
-9. Windows 10 and arm64 are untested; supported: Windows 11 x64. Power loss is untested (process kill ×1000 only).
+9. Builds exist for Windows (x64, ARM64), macOS (Apple silicon, Intel) and Linux (x64, ARM64). Only Windows 11 x64 has been tested on real machines; Windows 10, ARM64, macOS and Linux are previews until they are. macOS is not notarized yet (open it once, then System Settings › Privacy & Security › Open Anyway); on macOS and Linux GDM does not call an antivirus scanner. Power loss is untested (process kill ×1000 only).
