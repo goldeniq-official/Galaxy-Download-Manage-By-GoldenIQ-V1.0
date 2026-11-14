@@ -37,7 +37,9 @@ pub struct Policy {
 /// (DNS rebinding; council 2026-11-15).
 pub fn lan_host(u: &Url) -> bool {
     match u.host() {
-        Some(url::Host::Ipv4(_) | url::Host::Ipv6(_)) => true,
+        // link-local never: 169.254.169.254 is the cloud metadata service, fe80:: has no stable meaning
+        Some(url::Host::Ipv4(v)) => !v.is_link_local(),
+        Some(url::Host::Ipv6(v)) => (v.segments()[0] & 0xffc0) != 0xfe80 && v.to_ipv4_mapped().is_none_or(|m| !m.is_link_local()),
         Some(url::Host::Domain(d)) => {
             let d = d.trim_end_matches('.').to_ascii_lowercase();
             !d.is_empty()
@@ -53,7 +55,10 @@ mod lan_tests {
     #[test]
     fn only_names_that_say_lan_count() {
         let l = |s: &str| super::lan_host(&url::Url::parse(s).unwrap());
-        for y in ["http://192.168.1.10/a.zip", "http://127.0.0.1:8765/x", "http://[fe80::1]/x", "http://nas/f.iso", "http://localhost:3000/a",
+        for n in ["http://169.254.169.254/latest/meta-data/", "http://[fe80::1]/x", "http://[::ffff:169.254.1.1]/x"] {
+            assert!(!l(n), "{n}");
+        }
+        for y in ["http://192.168.1.10/a.zip", "http://127.0.0.1:8765/x", "http://[fd00::5]/x", "http://nas/f.iso", "http://localhost:3000/a",
             "http://router.lan/fw.bin", "http://pi.local/x", "http://box.home.arpa/x", "http://files.corp.internal/x", "http://NAS.LOCAL./x"] {
             assert!(l(y), "{y}");
         }
