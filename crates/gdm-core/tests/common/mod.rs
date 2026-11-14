@@ -20,14 +20,40 @@ pub async fn run_until_checkpoint(e: &Engine, id: &str, mode: Unverified, max: D
     }
 }
 
-/// a fresh directory under %TEMP% (outside OneDrive)
-pub fn tmpdir(tag: &str) -> PathBuf {
+/// a fresh directory under %TEMP% (outside OneDrive), removed when the returned guard drops
+pub fn tmpdir(tag: &str) -> Tmp {
     use std::sync::atomic::{AtomicU32, Ordering};
     static N: AtomicU32 = AtomicU32::new(0);
     let d = std::env::temp_dir().join(format!("gdm-t-{tag}-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
-    d
+    Tmp(d)
+}
+
+/// a test folder: a passing test removes it (downloads can be 100+ MiB); a failing one keeps it for inspection.
+/// Declare it before the Engine that uses it: locals drop in reverse order, so the open gdm.db is closed first
+/// (Windows refuses to delete an open file).
+pub struct Tmp(PathBuf);
+
+impl std::ops::Deref for Tmp {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for Tmp {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Tmp {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 }
 
 pub fn quick() -> seg::Config {
@@ -38,25 +64,20 @@ pub struct T {
     pub root: PathBuf,
     pub dl: PathBuf,
     pub engine: Engine,
+    // last field: fields drop in declaration order, so the engine (and its open gdm.db) is closed before the
+    // folder is removed; a Drop on T itself ran first and left every test folder behind (20 GB in %TEMP%)
+    _dir: Tmp,
 }
 
 pub fn engine(tag: &str, cfg: seg::Config) -> T {
-    let root = tmpdir(tag);
+    let dir = tmpdir(tag);
+    let root = dir.to_path_buf();
     let dl = root.join("Downloads");
     std::fs::create_dir_all(&dl).unwrap();
     let engine = Engine::open(&root.join("data").join("gdm.db"), cfg).unwrap();
     // the request traces of the G5/G6 tests have no `<file>.sha256` probe (P1 #10 tests turn it on)
     engine.hash_sidecar.store(false, std::sync::atomic::Ordering::Relaxed);
-    T { root, dl, engine }
-}
-
-/// a passing test removes its folder (downloads can be 100+ MiB); a failing one keeps it for inspection
-impl Drop for T {
-    fn drop(&mut self) {
-        if !std::thread::panicking() {
-            let _ = std::fs::remove_dir_all(&self.root);
-        }
-    }
+    T { root, dl, engine, _dir: dir }
 }
 
 impl T {

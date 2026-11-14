@@ -333,7 +333,7 @@ fn g03_mirror_folders_are_held_and_junctions_refused() {
     let outside = tmpdir("g03-outside");
     let dl = root.join("dl");
     std::fs::create_dir_all(dl.join("h")).unwrap();
-    let st = std::process::Command::new("cmd").args(["/c", "mklink", "/J"]).arg(dl.join("h").join("a")).arg(&outside).output().unwrap();
+    let st = std::process::Command::new("cmd").args(["/c", "mklink", "/J"]).arg(dl.join("h").join("a")).arg(outside.as_path()).output().unwrap();
     assert!(st.status.success());
     let top = Dir::open(&dl).unwrap();
     let r = grab::mirror(&top, &Url::parse("http://h/a/b/z.zip").unwrap());
