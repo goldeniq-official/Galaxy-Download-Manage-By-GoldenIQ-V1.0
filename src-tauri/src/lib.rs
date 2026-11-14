@@ -37,8 +37,31 @@ static STAGED: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>> = Mutex::n
 type R<T> = Result<T, String>;
 type A<'a> = State<'a, Arc<App>>;
 
+/// A window bigger than the screen's work area shrinks to fit and moves fully onto it; one that fits stays where
+/// it is (None). Physical pixels: (x, y, w, h) of the window and of the work area.
+fn fit_rect(win: (i32, i32, u32, u32), area: (i32, i32, u32, u32)) -> Option<(i32, i32, u32, u32)> {
+    let (ax, ay, aw, ah) = area;
+    let (w, h) = (win.2.min(aw), win.3.min(ah));
+    let x = win.0.clamp(ax, ax + (aw - w) as i32);
+    let y = win.1.clamp(ay, ay + (ah - h) as i32);
+    ((x, y, w, h) != win).then_some((x, y, w, h))
+}
+
+/// 1100x700 does not fit a 1920x1080 laptop at 150% (1280x720 minus the taskbar) or 1366x768 at 125%: the window
+/// ran off the bottom and the first-run wizard's buttons could not be reached (Windows Sandbox, 2026-11-14)
+fn fit_to_screen(w: &tauri::WebviewWindow) {
+    let Some(m) = w.current_monitor().ok().flatten().or_else(|| w.primary_monitor().ok().flatten()) else { return };
+    let (Ok(p), Ok(s)) = (w.outer_position(), w.outer_size()) else { return };
+    let a = m.work_area();
+    if let Some((x, y, nw, nh)) = fit_rect((p.x, p.y, s.width, s.height), (a.position.x, a.position.y, a.size.width, a.size.height)) {
+        let _ = w.set_size(tauri::PhysicalSize::new(nw, nh));
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
 pub fn show_main(_app: &Arc<App>, from_browser: bool) {
     if let Some(w) = HANDLE.get().and_then(|h| h.get_webview_window("main")) {
+        fit_to_screen(&w);
         let _ = w.show();
         let _ = w.unminimize();
         if from_browser {
@@ -998,6 +1021,7 @@ fn rebuild_tray(h: &AppHandle, app: &App) -> tauri::Result<()> {
 /// ADR-1: the engine keeps downloading through a WebView crash, the window must come back too)
 #[cfg_attr(not(windows), allow(unused_variables))]
 fn attach_main(h: &AppHandle, w: &tauri::WebviewWindow) {
+    fit_to_screen(w);
     let w2 = w.clone();
     w.on_window_event(move |e| {
         if let tauri::WindowEvent::CloseRequested { api, .. } = e {
@@ -1064,7 +1088,7 @@ fn rebuild_main(h: &AppHandle) {
             let Some(cfg) = h3.config().app.windows.iter().find(|c| c.label == "main").cloned() else { return };
             match tauri::WebviewWindowBuilder::from_config(&h3, &cfg).and_then(|b| b.build()) {
                 Ok(w) => {
-                    attach_main(&h3, &w);
+                    attach_main(&h3, &w); // before show: fits the window to the screen first
                     if visible {
                         let _ = w.show();
                     }
@@ -1317,16 +1341,19 @@ pub fn run() {
             if let Err(e) = pipe::serve(app.clone(), tauri::async_runtime::handle()) {
                 *lock(&app.banner) = Some(e); // B-02: never serve on a pipe someone else owns
             }
-            // macOS / Linux: no per-user installer step runs (Windows: NSIS calls it), so GDM writes the browsers'
-            // native-messaging manifests itself on every start (idempotent; a browser installed later is picked up)
-            #[cfg(unix)]
-            if let Some(b) = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("gdm-bridge"))) {
-                let _ = std::process::Command::new(b)
-                    .arg("register")
+            // GDM writes the browsers' native-messaging entries itself on every start (idempotent): macOS / Linux
+            // have no per-user installer step, and on Windows a failed NSIS step (it ignores the exit code) was never
+            // repaired, so no browser could reach GDM. A debug bridge refuses to register (main.rs).
+            let bridge = format!("gdm-bridge{}", std::env::consts::EXE_SUFFIX);
+            if let Some(b) = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&bridge))) {
+                let mut c = std::process::Command::new(b);
+                c.arg("register")
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
+                    .stderr(std::process::Stdio::null());
+                #[cfg(windows)]
+                std::os::windows::process::CommandExt::creation_flags(&mut c, 0x0800_0000); // CREATE_NO_WINDOW
+                let _ = c.spawn();
             }
             let tray_menu = Menu::with_items(&h, &[&MenuItem::with_id(&h, "open", "GDM", true, None::<&str>)?])?;
             let a2 = app.clone();
@@ -1370,10 +1397,10 @@ pub fn run() {
                 .build(&h)?;
             rebuild_tray(&h, &app)?;
             if let Some(w) = h.get_webview_window("main") {
+                attach_main(&h, &w); // fits the window to the screen before it is first seen
                 if !background {
                     let _ = w.show();
                 }
-                attach_main(&h, &w);
             }
             app.resume_interrupted();
             // I-01: clipboard monitor (reads nothing while off); a URL opens the Download Info dialog, unstarted
@@ -1464,6 +1491,15 @@ fn context() -> tauri::Context<tauri::Wry> {
 
 #[cfg(test)]
 mod crash_tests {
+    #[test]
+    fn a_window_bigger_than_the_screen_fits_and_one_that_fits_stays() {
+        let area = (0, 0, 1920, 1032); // 1920x1080 at 150% minus the taskbar, physical
+        assert_eq!(super::fit_rect((100, 50, 1650, 1050), area), Some((100, 0, 1650, 1032))); // 1100x700 at 150%
+        assert_eq!(super::fit_rect((300, 200, 1100, 700), area), None);
+        assert_eq!(super::fit_rect((1500, 900, 1100, 700), area), Some((820, 332, 1100, 700))); // half off-screen
+        assert_eq!(super::fit_rect((-50, -20, 3000, 2000), (1920, 0, 1280, 680)), Some((1920, 0, 1280, 680))); // 2nd monitor
+    }
+
     #[test]
     fn links_in_a_panic_message_keep_only_their_host() {
         assert_eq!(super::redact("bad https://u:p@x.com/a?t=abc here"), "bad https://x.com/… here");

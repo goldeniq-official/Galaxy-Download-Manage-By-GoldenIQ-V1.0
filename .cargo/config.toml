@@ -1,0 +1,6 @@
+# Windows: link the C runtime statically into every binary (gdm.exe, gdm-bridge.exe, gdm-setup.exe). A clean
+# Windows has no VCRUNTIME140.dll: in Windows Sandbox the bridge could not start, so the installer registered no
+# browser and GDM Setup itself would not open. One mechanism for all crates (Tauri's own staticVCRuntime is off
+# in tauri.conf.json). Build Windows with an explicit --target so these flags stay off host build scripts.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

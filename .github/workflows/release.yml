@@ -97,6 +97,22 @@ jobs:
             pwsh -Command "Compress-Archive extension/dist/chrome/* out/gdm-extension-chrome-$v.zip; Compress-Archive extension/dist/firefox/* out/gdm-extension-firefox-$v.zip"
           fi
           ls -la out
+      - name: no shipped .exe needs the Visual C++ runtime (a clean Windows has no VCRUNTIME140.dll; .cargo/config.toml)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object FullName -match 'Hostx64\\x64' | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $dumpbin) { throw "dumpbin not found" }
+          $r = "target/${{ matrix.target }}/release"
+          $files = @("$r/gdm.exe", "$r/gdm-bridge.exe", "$r/gdm-setup.exe")
+          foreach ($f in $files) {
+            if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { throw "missing $f" }
+            $rep = (& $dumpbin /nologo /imports $f) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $f" }
+            if ($rep -match '(?im)\b(vcruntime|msvcp|concrt)[^\s\\]*\.dll\b') { throw "$f imports $($Matches[0])" }
+            "ok $f"
+          }
       - name: sign the updater artifact (minisign; the only step with the key)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
