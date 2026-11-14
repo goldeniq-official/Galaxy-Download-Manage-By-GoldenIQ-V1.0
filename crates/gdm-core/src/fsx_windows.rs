@@ -39,6 +39,14 @@ fn attr_tag(h: HANDLE) -> Result<(u32, u32), FsError> {
 /// junction, symlink and every other "name surrogate" redirect to another named entity; cloud placeholders
 /// (OneDrive) and dedup tags do not and stay allowed
 fn surrogate(h: HANDLE) -> Result<bool, FsError> {
+    // basic attributes first, the tag only for a reparse point (as Rust std does): FAT/exFAT answer
+    // FileAttributeTagInfo with STATUS_INVALID_PARAMETER (fastfat FatCommonQueryInformation has no case for it),
+    // which refused every download to a FAT drive; a volume without reparse points never has the attribute
+    let mut b = BY_HANDLE_FILE_INFORMATION::default();
+    unsafe { GetFileInformationByHandle(h, &mut b) }.map_err(io)?;
+    if b.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT.0 == 0 {
+        return Ok(false);
+    }
     let (a, tag) = attr_tag(h)?;
     Ok(a & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 && tag & IO_REPARSE_TAG_NAME_SURROGATE_BIT != 0)
 }

@@ -178,7 +178,8 @@ fn hook_set(app: A, queue: String, pick: bool, args: Vec<String>, clear: bool) -
     }
     let program = if pick {
         let start = std::env::var_os("ProgramFiles").map(std::path::PathBuf::from).unwrap_or_default();
-        match os::pick_file(&start, "Program", "*.exe;*.bat;*.cmd") {
+        // Unix programs have no extension (hook::validate checks the executable bit there)
+        match os::pick_file(&start, "Program", if cfg!(windows) { "*.exe;*.bat;*.cmd" } else { "*" }) {
             Some(p) => p.display().to_string(),
             None => return Ok(lock(&app.settings).hooks.get(&queue).cloned()),
         }

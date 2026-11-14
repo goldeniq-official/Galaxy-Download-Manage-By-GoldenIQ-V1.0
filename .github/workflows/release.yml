@@ -66,7 +66,7 @@ jobs:
           mkdir -p src-tauri/binaries
           ext=""; [ "$RUNNER_OS" = Windows ] && ext=".exe"
           cp "target/${{ matrix.target }}/release/gdm-bridge$ext" "src-tauri/binaries/gdm-bridge-${{ matrix.target }}$ext"
-          [ "$RUNNER_OS" = Windows ] && node scripts/nsis-khmer.mjs
+          [ "$RUNNER_OS" = Windows ] && node scripts/nsis-khmer.mjs --target ${{ matrix.target }}
           pnpm ext
           pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
       - name: collect (installers + the updater artifact, signed in the next step)

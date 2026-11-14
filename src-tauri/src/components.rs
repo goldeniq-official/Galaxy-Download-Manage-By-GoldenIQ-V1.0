@@ -230,10 +230,28 @@ mod tests {
         fake(&d, "yt-dlp.exe", &exe[..4096]);
         assert!(has(&d, "yt-dlp.exe"));
         let (h, _) = hold(&d, "yt-dlp.exe").unwrap();
-        // while held, nobody can replace or delete it
-        assert!(std::fs::write(dir(&d).join("yt-dlp.exe"), b"x").is_err(), "held: no writer");
-        assert!(std::fs::remove_file(dir(&d).join("yt-dlp.exe")).is_err(), "held: no delete");
+        // Windows: while held, nobody can replace or delete it (share mode). Unix cannot deny writers (update::hold,
+        // §10: GDM's 0700 folder); there a link planted at the name is what is refused
+        #[cfg(windows)]
+        {
+            assert!(std::fs::write(dir(&d).join("yt-dlp.exe"), b"x").is_err(), "held: no writer");
+            assert!(std::fs::remove_file(dir(&d).join("yt-dlp.exe")).is_err(), "held: no delete");
+        }
         drop(h);
+        #[cfg(unix)]
+        {
+            let p = dir(&d).join("yt-dlp.exe");
+            let real = d.join("real");
+            std::fs::rename(&p, &real).unwrap();
+            std::os::unix::fs::symlink(&real, &p).unwrap();
+            assert!(hold(&d, "yt-dlp.exe").is_err(), "a symlink at the name is refused");
+            std::fs::remove_file(&p).unwrap();
+            std::fs::hard_link(&real, &p).unwrap();
+            assert!(hold(&d, "yt-dlp.exe").is_err(), "a second name (hard link) is refused");
+            std::fs::remove_file(&p).unwrap();
+            std::fs::rename(&real, &p).unwrap();
+            assert!(hold(&d, "yt-dlp.exe").is_ok());
+        }
         let mut b = exe[..4096].to_vec();
         b[100] ^= 1;
         std::fs::write(dir(&d).join("yt-dlp.exe"), &b).unwrap();
@@ -285,8 +303,14 @@ mod tests {
         std::fs::write(src.join("ffprobe.exe"), b"fake ffprobe").unwrap();
         std::fs::write(src.join("extra.dll"), b"not listed").unwrap();
         let zip = d.join("pkg.zip");
-        let tar = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join(r"System32\tar.exe");
-        assert!(std::process::Command::new(&tar).arg("-a").arg("-cf").arg(&zip).arg("-C").arg(d.join("src")).arg("pkg").status().unwrap().success());
+        #[cfg(windows)]
+        let made = {
+            let tar = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join(r"System32\tar.exe");
+            std::process::Command::new(&tar).arg("-a").arg("-cf").arg(&zip).arg("-C").arg(d.join("src")).arg("pkg").status()
+        };
+        #[cfg(unix)] // install() takes it apart with unzip there; zip is on the macOS and Ubuntu images
+        let made = std::process::Command::new("zip").arg("-qr").arg(&zip).arg("pkg").current_dir(d.join("src")).status();
+        assert!(made.unwrap().success());
         let bytes = std::fs::read(&zip).unwrap();
         let h = |b: &[u8]| gdm_core::finalize::hex(&sha2::Sha256::digest(b));
         let file = |n: &str, path: &str, body: &[u8]| ComponentFile { name: n.into(), path: Some(path.into()), sha256: h(body) };

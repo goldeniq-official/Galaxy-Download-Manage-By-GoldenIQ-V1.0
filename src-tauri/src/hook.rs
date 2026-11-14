@@ -40,6 +40,48 @@ pub const LOLBINS: &[&str] = &[
     "explorer.exe",
 ];
 
+/// macOS / Linux programs that would turn the argument list into code or a command line (also with a version
+/// suffix: python3, python3.12, perl5.34)
+#[cfg(unix)]
+const UNIX_INTERPRETERS: &[&str] = &[
+    "sh",
+    "bash",
+    "zsh",
+    "dash",
+    "ksh",
+    "mksh",
+    "csh",
+    "tcsh",
+    "fish",
+    "busybox",
+    "env",
+    "xargs",
+    "nohup",
+    "sudo",
+    "doas",
+    "su",
+    "pkexec",
+    "python",
+    "perl",
+    "ruby",
+    "node",
+    "deno",
+    "bun",
+    "php",
+    "lua",
+    "tclsh",
+    "wish",
+    "awk",
+    "gawk",
+    "osascript",
+    "open",
+    "xdg-open",
+    "launchctl",
+    "systemd-run",
+    "find",
+    "ssh",
+];
+
 pub const CMD_META: &[char] = &['%', '^', '&', '!', '|', '<', '>', '"'];
 
 fn is_batch(p: &str) -> bool {
@@ -59,8 +101,23 @@ pub fn validate(h: &Hook) -> Result<(), String> {
     if LOLBINS.contains(&leaf) {
         return Err("program-interpreter".into());
     }
+    #[cfg(windows)]
     if !(l.ends_with(".exe") || is_batch(&l)) {
         return Err("program-type".into()); // .exe, .bat, .cmd only (no .ps1/.vbs/.lnk: they need a host or a shell)
+    }
+    // macOS / Linux (P4): any executable file, run by exec with an argv list (no shell parses the arguments,
+    // even for a #! script); shells and interpreters themselves are refused like cmd.exe / powershell.exe
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let interp =
+            UNIX_INTERPRETERS.iter().any(|i| leaf == *i || (leaf.starts_with(i) && leaf[i.len()..].chars().all(|c| c.is_ascii_digit() || c == '.')));
+        if interp {
+            return Err("program-interpreter".into());
+        }
+        if std::fs::metadata(p).map(|m| m.permissions().mode() & 0o111 == 0).unwrap_or(true) {
+            return Err("program-type".into());
+        }
     }
     // what the native confirmation shows must be what runs: no control, bidi/format or line/paragraph
     // separator characters (they can hide or reorder text in the dialog), bounded total length
@@ -109,6 +166,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn q01_validate_and_batch_metachars() {
         let exe = std::env::current_exe().unwrap().display().to_string();
         assert!(validate(&Hook { program: exe.clone(), args: vec!["{file}".into()] }).is_ok());
@@ -139,6 +197,7 @@ mod tests {
     /// Q-01: the hook really runs without a shell: an argument with spaces and a quote-free payload arrives as
     /// one argv item, and the .bat sees it as %1 without cmd evaluating anything else
     #[test]
+    #[cfg(windows)]
     fn q01_runs_without_shell() {
         let out = std::env::temp_dir().join(format!("gdm-hook-out-{}.txt", std::process::id()));
         let _ = std::fs::remove_file(&out);
@@ -153,5 +212,52 @@ mod tests {
         }
         let got = std::fs::read_to_string(&out).unwrap();
         assert_eq!(got.trim(), "[C:\\Some Dir\\my file.zip]");
+    }
+
+    /// P4 (macOS / Linux): an executable file is accepted, a non-executable one and an interpreter are not
+    #[test]
+    #[cfg(unix)]
+    fn q01_unix_validate() {
+        use std::os::unix::fs::PermissionsExt;
+        let exe = std::env::current_exe().unwrap().display().to_string();
+        assert!(
+            validate(&Hook { program: exe.clone(), args: vec!["{file}".into(), "a;b&c|d".into()] }).is_ok(),
+            "no shell: metachars are plain text"
+        );
+        assert_eq!(validate(&Hook { program: "true".into(), args: vec![] }), Err("program-not-found".into()), "relative path");
+        let plain = tmp("notes.txt", "hi");
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(validate(&Hook { program: plain, args: vec![] }), Err("program-type".into()));
+        for i in ["/bin/sh", "/bin/bash", "/usr/bin/env"] {
+            if Path::new(i).is_file() {
+                assert_eq!(validate(&Hook { program: i.into(), args: vec![] }), Err("program-interpreter".into()), "{i}");
+            }
+        }
+        assert_eq!(validate(&Hook { program: exe, args: vec!["a\u{202E}gpj".into()] }), Err("bad-args".into()));
+    }
+
+    /// Q-01 on macOS / Linux: a #! script gets the finished file's path as ONE argv item and nothing in it runs
+    #[test]
+    #[cfg(unix)]
+    fn q01_unix_runs_without_shell() {
+        use std::os::unix::fs::PermissionsExt;
+        let out = std::env::temp_dir().join(format!("gdm-hook-out-{}.txt", std::process::id()));
+        let pwned = std::env::temp_dir().join(format!("gdm-hook-pwned-{}.zip", std::process::id()));
+        let _ = std::fs::remove_file(&out);
+        let script = tmp("echo1.sh", &format!("#!/bin/sh\nprintf '[%s]' \"$1\" > '{}'\n", out.display()));
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let h = Hook { program: script, args: vec!["{file}".into()] };
+        let name = format!("/Some Dir/a;touch {}", pwned.display()); // what a shell would run
+        run(&h, Path::new(&name)).unwrap();
+        for _ in 0..50 {
+            if std::fs::metadata(&out).map(|m| m.len() > 0).unwrap_or(false) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert_eq!(std::fs::read_to_string(&out).unwrap(), format!("[{name}]"));
+        assert!(!pwned.exists(), "nothing in the name ran");
+        let _ = std::fs::remove_file(&out);
+        let _ = std::fs::remove_dir_all(std::env::temp_dir().join(format!("gdm-hook-{}", std::process::id())));
     }
 }
