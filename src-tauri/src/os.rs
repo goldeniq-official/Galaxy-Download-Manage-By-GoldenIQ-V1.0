@@ -293,22 +293,40 @@ pub fn metered() -> bool {
         .is_some_and(|o| matches!(String::from_utf8_lossy(&o.stdout).trim(), "u 1" | "u 3"))
 }
 
-/// HKCU\...\Run exists: a fresh Windows profile may not have it yet, and the autostart plugin only opens it
-/// ("Start with Windows" stayed off without a word in Windows Sandbox, 2026-11-15)
+/// "Start with Windows" for this user only: HKCU\...\Run "Galaxy Download Manager" = "<quoted gdm.exe>"
+/// --background (the name the uninstaller removes). Not the autostart plugin on Windows: started elevated it wrote
+/// HKLM (every user, left behind by the per-user uninstaller), wrote the path unquoted although it has spaces, and
+/// a fresh profile without the Run key failed silently (Windows Sandbox QA, 2026-11-15). Re-enabling also clears a
+/// "disabled" mark from Task Manager's Startup tab (StartupApproved).
 #[cfg(windows)]
-pub fn ensure_run_key() -> Result<(), String> {
+pub fn set_autostart(on: bool) -> Result<(), String> {
     use windows::Win32::System::Registry::*;
+    const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    const APPROVED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+    let name = HSTRING::from("Galaxy Download Manager");
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let bytes = |s: &str| -> Vec<u8> { s.encode_utf16().chain([0]).flat_map(u16::to_le_bytes).collect() };
     unsafe {
         let mut hk = HKEY::default();
-        RegCreateKeyExW(HKEY_CURRENT_USER, &HSTRING::from(r"Software\Microsoft\Windows\CurrentVersion\Run"), None, None, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, None, &mut hk, None)
+        RegCreateKeyExW(HKEY_CURRENT_USER, &HSTRING::from(RUN), None, None, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, None, &mut hk, None)
             .ok()
             .map_err(|e| e.to_string())?;
+        let r = if on {
+            RegSetValueExW(hk, &name, None, REG_SZ, Some(&bytes(&format!("\"{}\" --background", exe.display())))).ok()
+        } else {
+            match RegDeleteValueW(hk, &name) {
+                e if e == windows::Win32::Foundation::ERROR_FILE_NOT_FOUND => Ok(()),
+                e => e.ok(),
+            }
+        };
         let _ = RegCloseKey(hk);
+        r.map_err(|e| e.to_string())?;
+        let mut ap = HKEY::default();
+        if on && RegOpenKeyExW(HKEY_CURRENT_USER, &HSTRING::from(APPROVED), None, KEY_SET_VALUE, &mut ap).is_ok() {
+            let _ = RegSetValueExW(ap, &name, None, REG_BINARY, Some(&[2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+            let _ = RegCloseKey(ap);
+        }
     }
-    Ok(())
-}
-#[cfg(unix)]
-pub fn ensure_run_key() -> Result<(), String> {
     Ok(())
 }
 

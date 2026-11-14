@@ -41,9 +41,7 @@ pub fn lan_host(u: &Url) -> bool {
         Some(url::Host::Ipv6(v)) => lan_ip(IpAddr::V6(v)),
         Some(url::Host::Domain(d)) => {
             let d = d.trim_end_matches('.').to_ascii_lowercase();
-            !d.is_empty()
-                && (!d.contains('.')
-                    || [".local", ".lan", ".home.arpa", ".internal", ".localhost"].iter().any(|s| d.ends_with(s)))
+            !d.is_empty() && (!d.contains('.') || [".local", ".lan", ".home.arpa", ".internal", ".localhost"].iter().any(|s| d.ends_with(s)))
         }
         None => false,
     }
@@ -80,15 +78,40 @@ mod lan_tests {
     #[test]
     fn only_names_that_say_lan_count() {
         let l = |s: &str| super::lan_host(&url::Url::parse(s).unwrap());
-        for n in ["http://169.254.169.254/latest/meta-data/", "http://[fe80::1]/x", "http://[::ffff:169.254.1.1]/x", "http://[64:ff9b::a9fe:a9fe]/x",
-            "http://[::a9fe:a9fe]/x", "http://[2002:a9fe:a9fe::1]/x", "http://203.0.113.5/x", "http://8.8.8.8/x", "http://[2001:db8::1]/x"] {
+        for n in [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://[fe80::1]/x",
+            "http://[::ffff:169.254.1.1]/x",
+            "http://[64:ff9b::a9fe:a9fe]/x",
+            "http://[::a9fe:a9fe]/x",
+            "http://[2002:a9fe:a9fe::1]/x",
+            "http://203.0.113.5/x",
+            "http://8.8.8.8/x",
+            "http://[2001:db8::1]/x",
+        ] {
             assert!(!l(n), "{n}");
         }
-        for y in ["http://192.168.1.10/a.zip", "http://127.0.0.1:8765/x", "http://[fd00::5]/x", "http://nas/f.iso", "http://localhost:3000/a",
-            "http://router.lan/fw.bin", "http://pi.local/x", "http://box.home.arpa/x", "http://files.corp.internal/x", "http://NAS.LOCAL./x"] {
+        for y in [
+            "http://192.168.1.10/a.zip",
+            "http://127.0.0.1:8765/x",
+            "http://[fd00::5]/x",
+            "http://nas/f.iso",
+            "http://localhost:3000/a",
+            "http://router.lan/fw.bin",
+            "http://pi.local/x",
+            "http://box.home.arpa/x",
+            "http://files.corp.internal/x",
+            "http://NAS.LOCAL./x",
+        ] {
             assert!(l(y), "{y}");
         }
-        for n in ["https://example.com/a.zip", "http://evil.example/x", "http://local.example.com/x", "http://lan.attacker.io/x", "http://xn--lan-9za.com/"] {
+        for n in [
+            "https://example.com/a.zip",
+            "http://evil.example/x",
+            "http://local.example.com/x",
+            "http://lan.attacker.io/x",
+            "http://xn--lan-9za.com/",
+        ] {
             assert!(!l(n), "{n}");
         }
     }

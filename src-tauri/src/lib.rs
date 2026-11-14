@@ -137,13 +137,19 @@ fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
         os::sync_wake_tasks(&wake);
     }
     if let Some(h) = HANDLE.get() {
+        #[cfg(unix)]
         use tauri_plugin_autostart::ManagerExt;
         let mut failed = None;
         if !cfg!(debug_assertions) {
-            let al = h.autolaunch();
+            #[cfg(windows)]
+            let r = os::set_autostart(autostart);
+            #[cfg(unix)]
+            let r = {
+                let al = h.autolaunch();
+                if autostart { al.enable() } else { al.disable() }.map_err(|e| e.to_string())
+            };
             // turning it on must really work, or the switch goes back off and the user is told
-            let r = if autostart { os::ensure_run_key().and_then(|_| al.enable().map_err(|e| e.to_string())) } else { al.disable().map_err(|e| e.to_string()) };
-            if let (Err(e), true) = (r, autostart && !al.is_enabled().unwrap_or(false)) {
+            if let (Err(e), true) = (r, autostart) {
                 lock(&app.settings).autostart = false;
                 app.save_settings()?;
                 failed = Some(format!("autostart: {e}"));
@@ -1360,10 +1366,7 @@ pub fn run() {
             let bridge = format!("gdm-bridge{}", std::env::consts::EXE_SUFFIX);
             if let Some(b) = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&bridge))) {
                 let mut c = std::process::Command::new(b);
-                c.arg("register")
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null());
+                c.arg("register").stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
                 #[cfg(windows)]
                 std::os::windows::process::CommandExt::creation_flags(&mut c, 0x0800_0000); // CREATE_NO_WINDOW
                 let _ = c.spawn();
@@ -1510,7 +1513,8 @@ mod crash_tests {
         assert_eq!(super::fit_rect((100, 50, 1650, 1050), area), Some((100, 0, 1650, 1032))); // 1100x700 at 150%
         assert_eq!(super::fit_rect((300, 200, 1100, 700), area), None);
         assert_eq!(super::fit_rect((1500, 900, 1100, 700), area), Some((820, 332, 1100, 700))); // half off-screen
-        assert_eq!(super::fit_rect((-50, -20, 3000, 2000), (1920, 0, 1280, 680)), Some((1920, 0, 1280, 680))); // 2nd monitor
+        assert_eq!(super::fit_rect((-50, -20, 3000, 2000), (1920, 0, 1280, 680)), Some((1920, 0, 1280, 680)));
+        // 2nd monitor
     }
 
     #[test]
