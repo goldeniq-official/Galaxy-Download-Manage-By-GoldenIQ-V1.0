@@ -58,8 +58,15 @@ pub fn add_unpacked(browser: &str, dir: &std::path::Path) -> Option<&'static str
     use std::os::windows::process::CommandExt;
     let _ = std::process::Command::new(exe).spawn();
     // explorer reads its own command line: /select,"path" must not be quoted as one argument
-    let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", dir.display())).spawn();
+    let _ = std::process::Command::new(explorer()).raw_arg(format!("/select,\"{}\"", dir.display())).spawn();
     Some(page)
+}
+
+/// %SystemRoot%\explorer.exe by full path: a bare name is searched in the program's own folder first, which is
+/// user-writable (GDM's install folder, Downloads for GDM Setup), so a planted explorer.exe would run
+#[cfg(windows)]
+pub fn explorer() -> PathBuf {
+    std::env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Windows")).join("explorer.exe")
 }
 
 #[cfg(unix)]

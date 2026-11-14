@@ -95,7 +95,7 @@ pub fn open_folder(path: &Path) -> Result<(), String> {
 /// Explorer with the file selected (falls back to the folder)
 #[cfg(windows)]
 pub fn open_folder(path: &Path) -> Result<(), String> {
-    let mut c = std::process::Command::new("explorer.exe");
+    let mut c = std::process::Command::new(gdm_bridge::browsers::explorer());
     if path.is_file() {
         c.arg(format!("/select,{}", path.display()));
     } else {
