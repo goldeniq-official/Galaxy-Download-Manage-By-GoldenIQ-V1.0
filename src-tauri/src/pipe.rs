@@ -243,11 +243,12 @@ pub async fn handle(app: &Arc<App>, _origin: &str, m: Msg) -> Value {
                 }
             }
             let start = app.handoff_allowed();
-            // a click on a LAN-form host (IP, NAS, router, .local) from a LAN page, or typed in the address bar (no
-            // referrer): allowed like a typed address. A public page linking into the LAN still needs Allow (it
-            // could replay side-effect links on the router). W-02 keeps every other host and redirect hop checked.
+            // a click on a LAN-form host (private IP, NAS, router, .local) on a LAN page: allowed like a typed
+            // address. A public page linking into the LAN, or no referrer at all (a page can drop it with
+            // no-referrer), still needs Allow: it could replay side-effect links on the router. W-02 keeps every
+            // other host and redirect hop checked.
             let lan_url = |s: &str| url::Url::parse(s).is_ok_and(|u| gdm_core::net::lan_host(&u));
-            let lan = lan_url(&url) && referrer.as_deref().is_none_or(lan_url);
+            let lan = lan_url(&url) && referrer.as_deref().is_some_and(lan_url);
             match app.add_and_start(&url, name, referrer, creds, lan, start) {
                 Ok(id) => {
                     lock(&app.handoff_jobs).insert(hid, (id.clone(), std::time::Instant::now()));

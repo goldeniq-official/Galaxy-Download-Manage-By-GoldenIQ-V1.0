@@ -30,16 +30,15 @@ pub struct Policy {
     pub allow_private: Vec<String>,
 }
 
-/// A host that names the local network by its form: an IP literal, a single-label name, or a LAN suffix. A
-/// download the user clicked in the browser on such a host may be private without the "Allow" step (IDM never
-/// asks; NAS, router, intranet and dev-server downloads are common). A public-looking name that resolves private
-/// still needs "Allow": the attacker's own domain could be re-pointed at the LAN between the browser and GDM
-/// (DNS rebinding; council 2026-11-15).
+/// A host that names the local network by its form: a non-public IP literal, a single-label name, or a LAN
+/// suffix. A download the user clicked in the browser on such a host may be private without the "Allow" step
+/// (IDM never asks; NAS, router, intranet and dev-server downloads are common). A public-looking name that
+/// resolves private still needs "Allow": the attacker's own domain could be re-pointed at the LAN between the
+/// browser and GDM (DNS rebinding; council 2026-11-15). A public IP is not LAN (it may host an attacker's page).
 pub fn lan_host(u: &Url) -> bool {
     match u.host() {
-        // link-local never: 169.254.169.254 is the cloud metadata service, fe80:: has no stable meaning
-        Some(url::Host::Ipv4(v)) => !v.is_link_local(),
-        Some(url::Host::Ipv6(v)) => (v.segments()[0] & 0xffc0) != 0xfe80 && v.to_ipv4_mapped().is_none_or(|m| !m.is_link_local()),
+        Some(url::Host::Ipv4(v)) => lan_ip(IpAddr::V4(v)),
+        Some(url::Host::Ipv6(v)) => lan_ip(IpAddr::V6(v)),
         Some(url::Host::Domain(d)) => {
             let d = d.trim_end_matches('.').to_ascii_lowercase();
             !d.is_empty()
@@ -50,12 +49,39 @@ pub fn lan_host(u: &Url) -> bool {
     }
 }
 
+/// private / loopback / ULA, but never link-local in any form: 169.254.169.254 is the cloud metadata service
+fn lan_ip(ip: IpAddr) -> bool {
+    let link_local_v4 = |v: std::net::Ipv4Addr| v.is_link_local();
+    let link_local = match ip {
+        IpAddr::V4(v) => link_local_v4(v),
+        IpAddr::V6(v) => (v.segments()[0] & 0xffc0) == 0xfe80 || embedded_v4(v).is_some_and(link_local_v4),
+    };
+    !public(ip) && !link_local
+}
+
+/// the IPv4 address an IPv6 form carries: mapped ::ffff:a.b.c.d, compatible ::a.b.c.d, NAT64 64:ff9b::/96,
+/// 6to4 2002:AABB:CCDD::/48
+fn embedded_v4(v: std::net::Ipv6Addr) -> Option<std::net::Ipv4Addr> {
+    let s = v.segments();
+    let v4 = |hi: u16, lo: u16| std::net::Ipv4Addr::new((hi >> 8) as u8, hi as u8, (lo >> 8) as u8, lo as u8);
+    if let Some(m) = v.to_ipv4_mapped() {
+        return Some(m);
+    }
+    match s {
+        [0, 0, 0, 0, 0, 0, hi, lo] if hi != 0 => Some(v4(hi, lo)),
+        [0x64, 0xff9b, 0, 0, 0, 0, hi, lo] => Some(v4(hi, lo)),
+        [0x2002, hi, lo, ..] => Some(v4(hi, lo)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod lan_tests {
     #[test]
     fn only_names_that_say_lan_count() {
         let l = |s: &str| super::lan_host(&url::Url::parse(s).unwrap());
-        for n in ["http://169.254.169.254/latest/meta-data/", "http://[fe80::1]/x", "http://[::ffff:169.254.1.1]/x"] {
+        for n in ["http://169.254.169.254/latest/meta-data/", "http://[fe80::1]/x", "http://[::ffff:169.254.1.1]/x", "http://[64:ff9b::a9fe:a9fe]/x",
+            "http://[::a9fe:a9fe]/x", "http://[2002:a9fe:a9fe::1]/x", "http://203.0.113.5/x", "http://8.8.8.8/x", "http://[2001:db8::1]/x"] {
             assert!(!l(n), "{n}");
         }
         for y in ["http://192.168.1.10/a.zip", "http://127.0.0.1:8765/x", "http://[fd00::5]/x", "http://nas/f.iso", "http://localhost:3000/a",
