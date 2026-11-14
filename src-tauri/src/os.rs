@@ -293,6 +293,25 @@ pub fn metered() -> bool {
         .is_some_and(|o| matches!(String::from_utf8_lossy(&o.stdout).trim(), "u 1" | "u 3"))
 }
 
+/// HKCU\...\Run exists: a fresh Windows profile may not have it yet, and the autostart plugin only opens it
+/// ("Start with Windows" stayed off without a word in Windows Sandbox, 2026-11-15)
+#[cfg(windows)]
+pub fn ensure_run_key() -> Result<(), String> {
+    use windows::Win32::System::Registry::*;
+    unsafe {
+        let mut hk = HKEY::default();
+        RegCreateKeyExW(HKEY_CURRENT_USER, &HSTRING::from(r"Software\Microsoft\Windows\CurrentVersion\Run"), None, None, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, None, &mut hk, None)
+            .ok()
+            .map_err(|e| e.to_string())?;
+        let _ = RegCloseKey(hk);
+    }
+    Ok(())
+}
+#[cfg(unix)]
+pub fn ensure_run_key() -> Result<(), String> {
+    Ok(())
+}
+
 /// Windows says the current internet connection is metered (Q-05: sync waits for an unmetered one)
 #[cfg(windows)]
 pub fn metered() -> bool {

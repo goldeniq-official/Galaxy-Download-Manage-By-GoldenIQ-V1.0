@@ -54,7 +54,10 @@ fn fit_to_screen(w: &tauri::WebviewWindow) {
     let (Ok(p), Ok(s)) = (w.outer_position(), w.outer_size()) else { return };
     let a = m.work_area();
     if let Some((x, y, nw, nh)) = fit_rect((p.x, p.y, s.width, s.height), (a.position.x, a.position.y, a.size.width, a.size.height)) {
-        let _ = w.set_size(tauri::PhysicalSize::new(nw, nh));
+        // set_size is the inner size: take the frame off, or the window still runs a few pixels past the taskbar
+        let i = w.inner_size().unwrap_or(s);
+        let (fw, fh) = (s.width.saturating_sub(i.width), s.height.saturating_sub(i.height));
+        let _ = w.set_size(tauri::PhysicalSize::new(nw.saturating_sub(fw), nh.saturating_sub(fh)));
         let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
     }
 }
@@ -135,13 +138,23 @@ fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
     }
     if let Some(h) = HANDLE.get() {
         use tauri_plugin_autostart::ManagerExt;
+        let mut failed = None;
         if !cfg!(debug_assertions) {
             let al = h.autolaunch();
-            let _ = if autostart { al.enable() } else { al.disable() };
+            // turning it on must really work, or the switch goes back off and the user is told
+            let r = if autostart { os::ensure_run_key().and_then(|_| al.enable().map_err(|e| e.to_string())) } else { al.disable().map_err(|e| e.to_string()) };
+            if let (Err(e), true) = (r, autostart && !al.is_enabled().unwrap_or(false)) {
+                lock(&app.settings).autostart = false;
+                app.save_settings()?;
+                failed = Some(format!("autostart: {e}"));
+            }
         }
         let _ = rebuild_tray(h, app);
+        if let Some(e) = failed {
+            return Err(e);
+        }
     }
-    Ok(s)
+    Ok(lock(&app.settings).clone())
 }
 
 #[derive(Serialize)]
