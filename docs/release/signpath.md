@@ -20,7 +20,7 @@
 | **MFA គ្រប់សមាជិក (GitHub + SignPath)** | ⏳ ម្ចាស់: បើក 2FA លើ GitHub `goldeniq-official` (ហើយលើ SignPath ពេលទទួលគណនី) |
 | តួនាទី Author / Reviewer / Approver | ✅ `/code-signing-policy`: GoldenIQ កាន់ទាំងបី (គម្រោងមនុស្សម្នាក់ សរសេរត្រង់ៗ) |
 | Build ផ្ទៀងបាន + approve ដោយដៃ | ✅ GitHub Actions `release.yml`; ⏳ ការភ្ជាប់ SignPath ធ្វើក្រោយទទួលយក (ផ្នែក ៤) |
-| ទំព័រ Code signing policy លើ homepage | ✅ `https://gdm.goldeniq.xyz/code-signing-policy`; ពាក្យ "Code signing policy" នៅលើ home, download និង header គ្រប់ទំព័រ |
+| ទំព័រ Code signing policy លើ homepage | ✅ `https://gdm.goldeniq.app/code-signing-policy`; ពាក្យ "Code signing policy" នៅលើ home, download និង header គ្រប់ទំព័រ |
 | ប្រយោគ "Free code signing provided by SignPath.io, certificate by SignPath Foundation" | ✅ មាន ជាមួយស្ថានភាពពិត (`SIGNING_PROGRAM` ក្នុង `src/content/release.ts`: planned → pending → active) ដើម្បីមិនអះអាងមុនពេលទទួលយក (council 2026-11-14) |
 | Metadata: ProductName = ឈ្មោះគម្រោង, ProductVersion ដូចគ្នា | ✅ `gdm.exe` (Tauri), **ថ្មី** `gdm-bridge.exe` និង `gdm-setup.exe` (build.rs បង្កើត VERSIONINFO ពី version workspace; ផ្ទៀងលើ build: "Galaxy Download Manager 0.9.0") |
 
@@ -28,7 +28,7 @@
 
 1. `git push` repo GDM (ហើយ CI ឆ្លង)។
 2. Publish release `v0.9.0` សាធារណៈ (GitHub → Actions → version / release; សាក `GDM-Setup` លើកុំព្យូទ័រស្អាតមុន)។
-3. ដាក់គេហទំព័រ: Cloudflare → Workers → បង្កើត Worker `gdm-web` ពី repo គេហទំព័រ (Workers Builds: `npm run build`, deploy `npx wrangler deploy`) → Custom domain `gdm.goldeniq.xyz`។ (repo គេហទំព័រមិនទាន់មាន remote: បង្កើត repo GitHub មួយ ហើយ push ដោយខ្លួនឯង)។
+3. ដាក់គេហទំព័រ: Cloudflare → Workers → បង្កើត Worker `gdm-web` ពី repo គេហទំព័រ (Workers Builds: `npm run build`, deploy `npx wrangler deploy`) → Custom domain `gdm.goldeniq.app`។ (repo គេហទំព័រមិនទាន់មាន remote: បង្កើត repo GitHub មួយ ហើយ push ដោយខ្លួនឯង)។
 4. ក្នុង repo គេហទំព័រ `src/content/release.ts`: `published: true`, `date` = ថ្ងៃ release ពិត។ (Claude ធ្វើបានពេលម្ចាស់ប្រាប់ថា release ចេញហើយ)។
 5. បើក 2FA លើ GitHub។
 6. ទុកពេលឱ្យមាន reputation (អ្នកប្រើពិត ចំនួនទាញ stars issues)។ SignPath មិនបោះពុម្ពលេខកំណត់ទេ តែវាសួរ "Reputation" ជាកាតព្វកិច្ច។
@@ -38,9 +38,9 @@
 
 - **Project Name:** Galaxy Download Manager
 - **Repository URL:** https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0
-- **Homepage URL:** https://gdm.goldeniq.xyz
-- **Download URL:** https://gdm.goldeniq.xyz/download
-- **Privacy Policy URL:** https://gdm.goldeniq.xyz/privacy
+- **Homepage URL:** https://gdm.goldeniq.app
+- **Download URL:** https://gdm.goldeniq.app/download
+- **Privacy Policy URL:** https://gdm.goldeniq.app/privacy
 - **Wikipedia URL:** (ទទេ)
 - **Tagline:** A free, open source download manager for Windows that resumes downloads and verifies every file.
 - **Category:** Utilities (ឬជិតបំផុតក្នុងបញ្ជី)
