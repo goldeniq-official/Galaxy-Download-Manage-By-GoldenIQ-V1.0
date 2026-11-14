@@ -21,7 +21,7 @@ GDM មានលេខកំណែតែមួយគត់ ដែលរក្ស
    - `docs/release/next.md`
 2. GitHub → Actions → **version** → Run workflow (branch `main`)។
 3. workflow អាន `kind` ពី `next.json` ហើយគណនាលេខបន្ទាប់ដោយខ្លួនឯង។ វាបង្កើត commit `release vX.Y.Z` និង tag រួចដំណើរការ `release.yml`។ `release.yml` build ទាំង ៦ គោលដៅ ហើយបង្កើត release ជា **draft**។
-4. ម្ចាស់ពិនិត្យ draft ហើយចុច **Publish**។ ពេល publish រួច `site.yml` ចាប់ផ្ដើម build គេហទំព័រឡើងវិញ។ គេហទំព័របង្ហាញលេខកំណែ និង link ទាញយកនៃ release ដែលទើប publish ដោយខ្លួនឯង។
+4. ម្ចាស់ពិនិត្យ draft ហើយចុច **Publish**។ ក្នុងរយៈពេល 5 នាទី គេហទំព័របង្ហាញលេខកំណែ និង link ទាញយកនៃ release ដែលទើប publish ដោយខ្លួនឯង (គ្មាន build, គ្មាន hook)។
 
 ## ហេតុអ្វីលេខមិនឡើងលឿនពេក
 
@@ -31,6 +31,4 @@ GDM មានលេខកំណែតែមួយគត់ ដែលរក្ស
 
 ## គេហទំព័រ (gdm.goldeniq.app)
 
-នៅពេល build គេហទំព័រអានកំណែចុងក្រោយពី `github.com/<repo>/releases/latest` (Web repo `scripts/latest-release.mjs`)។ ដូច្នេះលេខកំណែ និង link ទាញយក តែងតែត្រូវនឹង release ដែលបាន publish។ ម្ចាស់រៀបចំតែម្ដងគត់៖
-1. Cloudflare → Workers & Pages → `gdm-web` → Settings → Builds → **Deploy Hooks** → បង្កើត hook (branch `main`) ហើយចម្លង URL។
-2. GitHub repo GDM → Settings → Secrets and variables → Actions → New repository secret ឈ្មោះ `SITE_DEPLOY_HOOK`, value = URL នោះ។
+ពេលកំពុងដំណើរការ គេហទំព័រសួរ `github.com/<repo>/releases/latest` ម្ដងក្នុងរយៈពេល 5 នាទី (Web repo `src/lib/latest.ts`)។ ដូច្នេះលេខកំណែ និង link ទាញយក តែងតែត្រូវនឹង release ចុងក្រោយដែលបាន publish ដោយមិនចាំបាច់ build ឡើងវិញ។ ប៊ូតុងទាញយកជា link ទៅឯកសារផ្ទាល់ ដូច្នេះចុចម្ដងគឺទាញភ្លាម មិនបើកទំព័រ GitHub ទេ។ draft និង pre-release មិនរាប់។ បើ GitHub មិនឆ្លើយ វាប្រើចម្លើយចុងក្រោយ (ឬកំណែពេល build) ហើយសួរម្ដងទៀតក្រោយ 1 នាទី។ គ្មានអ្វីត្រូវរៀបចំទេ។

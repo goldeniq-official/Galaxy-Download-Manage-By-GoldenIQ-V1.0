@@ -174,7 +174,7 @@ jobs:
       - name: draft release (the owner publishes)
         env:
           GH_TOKEN: ${{ github.token }}
-        # every release points back at the official website (its download page follows this release: site.yml)
+        # every release points back at the official website (its download page reads the latest release itself)
         run: |
           $notes = Get-Content "docs/release/notes-$($env:GITHUB_REF_NAME.TrimStart('v')).md" -Raw
           $notes.TrimEnd() + "`n`n---`n**Website / គេហទំព័រ:** https://gdm.goldeniq.app/download · SHA-256: ``SHA256SUMS.txt```n" | Set-Content -NoNewline -Encoding utf8NoBOM out-notes.md
