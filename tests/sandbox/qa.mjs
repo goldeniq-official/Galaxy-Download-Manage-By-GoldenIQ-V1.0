@@ -306,7 +306,7 @@ async function startBrowser() {
   const prof = path.join(os.tmpdir(), `gdm-qa-prof-${Date.now()}`);
   fs.mkdirSync(path.join(prof, "Default"), { recursive: true });
   fs.mkdirSync(BRDL, { recursive: true });
-  fs.writeFileSync(path.join(prof, "Default", "Preferences"), JSON.stringify({ download: { default_directory: BRDL, prompt_for_download: false } }));
+  fs.writeFileSync(path.join(prof, "Default", "Preferences"), JSON.stringify({ download: { default_directory: BRDL, prompt_for_download: false }, profile: { content_settings: { exceptions: { automatic_downloads: { "http://127.0.0.1:8765,*": { setting: 1 } } } } } }));
   chrome = spawn(CHROME, [`--user-data-dir=${prof}`, `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, `--remote-debugging-port=${P_BR}`, "--no-first-run", "--no-default-browser-check", "--start-maximized", "http://127.0.0.1:8765/"], { stdio: "ignore" });
   br = await attach(P_BR, (t) => t.type === "page" && t.url.startsWith("http://127.0.0.1:8765"), 30000);
   await until(() => br.eval("document.readyState === 'complete'"), 15000);
@@ -508,7 +508,8 @@ await step("D6", async () => {
 });
 await step("D7", async () => {
   await osClick(br, "#many", "chrome");
-  const up = await until(async () => (await dialogOpen()) && /3/.test(await dialogText()), 20000);
+  // the user already answered Chromium's "download multiple files?" with Allow for this site (profile setting)
+  const up = await until(async () => (await dialogOpen()) && (await gdm.eval(`document.querySelectorAll('[role="dialog"] [role="checkbox"]').length`)) === 3, 20000);
   rec("NOTE", "D7", "dialog shows", (await dialogText()).replace(/\s+/g, " ").slice(0, 240));
   rec("NOTE", "D7", "screen", shot("D7", "batch"));
   if (!check("D7", !!up, "three files at once -> one dialog listing 3")) return;
