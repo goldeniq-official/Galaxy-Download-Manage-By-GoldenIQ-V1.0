@@ -55,7 +55,9 @@ jobs:
           rustup default "$RUST_VERSION"
           rustup target add ${{ matrix.target }}
       - name: version in the tag == version in the app
-        run: test "v$(node scripts/version.mjs)" = "$GITHUB_REF_NAME" # the one version (tauri.conf.json has none)
+        run: | # the one version (tauri.conf.json has none)
+          [ "$GITHUB_REF_TYPE" = tag ] || { echo "::error::release runs on a tag, not on $GITHUB_REF_NAME: press Run workflow on \"version\" instead (it makes the tag and starts this)"; exit 1; }
+          [ "v$(node scripts/version.mjs)" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME != app version v$(node scripts/version.mjs)"; exit 1; }
       # the updater key is NOT in this step: every dependency's build.rs runs here. Tauri builds without updater
       # artifacts; the "sign" step below makes them, the only step that sees the key.
       - name: build
