@@ -28,7 +28,27 @@ const check = (ok, what) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const app = spawn(path.join(inst, "gdm.exe"), [], { env: { ...process.env, GDM_DATA: data, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=9339 ${EXTRA}`.trim() }, stdio: "ignore" });
-await sleep(6000);
+let exited = null;
+app.on("exit", (code) => (exited = code));
+// a first start on a fresh runner (WebView2 runtime warm-up) took longer than the fixed 6 s this used to wait:
+// wait for the DevTools port itself, and say why when it never opens (GDM gone, or up without the port)
+const t0 = Date.now();
+while (Date.now() - t0 < 90000 && exited === null) {
+  if (await fetch("http://127.0.0.1:9339/json/version").then((r) => r.ok, () => false)) break;
+  await sleep(500);
+}
+if (exited !== null || Date.now() - t0 >= 90000) {
+  const ps = await new Promise((r) => {
+    const c = spawn("tasklist", ["/FI", "IMAGENAME eq gdm.exe"], { stdio: ["ignore", "pipe", "ignore"] });
+    let o = "";
+    c.stdout.on("data", (d) => (o += d));
+    c.on("close", () => r(o.trim()));
+  });
+  console.log(`FAIL WebView2 DevTools port 9339 never opened: gdm.exe ${exited === null ? "still running after 90 s" : `exited with ${exited}`}\n${ps}`);
+  app.kill();
+  process.exit(1);
+}
+console.log(`PASS WebView2 DevTools port open after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9339");
 // the main window (skip DevTools pages)
 const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools"));
