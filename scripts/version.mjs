@@ -2,7 +2,7 @@
 // GDM has ONE version: package.json (UI, extension) == [workspace.package] in Cargo.toml (app, bridge, core UA;
 // tauri.conf.json takes it from Cargo). This is the only thing that changes it; the release workflow runs it.
 //   node scripts/version.mjs            -> prints the current version
-//   node scripts/version.mjs minor      -> 0.9.0 -> 0.10.0   (also: major, patch, or an exact X.Y.Z)
+//   node scripts/version.mjs minor      -> 1.0.0 -> 1.1.0   (also: major, patch, or an exact X.Y.Z)
 import fs from "node:fs";
 
 const read = (f) => fs.readFileSync(f, "utf8");

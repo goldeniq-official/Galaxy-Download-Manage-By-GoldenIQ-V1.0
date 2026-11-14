@@ -10,7 +10,7 @@
 | អាជ្ញាប័ណ្ណ OSI គ្រប់ផ្នែក គ្មាន dual-licensing ពាណិជ្ជកម្ម | ✅ RPL-1.5 (OSI); គ្មានកំណែបង់ប្រាក់ |
 | គ្មានកូដ proprietary ក្នុងឯកសារដែលចុះហត្ថលេខា | ✅ yt-dlp/FFmpeg មិនមានក្នុង installer (ទាញពេលអ្នកប្រើយល់ព្រម); WebView2 = system library |
 | ថែទាំសកម្ម | ✅ commit ជាប្រចាំ |
-| **ចេញផ្សាយរួចក្នុងទម្រង់ដែលនឹងចុះហត្ថលេខា** | ⏳ ម្ចាស់ត្រូវ publish release `v0.9.0` សាធារណៈលើ GitHub (draft មិនរាប់) |
+| **ចេញផ្សាយរួចក្នុងទម្រង់ដែលនឹងចុះហត្ថលេខា** | ⏳ ម្ចាស់ត្រូវ publish release `v1.0.0` សាធារណៈលើ GitHub (draft មិនរាប់) |
 | ពិពណ៌នាមុខងារលើទំព័រទាញយក | ✅ `/download` ផ្នែក "What you are downloading" |
 | គម្រោងរបស់ខ្លួន, binary របស់ខ្លួន | ✅ build ពី repo នេះតែប៉ុណ្ណោះ |
 | មិនមែនឧបករណ៍ hacking | ✅ (site grabber អានតែប៉ុណ្ណោះ, ជៀស logout/delete) |
@@ -22,12 +22,12 @@
 | Build ផ្ទៀងបាន + approve ដោយដៃ | ✅ GitHub Actions `release.yml`; ⏳ ការភ្ជាប់ SignPath ធ្វើក្រោយទទួលយក (ផ្នែក ៤) |
 | ទំព័រ Code signing policy លើ homepage | ✅ `https://gdm.goldeniq.app/code-signing-policy`; ពាក្យ "Code signing policy" នៅលើ home, download និង header គ្រប់ទំព័រ |
 | ប្រយោគ "Free code signing provided by SignPath.io, certificate by SignPath Foundation" | ✅ មាន ជាមួយស្ថានភាពពិត (`SIGNING_PROGRAM` ក្នុង `src/content/release.ts`: planned → pending → active) ដើម្បីមិនអះអាងមុនពេលទទួលយក (council 2026-11-14) |
-| Metadata: ProductName = ឈ្មោះគម្រោង, ProductVersion ដូចគ្នា | ✅ `gdm.exe` (Tauri), **ថ្មី** `gdm-bridge.exe` និង `gdm-setup.exe` (build.rs បង្កើត VERSIONINFO ពី version workspace; ផ្ទៀងលើ build: "Galaxy Download Manager 0.9.0") |
+| Metadata: ProductName = ឈ្មោះគម្រោង, ProductVersion ដូចគ្នា | ✅ `gdm.exe` (Tauri), **ថ្មី** `gdm-bridge.exe` និង `gdm-setup.exe` (build.rs បង្កើត VERSIONINFO ពី version workspace; ផ្ទៀងលើ build: "Galaxy Download Manager 1.0.0") |
 
 ## ២. អ្វីដែលម្ចាស់ត្រូវធ្វើ (តាមលំដាប់)
 
 1. `git push` repo GDM (ហើយ CI ឆ្លង)។
-2. Publish release `v0.9.0` សាធារណៈ (GitHub → Actions → version / release; សាក `GDM-Setup` លើកុំព្យូទ័រស្អាតមុន)។
+2. Publish release `v1.0.0` សាធារណៈ (GitHub → Actions → version / release; សាក `GDM-Setup` លើកុំព្យូទ័រស្អាតមុន)។
 3. ដាក់គេហទំព័រ: Cloudflare → Workers → បង្កើត Worker `gdm-web` ពី repo គេហទំព័រ (Workers Builds: `npm run build`, deploy `npx wrangler deploy`) → Custom domain `gdm.goldeniq.app`។ (repo គេហទំព័រមិនទាន់មាន remote: បង្កើត repo GitHub មួយ ហើយ push ដោយខ្លួនឯង)។
 4. ក្នុង repo គេហទំព័រ `src/content/release.ts`: `published: true`, `date` = ថ្ងៃ release ពិត។ (Claude ធ្វើបានពេលម្ចាស់ប្រាប់ថា release ចេញហើយ)។
 5. បើក 2FA លើ GitHub។

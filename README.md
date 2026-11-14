@@ -4,7 +4,7 @@
 
 GDM ជាកម្មវិធីគ្រប់គ្រងការទាញយកសម្រាប់ Windows ដែលឥតគិតថ្លៃសម្រាប់អ្នកទាំងអស់គ្នា (រួមទាំងក្រុមហ៊ុន សាលា និងស្ថាប័ន) ហើយគ្មានការផ្សាយពាណិជ្ជកម្ម គ្មាន telemetry គ្មាន account។ វាត្រូវបានបង្កើតដើម្បីជំនួស IDM និង NDM ដោយភាសាខ្មែរជាភាសាដំបូង។
 
-> **v0.9 public beta** — សូមអាន [កំណត់ចេញផ្សាយ](docs/release/notes-0.9.0.md) មុនដំឡើង (មានដែនកំណត់ដែលដឹងរួច)។
+> **v1.0.0** — សូមអាន [កំណត់ចេញផ្សាយ](docs/release/notes-1.0.0.md) មុនដំឡើង (មានដែនកំណត់ដែលដឹងរួច)។
 
 ## អ្វីដែល GDM ធ្វើ
 
@@ -17,8 +17,8 @@ GDM ជាកម្មវិធីគ្រប់គ្រងការទាញ�
 
 ## ដំឡើង
 
-1. ទាញ `GDM-Setup_0.9.0_x64.exe` (Windows ARM: `_arm64`) ពី [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) តែប៉ុណ្ណោះ។ ផ្ទៀងផ្ទាត់ SHA-256 ជាមួយ `SHA256SUMS.txt` និង `gh attestation verify GDM-Setup_0.9.0_x64.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0`។
-2. Installer ដំឡើងសម្រាប់គណនីរបស់អ្នកប៉ុណ្ណោះ (គ្មាន admin)។ Beta នេះមិនទាន់មានហត្ថលេខា Authenticode ទេ ដូច្នេះ Windows SmartScreen អាចព្រមាន ("More info › Run anyway")។
+1. ទាញ `GDM-Setup_1.0.0_windows-x64.exe` (Windows ARM: `_windows-arm64`) ពី [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases) តែប៉ុណ្ណោះ។ ផ្ទៀងផ្ទាត់ SHA-256 ជាមួយ `SHA256SUMS.txt` និង `gh attestation verify GDM-Setup_1.0.0_windows-x64.exe --repo goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0`។
+2. Installer ដំឡើងសម្រាប់គណនីរបស់អ្នកប៉ុណ្ណោះ (គ្មាន admin)។ កំណែនេះមិនទាន់មានហត្ថលេខា Authenticode ទេ ដូច្នេះ Windows SmartScreen អាចព្រមាន ("More info › Run anyway")។
 3. ទំព័រចុងក្រោយនៃ Setup បង្ហាញ browser ដែលមាននៅលើកុំព្យូទ័រ៖ ចុច "បន្ថែម" ក្បែរ browser នីមួយៗ ហើយក្នុងហាងចុច "Add to Chrome" (Edge: "Get", Firefox: "Add to Firefox")។ GDM បង្ហាញ "បានភ្ជាប់" ពេលរួចរាល់ (ក៏មាននៅ ការកំណត់ › Browser ដែរ)។ ឯកសារ `GDM_…-setup.exe` គឺជា installer NSIS ដដែល (សម្រាប់ winget ឬការដំឡើងស្ងាត់ `/S`)។
 
 ## អាជ្ញាប័ណ្ណ
@@ -43,11 +43,11 @@ Extension ពិតមានតែក្នុង store ដែលភ្ជាប
 
 GDM is a Windows download manager that is free for everyone (companies, schools and institutions included), with no ads, no telemetry and no account. It is built to replace IDM and NDM, Khmer first.
 
-> **v0.9 public beta** — read the [release notes](docs/release/notes-0.9.0.md) first (known limitations listed).
+> **v1.0.0** — read the [release notes](docs/release/notes-1.0.0.md) first (known limitations listed).
 
 **What it does:** multi-connection downloads (start at 2, grow to 8, up to 32) that resume after network loss or a restart; files are never published under their final name unless they are byte-correct (SHA-256, hostile-server checks, 1000 kill cycles with no corrupt file); Mark-of-the-Web and an antivirus check on completion, no localhost port, dangerous files never auto-open, signed updates; extensions for Chrome, Edge (also Brave, Vivaldi, Opera) and Firefox with <kbd>Ctrl</kbd>+click = GDM and <kbd>Alt</kbd>+click = browser; an IDM-style Download Info dialog, categories, search (Khmer and Latin), light/dark themes, tray, speed limits. A **site grabber** (Tasks ▾) explores a website and lists the images, videos or files you want; read-only, avoids logout/delete links, bounded against crawler traps ([docs/site-grabber.md](docs/site-grabber.md)).
 
-**Install:** only from [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases); check `SHA256SUMS.txt` and `gh attestation verify`. Per-user, no admin. This beta has no Authenticode signature yet, so SmartScreen may warn.
+**Install:** only from [GitHub Releases](https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases); check `SHA256SUMS.txt` and `gh attestation verify`. Per-user, no admin. This release has no Authenticode signature yet, so SmartScreen may warn.
 
 **Licence:** the source is published under the **Reciprocal Public License 1.5** ([LICENSE](LICENSE), [NOTICE.md](NOTICE.md)). It is **not** "take it and do anything" open source: whoever modifies and deploys it must publish their changes, use a different name and keep the attribution. The names "Galaxy Download Manager", "GDM" and the logo are **not** licensed to forks ([TRADEMARKS.md](TRADEMARKS.md)). Using the original program is free for everyone.
 

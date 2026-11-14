@@ -2,8 +2,8 @@
 # The "new version" button (docs/release/README.md). The owner presses Run workflow in GitHub Actions; this picks
 # the next number itself, so nobody edits versions by hand, and starts release.yml. Calm numbering on purpose:
 #   - the number changes only here, never per commit, push or build (CI runs carry no number);
-#   - the first press ships the version already in the repo (0.9.0) as it is;
-#   - default bump = minor (0.9.0 -> 0.10.0), so the last number stays 0; patch is only for an urgent fix;
+#   - the first press ships the version already in the repo (1.0.0, owner 2026-11-14) as it is;
+#   - default bump = minor (1.0.0 -> 1.1.0), so the last number stays 0; patch is only for an urgent fix;
 #   - refused when nothing changed since the last release, and a minor/major less than 7 days after the last one.
 name: version
 on:
