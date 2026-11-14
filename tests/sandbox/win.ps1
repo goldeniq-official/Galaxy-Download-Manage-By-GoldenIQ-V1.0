@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: RPL-1.5
+# Desktop helpers for tests/sandbox/qa.mjs (inside Windows Sandbox): real-screen capture, real OS mouse input,
+# window facts. Physical pixels everywhere (the process is made DPI aware first).
+#   shot <png>            -> "ok" | "blank" (one colour: the session is minimized/locked => inconclusive)
+#   click <x> <y>         -> moves the real cursor and clicks (SendInput path, like a user)
+#   fg                    -> "<process>|<title>" of the foreground window
+#   win <process>         -> "x y w h" of that process's visible main window, client origin "cx cy", or "none"
+#   front <process>       -> brings that process's main window to the front
+#   screen                -> primary monitor size "w h"
+#   area                  -> work area of the primary monitor "x y w h"
+param([string]$cmd, [string]$a1, [string]$a2)
+Add-Type -ReferencedAssemblies System.Drawing, System.Windows.Forms -TypeDefinition @"
+using System; using System.Runtime.InteropServices; using System.Drawing; using System.Text;
+public static class W {
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, IntPtr e);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, IntPtr e);
+  [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(IntPtr h, out int pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [StructLayout(LayoutKind.Sequential)] public struct R { public int l, t, r, b; }
+  [StructLayout(LayoutKind.Sequential)] public struct P { public int x, y; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out R r, int n);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref P p);
+  [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, out R r, uint c);
+}
+"@
+[W]::SetProcessDPIAware() | Out-Null
+switch ($cmd) {
+  "shot" {
+    $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+    $first = $bmp.GetPixel(0, 0); $same = $true
+    for ($i = 1; $i -lt 400 -and $same; $i++) { $p = $bmp.GetPixel(($i * 7919) % $b.Width, ($i * 104729) % $b.Height); if ($p -ne $first) { $same = $false } }
+    $bmp.Save($a1, [System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()
+    if ($same) { "blank" } else { "ok" }
+  }
+  "click" {
+    [W]::SetCursorPos([int]$a1, [int]$a2) | Out-Null; Start-Sleep -Milliseconds 120
+    [W]::mouse_event(2, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 60; [W]::mouse_event(4, 0, 0, 0, [IntPtr]::Zero)
+    "ok"
+  }
+  "fg" {
+    $h = [W]::GetForegroundWindow(); $id = 0; [W]::GetWindowThreadProcessId($h, [ref]$id) | Out-Null
+    $s = New-Object System.Text.StringBuilder 512; [W]::GetWindowText($h, $s, 512) | Out-Null
+    (Get-Process -Id $id -ErrorAction SilentlyContinue).ProcessName + "|" + $s.ToString()
+  }
+  "win" {
+    $p = Get-Process $a1 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | Select-Object -First 1
+    if (-not $p) { "none"; break }
+    # the visible frame (DWM extended frame bounds): GetWindowRect also counts the invisible resize borders
+    $r = New-Object W+R
+    if ([W]::DwmGetWindowAttribute($p.MainWindowHandle, 9, [ref]$r, 16) -ne 0) { [W]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null }
+    $c = New-Object W+P; [W]::ClientToScreen($p.MainWindowHandle, [ref]$c) | Out-Null
+    "$($r.l) $($r.t) $($r.r - $r.l) $($r.b - $r.t) $($c.x) $($c.y)"
+  }
+  "front" {
+    # what a user does before clicking in a window that is behind another one: bring it forward (an Alt tap
+    # lets this process move the foreground, as the user's own input would)
+    $p = Get-Process $a1 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | Select-Object -First 1
+    if (-not $p) { "none"; break }
+    [W]::keybd_event(0x12, 0, 0, [IntPtr]::Zero); [W]::keybd_event(0x12, 0, 2, [IntPtr]::Zero)
+    [W]::ShowWindow($p.MainWindowHandle, 9) | Out-Null
+    [W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 300
+    "ok"
+  }
+  "screen" {
+    $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    "$($b.Width) $($b.Height)"
+  }
+  "area" {
+    $r = New-Object W+R; [W]::SystemParametersInfo(0x30, 0, [ref]$r, 0) | Out-Null
+    "$($r.l) $($r.t) $($r.r - $r.l) $($r.b - $r.t)"
+  }
+}
