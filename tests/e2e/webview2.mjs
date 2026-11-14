@@ -5,7 +5,7 @@
 // node tests/e2e/webview2.mjs <install dir> <data dir> <shots dir>
 import { chromium } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -27,24 +27,51 @@ const check = (ok, what) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const app = spawn(path.join(inst, "gdm.exe"), [], { env: { ...process.env, GDM_DATA: data, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=9339 ${EXTRA}`.trim() }, stdio: "ignore" });
-let exited = null;
-app.on("exit", (code) => (exited = code));
-// a first start on a fresh runner (WebView2 runtime warm-up) took longer than the fixed 6 s this used to wait:
-// wait for the DevTools port itself, and say why when it never opens (GDM gone, or up without the port)
-const t0 = Date.now();
-while (Date.now() - t0 < 90000 && exited === null) {
-  if (await fetch("http://127.0.0.1:9339/json/version").then((r) => r.ok, () => false)) break;
-  await sleep(500);
+const ARGS = `--remote-debugging-port=9339 ${EXTRA}`.trim();
+const run = (cmd, args, env = process.env) =>
+  new Promise((r) => {
+    const c = spawn(cmd, args, { env, stdio: ["ignore", "pipe", "ignore"] });
+    let o = "";
+    c.stdout.on("data", (d) => (o += d));
+    c.on("close", () => r(o.trim()));
+  });
+// The port reaches WebView2 by WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, or (CI runners: the env route left the
+// browser without the switch, no policy set) by the documented per-user registry value named after the exe, which
+// WebView2 reads only when no WEBVIEW2_* variable exists (learn.microsoft.com .../webview2-idl,
+// CreateCoreWebView2EnvironmentWithOptions). Test only; the value is removed again on exit.
+const REG = "HKCU\\Software\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments";
+let app, exited, t0;
+const start = async (route, ms) => {
+  const env = { ...process.env, GDM_DATA: data };
+  if (route === "env") env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = ARGS;
+  else await run("reg", ["add", REG, "/v", "gdm.exe", "/t", "REG_SZ", "/d", ARGS, "/f"]);
+  exited = null;
+  app = spawn(path.join(inst, "gdm.exe"), [], { env, stdio: "ignore" });
+  app.on("exit", (code) => (exited = code));
+  // a first start on a fresh runner (WebView2 runtime warm-up) is slow: wait for the DevTools port itself
+  t0 = Date.now();
+  while (Date.now() - t0 < ms && exited === null) {
+    if (await fetch("http://127.0.0.1:9339/json/version").then((r) => r.ok, () => false)) return true;
+    await sleep(500);
+  }
+  return false;
+};
+const cleanReg = () => run("reg", ["delete", REG, "/v", "gdm.exe", "/f"]);
+process.on("exit", () => route === "registry" && spawnSync("reg", ["delete", REG, "/v", "gdm.exe", "/f"], { stdio: "ignore" }));
+let route = "env";
+let ok = await start("env", 30000);
+if (!ok) {
+  // did the variable reach a child of this process at all (evidence for the env route)
+  console.log(`--- child sees: ${await run("cmd", ["/c", "set WEBVIEW2"], { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: ARGS })}`);
+  console.log(`--- env route: no DevTools port after 30 s (gdm.exe ${exited === null ? "running" : `exited ${exited}`}); trying the registry route`);
+  // end this gdm and its WebView2 browser (a new gdm would join that browser and keep its switches)
+  await run("taskkill", ["/F", "/T", "/PID", String(app.pid)]);
+  const left = "@(Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" | Where-Object { $_.CommandLine -like '*GoldenIQ.GalaxyDownloadManager*' }).Count";
+  for (let i = 0; i < 40 && (await run("powershell", ["-NoProfile", "-Command", left])) !== "0"; i++) await sleep(500);
+  route = "registry";
+  ok = await start("registry", 90000);
 }
-if (exited !== null || Date.now() - t0 >= 90000) {
-  const run = (cmd, args) =>
-    new Promise((r) => {
-      const c = spawn(cmd, args, { stdio: ["ignore", "pipe", "ignore"] });
-      let o = "";
-      c.stdout.on("data", (d) => (o += d));
-      c.on("close", () => r(o.trim()));
-    });
+if (!ok) {
   // evidence for a hang (this never passed on a CI runner): gdm's window title (a dialog?), its WebView2
   // processes and their arguments, and what GDM wrote next to its data
   const ps = await run("tasklist", ["/V", "/FI", "IMAGENAME eq gdm.exe"]);
@@ -54,7 +81,7 @@ if (exited !== null || Date.now() - t0 >= 90000) {
     return `--- ${f}: ${fs.existsSync(p) ? fs.readFileSync(p, "utf8").slice(-2000) : "(none)"}`;
   });
   const wins = await run("powershell", ["-NoProfile", "-Command", "Get-Process gdm -ErrorAction SilentlyContinue | ForEach-Object { 'title=[' + $_.MainWindowTitle + '] responding=' + $_.Responding }"]);
-  console.log(`FAIL WebView2 DevTools port 9339 never opened: gdm.exe ${exited === null ? "still running after 90 s" : `exited with ${exited}`}\n${ps}\n${wins}`);
+  console.log(`FAIL WebView2 DevTools port 9339 never opened (env route 30 s, then registry route): gdm.exe ${exited === null ? "still running after 90 s" : `exited with ${exited}`}\n${ps}\n${wins}`);
   console.log(`--- msedgewebview2 processes:\n${wv || "(none)"}\n--- data dir: ${fs.readdirSync(data).join(", ")}\n${logs.join("\n")}`);
   // the browser process (no --type): did --remote-debugging-port reach it, what does it listen on, and is remote
   // debugging turned off by an Edge / WebView2 policy on this machine
@@ -71,7 +98,8 @@ if (exited !== null || Date.now() - t0 >= 90000) {
   app.kill();
   process.exit(1);
 }
-console.log(`PASS WebView2 DevTools port open after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+console.log(`PASS WebView2 DevTools port open after ${((Date.now() - t0) / 1000).toFixed(1)} s (${route} route)`);
+if (route === "registry") await cleanReg();
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9339");
 // the main window (skip DevTools pages)
 const page = browser.contexts()[0].pages().find((p) => !p.url().startsWith("devtools"));
