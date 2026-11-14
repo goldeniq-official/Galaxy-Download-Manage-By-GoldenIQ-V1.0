@@ -287,6 +287,15 @@ async function addStarted(url) {
   const id = await inv("add_url", { url });
   return inv("info_confirm", { id, name: null, category: null, later: false });
 }
+// Start in the Download info dialog with the real mouse; the dialog may close by itself first when the file
+// finishes while the user looks at it (GDM downloads during the dialog): then there is nothing left to press
+async function pressStart() {
+  try {
+    await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+  } catch (e) {
+    if (await dialogOpen()) throw e;
+  }
+}
 const dialogOpen = () => visible(gdm, '[role="dialog"] .mfoot .btn-p');
 const dialogText = () => gdm.eval(`document.querySelector('[role="dialog"]')?.innerText ?? ""`);
 
@@ -339,7 +348,7 @@ async function captureAndStart(id, linkSel, name, { allowFg = true } = {}) {
   rec("NOTE", id, `dialog shows`, text.replace(/\s+/g, " ").slice(0, 200));
   rec("NOTE", id, `screen`, shot(id, "dialog"));
   await sleep(500); // C-03: Start takes clicks after 400 ms
-  await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+  await pressStart();
   const closed = await until(async () => !(await dialogOpen()), 5000);
   check(id, !!closed, "Start closes the dialog");
   return finish(name);
@@ -440,7 +449,8 @@ await step("C", async () => {
   // closing the window keeps GDM in the tray
   await osClick(gdm, ".tbar .close, button.close[aria-label]", "gdm").catch(() => cdpClick(gdm, "button.close"));
   await sleep(2000);
-  check("C4", gdmProcs() === "1" && win("win", "gdm") === "none", "closing the window keeps GDM running in the tray", `procs ${gdmProcs()} window ${win("win", "gdm")}`);
+  check("C4", gdmProcs() === "1" && win("win", "gdm") === "none", "closing the window keeps GDM running in the tray (no window left on screen)", `procs ${gdmProcs()} visible: ${win("list", "gdm")}`);
+  rec("NOTE", "C4", "screen after closing", shot("C4", "closed"));
   spawn(path.join(INST, "gdm.exe"), [], { stdio: "ignore", detached: true }).unref();
   check("C4", !!(await until(() => win("win", "gdm") !== "none", 8000)), "starting GDM from the Start menu shows the window again");
 });
@@ -482,7 +492,7 @@ await step("D4", async () => {
   rec("NOTE", "D4", "dialog shows", (await dialogText()).replace(/\s+/g, " ").slice(0, 200));
   rec("NOTE", "D4", "screen", shot("D4", "duplicate"));
   await sleep(500);
-  await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+  await pressStart();
   const s = await until(async () => {
     const j = await unblock((await jobs()).find((x) => x.id !== first.id && x.url.endsWith("gdm-qa-a.zip")));
     return j?.state === "complete" ? j : null;
@@ -503,7 +513,7 @@ await step("D7", async () => {
   rec("NOTE", "D7", "screen", shot("D7", "batch"));
   if (!check("D7", !!up, "three files at once -> one dialog listing 3")) return;
   await sleep(500);
-  await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+  await pressStart();
   for (const f of ["gdm-qa-m1.zip", "gdm-qa-m2.zip", "gdm-qa-m3.zip"]) {
     const j = await finish(f, 60000);
     check("D7", !!j && sha(fileOf(j)) === want(f), `${f} complete and exact`);
@@ -551,7 +561,7 @@ await step("D12", async () => {
     await osClick(br, "#gdm_qa_slow_zip", "chrome");
     if (!(await until(async () => (gdm || (await gdmPage(3000))) && (await dialogOpen()), 25000))) break verifyStarted;
     await sleep(500);
-    await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+    await pressStart();
   }
   const j = await until(async () => {
     const x = await jobBy("gdm-qa-slow.zip");
@@ -578,7 +588,7 @@ await step("D13", async () => {
   await osClick(br, "#gdm_qa_crash_zip", "chrome");
   if (await until(dialogOpen, 20000)) {
     await sleep(500);
-    await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+    await pressStart();
   }
   const j = await until(async () => {
     const x = await jobBy("gdm-qa-crash.zip");
@@ -639,11 +649,16 @@ await step("D16", async () => {
   await br.eval(`location.href = "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-pc-windows-msvc.zip"`);
   const rg = async () => (await jobs()).find((x) => x.name.startsWith("ripgrep-14.1.1"));
   const up = await until(async () => (await dialogOpen()) || (await rg()), 30000);
+  if (!up) {
+    const items = await br.eval(`document.title + " | " + location.href`).catch((e) => e.message);
+    rec("NOTE", "D16", "browser after the click", `${items} · browser saved: ${browserSaved().join(",") || "nothing"} · fg ${win("fg")}`);
+    rec("NOTE", "D16", "screen", shot("D16", "not-caught"));
+  }
   if (!check("D16", !!up, "real HTTPS link (GitHub release, redirects to a CDN) -> caught by GDM")) return;
   rec("NOTE", "D16", "screen", shot("D16", "https"));
   if (await dialogOpen()) {
     await sleep(500);
-    await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+    await pressStart();
   }
   const j = await until(async () => (await jobs()).find((x) => x.name.startsWith("ripgrep-14.1.1") && x.state === "complete"), 120000, 1000);
   if (!check("D16", !!j, "real HTTPS download completes")) return;

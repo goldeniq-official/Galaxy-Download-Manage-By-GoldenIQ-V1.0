@@ -6,6 +6,7 @@
 #   fg                    -> "<process>|<title>" of the foreground window
 #   win <process>         -> "x y w h" of that process's visible main window, client origin "cx cy", or "none"
 #   front <process>       -> brings that process's main window to the front
+#   list <process>        -> every visible top-level window of the process (class|title|rect)
 #   screen                -> primary monitor size "w h"
 #   area                  -> work area of the primary monitor "x y w h"
 param([string]$cmd, [string]$a1, [string]$a2)
@@ -42,10 +43,28 @@ public static class W {
       string pn; try { pn = System.Diagnostics.Process.GetProcessById(pid).ProcessName; } catch { return true; }
       if (!string.Equals(pn, name, StringComparison.OrdinalIgnoreCase)) return true;
       R r; GetWindowRect(h, out r); long a = (long)(r.r - r.l) * (r.b - r.t);
+      // helper windows (single-instance "-siw", tao's event target) are 18x18 and draw nothing: not a window
+      if ((r.r - r.l) < 100 || (r.b - r.t) < 100) return true;
       if (a > area) { area = a; best = h; }
       return true;
     }, IntPtr.Zero);
     return best;
+  }
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  // every visible top-level window of the process: "class|title|x,y wxh"
+  public static string List(string name) {
+    var o = new StringBuilder();
+    EnumWindows((h, l) => {
+      if (!IsWindowVisible(h)) return true;
+      int pid; GetWindowThreadProcessId(h, out pid);
+      string pn; try { pn = System.Diagnostics.Process.GetProcessById(pid).ProcessName; } catch { return true; }
+      if (!string.Equals(pn, name, StringComparison.OrdinalIgnoreCase)) return true;
+      var t = new StringBuilder(256); GetWindowText(h, t, 256); var c = new StringBuilder(256); GetClassName(h, c, 256);
+      R r; GetWindowRect(h, out r);
+      o.Append(c + "|" + t + "|" + r.l + "," + r.t + " " + (r.r - r.l) + "x" + (r.b - r.t) + (IsIconic(h) ? " min" : "") + "; ");
+      return true;
+    }, IntPtr.Zero);
+    return o.ToString();
   }
 }
 "@
@@ -94,6 +113,7 @@ switch ($cmd) {
     Start-Sleep -Milliseconds 400
     "ok"
   }
+  "list" { [W]::List($a1) }
   "screen" {
     $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     "$($b.Width) $($b.Height)"
