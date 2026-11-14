@@ -1,13 +1,15 @@
 # ដាក់ GDM និង extension ជាសាធារណៈ
 
-ឯកសារនេះសម្រាប់ម្ចាស់ (GoldenIQ)។ ជំហានទាំងអស់ខាងក្រោមត្រូវការគណនី ឬសិទ្ធិរបស់ម្ចាស់ ដូច្នេះ Claude ធ្វើជំនួសមិនបាន។ ធ្វើតាមលំដាប់: **ID ហាងត្រូវតែមាននៅក្នុង app មុនពេល app ចេញ** ព្រោះ bridge ទទួលតែ extension ដែល ID របស់វាមាននៅក្នុងបញ្ជី។
+ឯកសារនេះសម្រាប់ម្ចាស់ (GoldenIQ)។ ជំហានទាំងអស់ខាងក្រោមត្រូវការគណនី ឬសិទ្ធិរបស់ម្ចាស់ ដូច្នេះ Claude ធ្វើជំនួសមិនបាន។ **ចេញបានភ្លាម ដោយមិនបាច់មាន ID ហាងទេ (ម្ចាស់ 2026-11-14: ចេញជាផ្លូវការមុន, បង់ $5 ពេលក្រោយ):** ពេល `CWS_ID` / `EDGE_ID` នៅទទេ ប៊ូតុង "ដំឡើង extension" (GDM និង GDM Setup) សម្រាប់ Chrome, Edge, Brave, Vivaldi, Opera បើក browser និង folder `extension` ដែលដំឡើងជាមួយ GDM ហើយចម្លង `chrome://extensions` (ឬ `edge://` / `opera://`) ដាក់ clipboard។ អ្នកប្រើ: បិទភ្ជាប់ក្នុង address bar › បើក Developer mode › អូស folder ទម្លាក់។ Folder នោះមាន dev key (`DEV_ID`) ដែល bridge ទទួលជានិច្ច ហើយ update ជាមួយ GDM។ Firefox ទៅ AMO ជានិច្ច។
+
+**ដាក់ ID ក្រោយហាងអនុម័ត (មិនមែនពេលបានត្រឹម ID ទេ):** ពេល ID ត្រូវបានដាក់ ប៊ូតុងនាំទៅទំព័រហាងភ្លាម។ ទំព័រនោះមិនទាន់មានទេ រហូតដល់ហាងអនុម័ត។ បន្ទាប់មកចេញ GDM កំណែថ្មី (updater នាំវាទៅអ្នកប្រើ)។
 
 ## ០. មុនគេ (ម្ដងតែប៉ុណ្ណោះ)
 
 1. `git push` (មានតែម្ចាស់ប៉ុណ្ណោះ)។ បន្ទាប់មកមើល GitHub → Actions ថា `core`, `app` និង `scorecard` ឆ្លងទាំងអស់។ នេះជាលើកដំបូងដែល CI ដំណើរការ ដូច្នេះ Linux/macOS អាចមានកំហុសដែលត្រូវកែ។
 2. GitHub → Settings → Environments → បង្កើត **release** ហើយដាក់ secrets `TAURI_SIGNING_PRIVATE_KEY` និង `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (ពី `D:\gdm-secrets`)។ បន្ទាប់មកយក `D:\gdm-secrets` ទៅទុកក្រៅកុំព្យូទ័រ។
 
-## ១. ចុះឈ្មោះ extension ក្នុងហាង (មិនទាន់ publish ទេ) ដើម្បីបាន ID
+## ១. ចុះឈ្មោះ extension ក្នុងហាង ដើម្បីបាន ID (ឥតគិតថ្លៃ: Edge, Firefox ឥឡូវ; Chrome $5 ពេលម្ចាស់សម្រេច)
 
 ឯកសារ zip: `pnpm ext` រួច zip **ខ្លឹមសារ** នៃ `extension/dist/chrome` (មិនមែន folder ទេ: `manifest.json` ត្រូវនៅ root) ហើយលុប field `"key"` ចេញពី manifest ក្នុង zip។ `release.yml` ធ្វើបែបនេះដោយខ្លួនឯង (`gdm-extension-chrome-<v>.zip`)។
 
@@ -17,7 +19,7 @@
 | Microsoft Edge Add-ons | https://partner.microsoft.com/dashboard/microsoftedge: ឥតគិតថ្លៃ | Create new extension → upload zip ដដែល → Extension identity បង្ហាញ ID |
 | Firefox (AMO) | https://addons.mozilla.org/developers/: ឥតគិតថ្លៃ | ID ថេរ `gdm@goldeniq.dev` (មាននៅក្នុង manifest រួចហើយ) មិនបាច់ធ្វើអ្វីទេ |
 
-បន្ទាប់មក ប្រាប់ ID ទាំងពីរមក Claude (ឬដាក់ខ្លួនឯង) ក្នុង `crates/gdm-bridge/src/lib.rs`:
+ក្រោយហាងនីមួយៗអនុម័ត ប្រាប់ ID មក Claude (ឬដាក់ខ្លួនឯង) ក្នុង `crates/gdm-bridge/src/lib.rs`:
 
 ```rust
 pub const CWS_ID: &str = "<ID Chrome Web Store>";

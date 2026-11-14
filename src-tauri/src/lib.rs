@@ -768,6 +768,17 @@ fn open_link(key: String) -> R<()> {
     os::open_link(&key)
 }
 
+/// "Install extension" for one browser: Some(extensions page) = no store item yet, GDM started the browser and
+/// showed the bundled extension folder (the UI copies the page and shows the steps); None = it opened the store.
+#[tauri::command]
+fn add_extension(browser: String) -> R<Option<&'static str>> {
+    let dir = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("extension");
+    if let Some(page) = gdm_bridge::browsers::add_unpacked(&browser, &dir) {
+        return Ok(Some(page));
+    }
+    os::open_link(gdm_bridge::browsers::store_key(&browser)).map(|_| None)
+}
+
 #[derive(Serialize)]
 struct Browser {
     key: &'static str,
@@ -1252,6 +1263,7 @@ pub fn run() {
             pause_all,
             resume_all,
             open_link,
+            add_extension,
             browsers,
             update_check,
             update_restart,

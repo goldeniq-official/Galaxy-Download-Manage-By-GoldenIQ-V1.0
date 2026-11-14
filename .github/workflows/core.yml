@@ -71,6 +71,7 @@ jobs:
           mkdir -p src-tauri/binaries dist
           cp target/debug/gdm-bridge "src-tauri/binaries/gdm-bridge-$(rustc -vV | sed -n 's/^host: //p')"
           [ -f dist/index.html ] || echo '<!doctype html>' > dist/index.html
+          mkdir -p extension/dist/chrome; [ -f extension/dist/chrome/manifest.json ] || echo '{}' > extension/dist/chrome/manifest.json # bundled resource (Windows unpacked install)
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: "tests (fsx_unix O_NOFOLLOW, hard links, flock Busy, quarantine/origin mark; bridge socket peer check B-02; E/N/W cards)"
         # Linux: site logins live in the Secret Service (keyring; GDM never stores them in plain text), which a

@@ -7,20 +7,64 @@ use std::path::PathBuf;
 
 use crate::{CWS_ID, EDGE_ID, FIREFOX_IDS};
 
-/// (key, display name, installed): Windows exe candidates under the usual roots
+/// (key, display name, exe candidates under Program Files / Program Files (x86) / LocalAppData)
+#[cfg(windows)]
+const WIN: [(&str, &str, &[&str]); 6] = [
+    ("chrome", "Chrome", &[r"Google\Chrome\Application\chrome.exe"]),
+    ("edge", "Edge", &[r"Microsoft\Edge\Application\msedge.exe"]),
+    ("firefox", "Firefox", &[r"Mozilla Firefox\firefox.exe"]),
+    ("brave", "Brave", &[r"BraveSoftware\Brave-Browser\Application\brave.exe"]),
+    ("vivaldi", "Vivaldi", &[r"Vivaldi\Application\vivaldi.exe"]),
+    ("opera", "Opera", &[r"Programs\Opera\opera.exe", r"Opera\opera.exe"]),
+];
+
+#[cfg(windows)]
+fn find(rel: &[&str]) -> Option<PathBuf> {
+    ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"]
+        .iter()
+        .filter_map(|v| std::env::var_os(v).map(PathBuf::from))
+        .flat_map(|r| rel.iter().map(move |p| r.join(p)))
+        .find(|p| p.is_file())
+}
+
+/// (key, display name, installed)
 #[cfg(windows)]
 pub fn browsers() -> Vec<(&'static str, &'static str, bool)> {
-    let roots: Vec<PathBuf> =
-        ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"].iter().filter_map(|v| std::env::var_os(v).map(PathBuf::from)).collect();
-    let has = |rel: &[&str]| roots.iter().any(|r| rel.iter().any(|p| r.join(p).is_file()));
-    vec![
-        ("chrome", "Chrome", has(&[r"Google\Chrome\Application\chrome.exe"])),
-        ("edge", "Edge", has(&[r"Microsoft\Edge\Application\msedge.exe"])),
-        ("firefox", "Firefox", has(&[r"Mozilla Firefox\firefox.exe"])),
-        ("brave", "Brave", has(&[r"BraveSoftware\Brave-Browser\Application\brave.exe"])),
-        ("vivaldi", "Vivaldi", has(&[r"Vivaldi\Application\vivaldi.exe"])),
-        ("opera", "Opera", has(&[r"Programs\Opera\opera.exe", r"Opera\opera.exe"])),
-    ]
+    WIN.iter().map(|(k, n, rel)| (*k, *n, find(rel).is_some())).collect()
+}
+
+/// A Chromium browser whose store item is not live yet (owner 2026-11-14: release before paying the Chrome Web
+/// Store fee): start the browser and show the extension folder GDM installs next to itself (`dir`, built with the
+/// dev key = DEV_ID, which the bridge accepts). Returns the browser's extensions page for the UI to copy: browsers
+/// ignore chrome:// pages given on their command line (checked 2026-11-14: Chromium opened a New Tab), so the user
+/// pastes it, turns on Developer mode and drags the folder onto the page. None = use the store. Windows only:
+/// macOS/Linux keep the store link.
+// ponytail: an unpacked copy is not updated by the store; once CWS_ID / EDGE_ID are set the app should ask
+// users to remove it (two copies would both catch downloads).
+#[cfg(windows)]
+pub fn add_unpacked(browser: &str, dir: &std::path::Path) -> Option<&'static str> {
+    let page = match browser {
+        "firefox" => return None,
+        "edge" if !EDGE_ID.is_empty() => return None,
+        "edge" => "edge://extensions",
+        _ if !CWS_ID.is_empty() => return None,
+        "opera" => "opera://extensions",
+        _ => "chrome://extensions",
+    };
+    let exe = WIN.iter().find(|b| b.0 == browser).and_then(|b| find(b.2))?;
+    if !dir.join("manifest.json").is_file() {
+        return None;
+    }
+    use std::os::windows::process::CommandExt;
+    let _ = std::process::Command::new(exe).spawn();
+    // explorer reads its own command line: /select,"path" must not be quoted as one argument
+    let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", dir.display())).spawn();
+    Some(page)
+}
+
+#[cfg(unix)]
+pub fn add_unpacked(_browser: &str, _dir: &std::path::Path) -> Option<&'static str> {
+    None
 }
 
 /// (key, display name, installed): macOS applications / Linux commands on PATH
@@ -73,5 +117,13 @@ mod tests {
             assert!(store_url(store_key(k)).is_some_and(|u| u.starts_with("https://")), "{k}");
         }
         assert!(store_url("evil").is_none());
+    }
+
+    #[test]
+    fn unpacked_only_for_chromium_with_the_bundled_folder() {
+        let none = std::path::Path::new("no-such-dir");
+        for b in ["firefox", "chrome", "edge", "brave", "evil"] {
+            assert!(add_unpacked(b, none).is_none(), "{b}"); // no manifest.json there: nothing is launched
+        }
     }
 }

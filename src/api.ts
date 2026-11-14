@@ -110,6 +110,7 @@ export const api = {
   pauseAll: () => call<void>("pause_all"),
   resumeAll: () => call<void>("resume_all"),
   openLink: (key: string) => call<void>("open_link", { key }),
+  addExtension: (browser: string) => call<string | null>("add_extension", { browser }),
   browsers: () => call<Browser[]>("browsers"),
   updateCheck: () => call<void>("update_check"),
   updateRestart: () => call<void>("update_restart"),

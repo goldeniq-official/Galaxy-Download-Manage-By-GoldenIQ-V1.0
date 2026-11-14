@@ -24,7 +24,7 @@ mod win {
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use gdm_bridge::browsers::{browsers, store_key, store_url};
+    use gdm_bridge::browsers::{add_unpacked, browsers, store_key, store_url};
     use serde_json::{json, Value};
     use tao::dpi::LogicalSize;
     use tao::event::{Event, WindowEvent};
@@ -190,7 +190,12 @@ mod win {
                         ("store", _) => {
                             // only a browser this PC has, only its fixed store page
                             let b = m["b"].as_str().unwrap_or("");
-                            if let Some(url) = browsers().into_iter().find(|x| x.0 == b && x.2).and_then(|x| store_url(store_key(x.0))) {
+                            let ext = app.as_ref().map(|exe| exe.with_file_name("extension")).unwrap_or_default();
+                            if !browsers().into_iter().any(|x| x.0 == b && x.2) {
+                            } else if let Some(page) = add_unpacked(b, &ext) {
+                                // no store item yet: the page shows the steps for this browser
+                                let _ = webview.evaluate_script(&format!("gdm({})", json!({ "t": "unpacked", "b": b, "page": page })));
+                            } else if let Some(url) = store_url(store_key(b)) {
                                 open(&url);
                             }
                         }

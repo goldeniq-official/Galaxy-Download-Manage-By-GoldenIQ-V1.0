@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm ext && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -51,6 +51,9 @@
     "copyright": "© GoldenIQ. RPL-1.5",
     "shortDescription": "Galaxy Download Manager",
     "license": "RPL-1.5",
+    "resources": {
+      "../extension/dist/chrome/": "extension/"
+    },
     "externalBin": [
       "binaries/gdm-bridge"
     ],

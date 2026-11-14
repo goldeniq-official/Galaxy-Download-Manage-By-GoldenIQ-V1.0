@@ -18,7 +18,8 @@ const T = {
     doneOk: "ដំឡើងរួចរាល់", doneT: "ជំហានចុងក្រោយ៖ ភ្ជាប់ browser របស់អ្នក",
     doneP: "បន្ថែម extension GDM ទៅ browser ដែលអ្នកប្រើ ដើម្បីឲ្យ GDM ចាប់ download ជំនួស browser។",
     add: "បន្ថែម", sent: "បានបើក", none: "រកមិនឃើញ browser ទេ។ ពេលក្រោយ អ្នកអាចបន្ថែមពី GDM › ការកំណត់ › Browser។",
-    h1: "ចុច “បន្ថែម” ក្បែរ browser", h2: "នៅក្នុងហាង ចុច “Add to {b}” ឬ “Get”", h3: "GDM បង្ហាញ “បានភ្ជាប់” នោះជាការរួចរាល់",
+    h1: "ចុច “បន្ថែម” ក្បែរ browser", h2: "នៅក្នុងហាង ចុច “Add to {b}” ឬ “Get”",
+    h2u: "បិទភ្ជាប់ {p} ក្នុង address bar (បានចម្លងរួច) › បើក “Developer mode” › អូស folder “extension” ដែល GDM បើកឲ្យ ទម្លាក់លើទំព័រនោះ", h3: "GDM បង្ហាញ “បានភ្ជាប់” នោះជាការរួចរាល់",
     close: "បិទ", open: "បើក GDM",
     failOk: "មិនបានដំឡើង", failT: "ការដំឡើងមិនបានបញ្ចប់",
     failP: "គ្មានអ្វីផ្សេងត្រូវបានប្ដូរទេ។ សូមព្យាយាមម្ដងទៀត ឬប្រាប់យើងជាមួយសារខាងក្រោម។",
@@ -38,7 +39,8 @@ const T = {
     doneOk: "Installed", doneT: "Last step: connect your browser",
     doneP: "Add the GDM extension to the browsers you use, so GDM catches their downloads.",
     add: "Add", sent: "Opened", none: "No browser found. You can add it later from GDM › Settings › Browsers.",
-    h1: "Click “Add” next to a browser", h2: "In the store, click “Add to {b}” or “Get”", h3: "GDM shows “Connected”: you're done",
+    h1: "Click “Add” next to a browser", h2: "In the store, click “Add to {b}” or “Get”",
+    h2u: "Paste {p} in the address bar (copied) › turn on “Developer mode” › drag the “extension” folder GDM opened onto that page", h3: "GDM shows “Connected”: you're done",
     close: "Close", open: "Open GDM",
     failOk: "Not installed", failT: "Setup could not finish",
     failP: "Nothing else was changed. Try again, or tell us with the message below.",
@@ -62,7 +64,7 @@ const ICONS = {
 
 const $ = (s) => document.querySelector(s);
 const post = (c, x = {}) => window.ipc.postMessage(JSON.stringify({ c, ...x }));
-const S = { lang: "km", page: "welcome", version: "", dir: "", upgrade: false, browsers: [], payload: true, sent: new Set(), busy: false };
+const S = { lang: "km", page: "welcome", version: "", dir: "", upgrade: false, browsers: [], payload: true, sent: new Set(), busy: false, unpacked: "" };
 
 function icon(el) {
   el.setAttribute("viewBox", "0 0 24 24");
@@ -91,7 +93,7 @@ function render() {
   $("#nopayload").hidden = S.payload;
   $("#go").disabled = !S.payload;
   const first = S.browsers[0]?.key ?? "chrome";
-  $("#p-done .how li:nth-child(2) span").textContent = tr("h2", { b: storeName(first) });
+  $("#p-done .how li:nth-child(2) span").textContent = tr(S.unpacked ? "h2u" : "h2", { b: storeName(first), p: S.unpacked });
   const step = { welcome: 1, run: 1, fail: 1, done: 2 }[S.page];
   document.querySelectorAll("#steps li").forEach((li) => {
     const n = Number(li.dataset.s);
@@ -152,6 +154,10 @@ window.gdm = (m) => {
   if (m.t === "hello") {
     Object.assign(S, { version: m.version, lang: m.lang, dir: m.dir, installed: m.installed, browsers: m.browsers, payload: m.payload });
     show("welcome");
+  } else if (m.t === "unpacked") {
+    S.unpacked = m.page; // no store item yet: Setup started the browser and showed the folder; the user pastes the page
+    navigator.clipboard?.writeText(m.page).catch(() => undefined);
+    render();
   } else if (m.t === "done") {
     S.busy = false;
     show("done");

@@ -186,6 +186,8 @@ export async function mock(cmd: string, args: Record<string, unknown>): Promise<
         { key: "edge", name: "Edge", installed: true, connected: false },
         { key: "firefox", name: "Firefox", installed: true, connected: false },
       ];
+    case "add_extension":
+      return args.browser === "firefox" ? null : args.browser === "edge" ? "edge://extensions" : "chrome://extensions";
     case "folder_check":
       return { fs: "NTFS", free: 120 * 1024 * MB, dir: settings.download_dir };
     case "job_detail": {

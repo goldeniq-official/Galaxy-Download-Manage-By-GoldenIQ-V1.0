@@ -65,9 +65,10 @@ jobs:
           ! grep -rn --include=*.rs -e danger_accept_invalid -e NoCertificateVerification crates src-tauri fixtures
           ! grep -n -e tauri-plugin-shell -e tauri-plugin-fs -e tauri-plugin-http -e tauri-plugin-opener src-tauri/Cargo.toml
           ! grep -rn -e withGlobalTauri.*true src-tauri/tauri.conf.json
-      - name: frontend + bridge sidecar for the Tauri build script
+      - name: frontend, extension (a bundled resource) + bridge sidecar for the Tauri build script
         run: |
           pnpm build
+          pnpm ext
           cargo build -p gdm-bridge -p gdm-fixture --release --locked
           New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
           Copy-Item target/release/gdm-bridge.exe src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe
@@ -81,8 +82,6 @@ jobs:
         run: cargo test -p galaxy-download-manager -p gdm-bridge --locked --no-fail-fast
       - name: Store (MSIX) build compiles without the updater (§07)
         run: cargo check -p galaxy-download-manager --features store --locked
-      - name: extension builds (Chrome/Edge + Firefox)
-        run: pnpm ext
       - name: NSIS installer (per-user, Khmer first), unsigned
         run: |
           node scripts/nsis-khmer.mjs

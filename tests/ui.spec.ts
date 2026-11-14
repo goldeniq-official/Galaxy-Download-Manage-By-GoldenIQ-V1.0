@@ -154,6 +154,17 @@ test("settings is one dialog: Esc closes it, the section rows switch inside a fi
   await expect(page.locator("#shell")).not.toHaveAttribute("inert", "");
 });
 
+test("Install extension without a store item: the row names the page to paste and the steps", async ({ page }) => {
+  await open(page, "scene=states&lang=en", 1100, 700);
+  await mainNav(page).last().click();
+  await page.locator(".setnav .nav", { hasText: "Browsers" }).click();
+  const edge = page.locator(".opt", { hasText: "Edge" });
+  await edge.getByRole("button", { name: "Install extension" }).click();
+  await expect(edge.locator("small")).toContainText("edge://extensions");
+  await expect(edge.locator("small")).toContainText("Developer mode");
+  await expect(page.locator(".opt", { hasText: "Firefox" }).locator("small")).toHaveCount(0);
+});
+
 test("X-05: keyboard list: arrows select, Delete removes, Ctrl+N opens Add", async ({ page }) => {
   await open(page, "scene=states", 1100, 700);
   await page.locator(".row").first().focus();

@@ -46,10 +46,16 @@ function useBrowsers() {
   return b;
 }
 
-const storeKey = (k: string) => (k === "firefox" ? "store-firefox" : k === "edge" ? "store-edge" : "store-chrome");
-
 function BrowserRows({ list }: { list: Browser[] }) {
   const { t } = useTranslation();
+  // browser -> its extensions page, for browsers without a store item yet (GDM started it and showed the folder)
+  const [guided, setGuided] = useState<Record<string, string>>({});
+  const add = async (key: string) => {
+    const page = await api.addExtension(key);
+    if (!page) return;
+    setGuided((x) => ({ ...x, [key]: page }));
+    await navigator.clipboard?.writeText(page).catch(() => undefined); // the text names the page too
+  };
   return (
     <>
       {list
@@ -59,6 +65,7 @@ function BrowserRows({ list }: { list: Browser[] }) {
             <Icon n="browser" lg />
             <span className="t">
               <b>{b.name}</b>
+              {guided[b.key] && !b.connected && <small>{t("set.unpacked", { page: guided[b.key] })}</small>}
             </span>
             {b.connected ? (
               <span className="ok">
@@ -66,7 +73,7 @@ function BrowserRows({ list }: { list: Browser[] }) {
                 {t("set.connected")}
               </span>
             ) : (
-              <button type="button" className="fx btn btn-s" onClick={() => void api.openLink(storeKey(b.key))}>
+              <button type="button" className="fx btn btn-s" onClick={() => void add(b.key)}>
                 <Icon n="puzzle-piece" />
                 {t("set.installExt")}
               </button>

@@ -212,6 +212,7 @@
     "video": "ប៊ូតុងវីដេអូលើគេហទំព័រ",
     "videoS": "បិទលំនាំដើម · មកនៅ P2",
     "installExt": "ដំឡើង extension",
+    "unpacked": "បិទភ្ជាប់ {{page}} ក្នុង address bar (បានចម្លងរួច) › បើក “Developer mode” › អូស folder “extension” ដែល GDM បើកឲ្យ ទម្លាក់លើទំព័រនោះ",
     "connected": "បានភ្ជាប់",
     "updMode": "របៀបធ្វើបច្ចុប្បន្នភាព",
     "updAuto": "ស្វ័យប្រវត្តិ",
