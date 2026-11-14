@@ -27,6 +27,26 @@ public static class W {
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out R r, int n);
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref P p);
   [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, out R r, uint c);
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  // the process's real top-level window: visible, titled, the biggest one (Process.MainWindowHandle is unreliable
+  // for multi-process apps like Chromium and for GDM's hidden tray window)
+  public static IntPtr Top(string name, bool iconicToo) {
+    IntPtr best = IntPtr.Zero; long area = -1;
+    EnumWindows((h, l) => {
+      if (!IsWindowVisible(h) || (!iconicToo && IsIconic(h))) return true;
+      var t = new StringBuilder(256); if (GetWindowText(h, t, 256) == 0) return true;
+      int pid; GetWindowThreadProcessId(h, out pid);
+      string pn; try { pn = System.Diagnostics.Process.GetProcessById(pid).ProcessName; } catch { return true; }
+      if (!string.Equals(pn, name, StringComparison.OrdinalIgnoreCase)) return true;
+      R r; GetWindowRect(h, out r); long a = (long)(r.r - r.l) * (r.b - r.t);
+      if (a > area) { area = a; best = h; }
+      return true;
+    }, IntPtr.Zero);
+    return best;
+  }
 }
 "@
 [W]::SetProcessDPIAware() | Out-Null
@@ -52,24 +72,25 @@ switch ($cmd) {
     (Get-Process -Id $id -ErrorAction SilentlyContinue).ProcessName + "|" + $s.ToString()
   }
   "win" {
-    $p = Get-Process $a1 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | Select-Object -First 1
-    if (-not $p) { "none"; break }
+    $h = [W]::Top($a1, $false)
+    if ($h -eq [IntPtr]::Zero) { "none"; break }
     # the visible frame (DWM extended frame bounds): GetWindowRect also counts the invisible resize borders
     $r = New-Object W+R
-    if ([W]::DwmGetWindowAttribute($p.MainWindowHandle, 9, [ref]$r, 16) -ne 0) { [W]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null }
-    $c = New-Object W+P; [W]::ClientToScreen($p.MainWindowHandle, [ref]$c) | Out-Null
+    if ([W]::DwmGetWindowAttribute($h, 9, [ref]$r, 16) -ne 0) { [W]::GetWindowRect($h, [ref]$r) | Out-Null }
+    $c = New-Object W+P; [W]::ClientToScreen($h, [ref]$c) | Out-Null
     "$($r.l) $($r.t) $($r.r - $r.l) $($r.b - $r.t) $($c.x) $($c.y)"
   }
   "front" {
     # what a user does before clicking in the browser while GDM's window is over it: GDM goes down (minimized:
     # a capture must bring it back by itself), the browser comes up maximized. Moving the foreground from another
     # process is not always allowed by Windows; minimizing is.
-    Get-Process gdm -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { [W]::ShowWindow($_.MainWindowHandle, 6) | Out-Null }
-    $p = Get-Process $a1 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | Select-Object -First 1
-    if (-not $p) { "none"; break }
+    $g = [W]::Top("gdm", $false)
+    if ($g -ne [IntPtr]::Zero) { [W]::ShowWindow($g, 6) | Out-Null }
+    $h = [W]::Top($a1, $true)
+    if ($h -eq [IntPtr]::Zero) { "none"; break }
     [W]::keybd_event(0x12, 0, 0, [IntPtr]::Zero); [W]::keybd_event(0x12, 0, 2, [IntPtr]::Zero)
-    [W]::ShowWindow($p.MainWindowHandle, 3) | Out-Null
-    [W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+    [W]::ShowWindow($h, 3) | Out-Null
+    [W]::SetForegroundWindow($h) | Out-Null
     Start-Sleep -Milliseconds 400
     "ok"
   }

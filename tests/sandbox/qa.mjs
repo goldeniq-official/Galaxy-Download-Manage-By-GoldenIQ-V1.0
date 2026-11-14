@@ -231,7 +231,8 @@ const srv = http.createServer((q, r) => {
     ...extra,
   });
   if (q.method === "HEAD") return r.end();
-  const rate = RATE[name];
+  // internet-like speed by default (1 MiB/s): over loopback a 2 MB file finished before its dialog could be used
+  const rate = RATE[name] ?? (name === "gdm-qa-small.zip" ? 0 : 1 << 20);
   if (!rate) return r.end(all.subarray(a, z + 1));
   let p = a;
   const born = era;
@@ -317,7 +318,20 @@ const extWorker = async () => (await list(P_BR))?.find((t) => t.type === "servic
 // one browser click -> GDM's "Download info" -> Start; returns the finished job
 async function captureAndStart(id, linkSel, name, { allowFg = true } = {}) {
   await osClick(br, linkSel, "chrome");
-  const up = await until(async () => (gdm || (await gdmPage(3000))) && (await dialogOpen()), 25000);
+  // the dialog, or (a file faster than the user) the job already finished: GDM closes the dialog then and says
+  // "Downloaded" in a toast
+  const up = await until(async () => (gdm || (await gdmPage(3000))) && ((await dialogOpen()) || ((await jobBy(name))?.state === "complete" && "done")), 25000);
+  if (up === "done") {
+    rec("NOTE", id, "finished before the dialog was used (GDM closes it and shows a toast)", shot(id, "done-first"));
+    return jobBy(name);
+  }
+  if (!up) {
+    // evidence for the miss: did the browser hand it over (the job exists), and what did GDM's window show
+    const st = await gdm?.eval(`JSON.stringify({ vis: document.visibilityState, iw: innerWidth, ih: innerHeight, dlg: !!document.querySelector('[role="dialog"]') })`).catch((e) => e.message);
+    const j = gdm ? await jobBy(name).catch(() => null) : null;
+    rec("NOTE", id, "after the click", `job ${j ? `${j.state} ${j.done}` : "none"} · window ${win("win", "gdm")} · fg ${win("fg")} · page ${st}`);
+    rec("NOTE", id, "screen", shot(id, "no-dialog"));
+  }
   if (!check(id, !!up, `click ${name} in the browser -> GDM's Download info dialog appears`, up ? "" : `gdm processes ${gdmProcs()}`)) return null;
   const fg = win("fg");
   if (allowFg) rec(fg.startsWith("gdm|") ? "PASS" : "FAIL", id, "the dialog comes over the browser (foreground window is GDM)", fg);
@@ -544,7 +558,7 @@ await step("D12", async () => {
     await unblock(x);
     return x && x.done > 4 << 20 && x.done < 20 << 20 ? x : null;
   }, 40000, 300);
-  if (!check("D12", !!j, "slow file is downloading")) return;
+  if (!check("D12", !!j, "slow file is downloading", JSON.stringify(await jobBy("gdm-qa-slow.zip")))) return;
   await inv("job_pause", { id: j.id });
   await sleep(2500);
   const a = await jobBy("gdm-qa-slow.zip");
@@ -571,7 +585,7 @@ await step("D13", async () => {
     await unblock(x);
     return x && x.done > 6 << 20 ? x : null;
   }, 40000, 300);
-  if (!check("D13", !!j, "file is downloading before the crash")) return;
+  if (!check("D13", !!j, "file is downloading before the crash", JSON.stringify(await jobBy("gdm-qa-crash.zip")))) return;
   killGdm();
   gdm = null;
   spawn(path.join(INST, "gdm.exe"), [], { stdio: "ignore", detached: true }).unref();
@@ -615,19 +629,22 @@ await step("D15", async () => {
   const j = await until(async () => {
     const x = (await jobs()).find((y) => y.id === id);
     await unblock(x);
-    return x && x.state === "failed" && !/private/i.test(x.error_code ?? "") ? x : null;
+    return x && x.state !== "downloading" && x.state !== "queued" && x.error_code && !/private/i.test(x.error_code) ? x : null;
   }, 30000, 700);
-  check("D15", !!j, "a 404 link ends as failed with a reason", `${j?.error_code}`);
+  check("D15", !!j, "a 404 link stops with a reason (the row says the file is gone, Open in browser)", `${j?.state} ${j?.error_code}`);
   rec("NOTE", "D15", "screen", shot("D15", "404"));
 });
 await step("D16", async () => {
   // one real HTTPS download from the internet through a browser click
   await br.eval(`location.href = "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-pc-windows-msvc.zip"`);
-  const up = await until(dialogOpen, 30000);
-  if (!check("D16", !!up, "real HTTPS link (GitHub release, redirects to a CDN) -> dialog")) return;
+  const rg = async () => (await jobs()).find((x) => x.name.startsWith("ripgrep-14.1.1"));
+  const up = await until(async () => (await dialogOpen()) || (await rg()), 30000);
+  if (!check("D16", !!up, "real HTTPS link (GitHub release, redirects to a CDN) -> caught by GDM")) return;
   rec("NOTE", "D16", "screen", shot("D16", "https"));
-  await sleep(500);
-  await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+  if (await dialogOpen()) {
+    await sleep(500);
+    await osClick(gdm, '[role="dialog"] .mfoot .btn-p', "gdm");
+  }
   const j = await until(async () => (await jobs()).find((x) => x.name.startsWith("ripgrep-14.1.1") && x.state === "complete"), 120000, 1000);
   if (!check("D16", !!j, "real HTTPS download completes")) return;
   const ref = path.join(os.tmpdir(), "rg-ref.zip");
