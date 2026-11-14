@@ -87,7 +87,8 @@ void (async () => {
   const get = $("get") as HTMLButtonElement; // a store user may have the extension before GDM itself
   get.hidden = !!r?.connected || untrusted; // GDM is installed: getting it again would not help
   get.textContent = msg("getGdm");
-  get.onclick = () => chrome.tabs.create({ url: "https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/releases/latest" });
+  // the official download page: it picks the user's computer and always follows the latest GitHub release
+  get.onclick = () => chrome.tabs.create({ url: "https://gdm.goldeniq.app/download" });
   const ul = $("recent");
   for (const it of (r?.status?.recent as { name: string; state: string }[] | undefined) ?? []) {
     const li = document.createElement("li");

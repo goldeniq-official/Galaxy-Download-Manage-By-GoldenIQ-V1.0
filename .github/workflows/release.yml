@@ -174,4 +174,8 @@ jobs:
       - name: draft release (the owner publishes)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME out/* --draft --title "Galaxy Download Manager $env:GITHUB_REF_NAME" --notes-file docs/release/notes-$($env:GITHUB_REF_NAME.TrimStart('v')).md
+        # every release points back at the official website (its download page follows this release: site.yml)
+        run: |
+          $notes = Get-Content "docs/release/notes-$($env:GITHUB_REF_NAME.TrimStart('v')).md" -Raw
+          $notes.TrimEnd() + "`n`n---`n**Website / គេហទំព័រ:** https://gdm.goldeniq.app/download · SHA-256: ``SHA256SUMS.txt```n" | Set-Content -NoNewline -Encoding utf8NoBOM out-notes.md
+          gh release create $env:GITHUB_REF_NAME out/* --draft --title "Galaxy Download Manager $env:GITHUB_REF_NAME" --notes-file out-notes.md
