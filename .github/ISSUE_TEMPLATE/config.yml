@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How to use GDM / របៀបប្រើ GDM
+    url: https://gdm.goldeniq.app/guide
+    about: Install, browser extension, first steps. / ការដំឡើង, extension, ជំហានដំបូង។
+  - name: Security problem / បញ្ហាសុវត្ថិភាព
+    url: https://github.com/goldeniq-official/Galaxy-Download-Manage-By-GoldenIQ-V1.0/security/advisories/new
+    about: Report it privately, never in a public issue. / រាយការណ៍ដោយឯកជន កុំក្នុង issue សាធារណៈ។

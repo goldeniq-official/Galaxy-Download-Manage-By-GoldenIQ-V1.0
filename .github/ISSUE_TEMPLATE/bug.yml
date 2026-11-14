@@ -1,0 +1,55 @@
+name: Report a problem / រាយការណ៍បញ្ហា
+description: Something in GDM does not work as it should. / អ្វីមួយក្នុង GDM មិនដំណើរការត្រឹមត្រូវ។
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Please remove cookies, passwords, tokens and private download addresses from anything you paste.
+        សូមអរគុណ។ សូមលុប cookie, ពាក្យសម្ងាត់, token និងអាសយដ្ឋានទាញយកឯកជន ចេញពីអ្វីដែលអ្នកបិទភ្ជាប់។
+        A security problem? Do not open an issue: see SECURITY.md. / បញ្ហាសុវត្ថិភាព? កុំបើក issue: មើល SECURITY.md។
+  - type: input
+    id: version
+    attributes:
+      label: GDM version / កំណែ GDM
+      description: Settings › About shows it. / មើលក្នុង ការកំណត់ › អំពី។
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Computer / កុំព្យូទ័រ
+      options:
+        - Windows (x64)
+        - Windows (ARM64)
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x64)
+        - Linux (ARM64)
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and extension version (if the problem is about catching downloads) / Browser និងកំណែ extension
+      placeholder: "Chrome 142, GDM extension 1.0.0"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / មានអ្វីកើតឡើង?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen again / ជំហានដើម្បីធ្វើឲ្យវាកើតម្ដងទៀត
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect? / អ្នករំពឹងថានឹងមានអ្វី?

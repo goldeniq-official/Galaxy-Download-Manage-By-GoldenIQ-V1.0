@@ -8,7 +8,7 @@
 
 | Version | Supported |
 |---|---|
-| 0.9.x (public beta) | yes |
+| 1.0.x (latest release) | yes |
 | older | no |
 
 ## In scope
