@@ -38,13 +38,24 @@ while (Date.now() - t0 < 90000 && exited === null) {
   await sleep(500);
 }
 if (exited !== null || Date.now() - t0 >= 90000) {
-  const ps = await new Promise((r) => {
-    const c = spawn("tasklist", ["/FI", "IMAGENAME eq gdm.exe"], { stdio: ["ignore", "pipe", "ignore"] });
-    let o = "";
-    c.stdout.on("data", (d) => (o += d));
-    c.on("close", () => r(o.trim()));
+  const run = (cmd, args) =>
+    new Promise((r) => {
+      const c = spawn(cmd, args, { stdio: ["ignore", "pipe", "ignore"] });
+      let o = "";
+      c.stdout.on("data", (d) => (o += d));
+      c.on("close", () => r(o.trim()));
+    });
+  // evidence for a hang (this never passed on a CI runner): gdm's window title (a dialog?), its WebView2
+  // processes and their arguments, and what GDM wrote next to its data
+  const ps = await run("tasklist", ["/V", "/FI", "IMAGENAME eq gdm.exe"]);
+  const wv = await run("powershell", ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" | ForEach-Object { $_.ProcessId.ToString() + ' ' + $_.CommandLine.Substring(0, [Math]::Min(300, $_.CommandLine.Length)) }"]);
+  const logs = ["webview.log", "crash.log"].map((f) => {
+    const p = path.join(data, f);
+    return `--- ${f}: ${fs.existsSync(p) ? fs.readFileSync(p, "utf8").slice(-2000) : "(none)"}`;
   });
-  console.log(`FAIL WebView2 DevTools port 9339 never opened: gdm.exe ${exited === null ? "still running after 90 s" : `exited with ${exited}`}\n${ps}`);
+  const wins = await run("powershell", ["-NoProfile", "-Command", "Get-Process gdm -ErrorAction SilentlyContinue | ForEach-Object { 'title=[' + $_.MainWindowTitle + '] responding=' + $_.Responding }"]);
+  console.log(`FAIL WebView2 DevTools port 9339 never opened: gdm.exe ${exited === null ? "still running after 90 s" : `exited with ${exited}`}\n${ps}\n${wins}`);
+  console.log(`--- msedgewebview2 processes:\n${wv || "(none)"}\n--- data dir: ${fs.readdirSync(data).join(", ")}\n${logs.join("\n")}`);
   app.kill();
   process.exit(1);
 }
