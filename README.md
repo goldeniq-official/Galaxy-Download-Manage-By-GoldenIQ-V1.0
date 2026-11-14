@@ -4,6 +4,8 @@ Galaxy Download Manager is a desktop download manager for Windows. It downloads 
 
 **Current release:** 1.0.0 · [Release notes and known limitations](docs/release/notes-1.0.0.md) · Officially supported platform: Windows 11 x64
 
+![Galaxy Download Manager main window](docs/images/main-window.png)
+
 ## Features
 
 **Downloading**
@@ -26,9 +28,16 @@ Galaxy Download Manager is a desktop download manager for Windows. It downloads 
 - Extensions for Google Chrome, Microsoft Edge and Firefox. Brave, Vivaldi and Opera are registered but not yet tested.
 - <kbd>Ctrl</kbd>+click sends a link to GDM; <kbd>Alt</kbd>+click leaves it to the browser.
 - Context menu entries "Download with GDM" and "Download all links", and a per-site exclusion.
+- By default, when a download is received, the Download File Info dialog opens for the file name, category and destination. The transfer has already started while the dialog is open.
+
+![Download File Info dialog](docs/images/download-info.png)
 
 **Site grabber** (Tasks menu)
 - Explores a website and lists the images, videos or documents that match your selection. It only reads pages, skips logout and delete links, and enforces limits against crawler traps. See [docs/site-grabber.md](docs/site-grabber.md).
+
+![Site grabber](docs/images/site-grabber.png)
+
+Screenshots show the application with example data.
 
 ## Installation
 

@@ -96,6 +96,17 @@ function scene(): Row[] {
       return [];
     case "xss":
       return XSS.map((n, i) => row(n, i % 2 ? "complete" : "paused", 1000 + i, i % 2 ? 1000 + i : 10, { url: `https://e.com/${i}?q=<script>window.__xss=1</script>`, description: n }));
+    case "showcase": // README screenshots: ordinary downloads, no error states
+      return [
+        row("ubuntu-24.04.3-desktop-amd64.iso", "downloading", 5.9 * 1024 * MB, 3.7 * 1024 * MB),
+        row("blender-windows-x64.zip", "downloading", 410 * MB, 150 * MB),
+        row("សៀវភៅណែនាំ-គណិតវិទ្យា-ថ្នាក់ទី១២.pdf", "complete", 18 * MB, 18 * MB),
+        row("annual-report-2026.pdf", "complete", 4 * MB, 4 * MB),
+        row("python-amd64.exe", "complete", 28 * MB, 28 * MB),
+        row("lecture-recording-week-08.mp4", "complete", 860 * MB, 860 * MB),
+        row("dataset-2026-q3.zip", "paused", 2.4 * 1024 * MB, 900 * MB),
+        row("podcast-episode-112.mp3", "paused", 58 * MB, 12 * MB),
+      ];
     case "big":
       return Array.from({ length: 10_000 }, (_, i) => row(i % 97 === 0 ? `មេរៀនគណិតវិទ្យា-${i}.pdf` : `setup-tool-${i}.zip`, "complete", 1_000_000 + i, 1_000_000 + i));
     default:
@@ -154,7 +165,7 @@ function batchUrls(b: B, n: number): string[] {
   const a = num ? Number(b.from) : b.from.charCodeAt(0);
   return Array.from({ length: n }, (_, i) => b.pattern.replace("*", num ? String(a + i).padStart(b.width, "0") : String.fromCharCode(a + i)));
 }
-const pending: string[] = P.get("scene") === "info" ? [jobs[0].id] : P.get("scene") === "batch" ? jobs.slice(0, 5).map((j) => j.id) : [];
+const pending: string[] = P.get("scene") === "info" || P.get("info") === "1" ? [jobs[0].id] : P.get("scene") === "batch" ? jobs.slice(0, 5).map((j) => j.id) : [];
 let rev = 1;
 const calls: [string, unknown][] = [];
 (window as unknown as { __calls: typeof calls }).__calls = calls;
