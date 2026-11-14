@@ -61,14 +61,16 @@ switch ($cmd) {
     "$($r.l) $($r.t) $($r.r - $r.l) $($r.b - $r.t) $($c.x) $($c.y)"
   }
   "front" {
-    # what a user does before clicking in a window that is behind another one: bring it forward (an Alt tap
-    # lets this process move the foreground, as the user's own input would)
+    # what a user does before clicking in the browser while GDM's window is over it: GDM goes down (minimized:
+    # a capture must bring it back by itself), the browser comes up maximized. Moving the foreground from another
+    # process is not always allowed by Windows; minimizing is.
+    Get-Process gdm -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { [W]::ShowWindow($_.MainWindowHandle, 6) | Out-Null }
     $p = Get-Process $a1 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | Select-Object -First 1
     if (-not $p) { "none"; break }
     [W]::keybd_event(0x12, 0, 0, [IntPtr]::Zero); [W]::keybd_event(0x12, 0, 2, [IntPtr]::Zero)
-    [W]::ShowWindow($p.MainWindowHandle, 9) | Out-Null
+    [W]::ShowWindow($p.MainWindowHandle, 3) | Out-Null
     [W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 300
+    Start-Sleep -Milliseconds 400
     "ok"
   }
   "screen" {

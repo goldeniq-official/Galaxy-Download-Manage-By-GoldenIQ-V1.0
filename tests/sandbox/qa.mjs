@@ -193,8 +193,13 @@ ${Object.keys(FILES)
 <a id="auth" href="http://${host}/auth/gdm-qa-auth.zip">Cookie-protected</a>
 <button id="many" onclick="for (const f of ['m1','m2','m3']) { const a = document.createElement('a'); a.href='/f/gdm-qa-'+f+'.zip'; document.body.append(a); a.click(); }">Three files at once</button>
 <script>document.cookie = "sess=gdm-qa; path=/";</script>`;
+// a Wi-Fi drop as the client sees it: while `outage` is on, open connections go silent (no FIN, no RST) and new
+// ones get no answer; connections from before the outage stay dead afterwards (their path is gone)
+let outage = false;
+let era = 0;
 const srv = http.createServer((q, r) => {
   const u = new URL(q.url, "http://x");
+  if (outage && u.pathname.includes("gdm-qa-net")) return; // never answered
   served.push([u.pathname, q.headers.range ?? "", q.headers.cookie ?? "", q.headers["user-agent"] ?? ""]);
   if (u.pathname === "/") return r.writeHead(200, { "content-type": "text/html; charset=utf-8" }), r.end(page(q.headers.host));
   if (u.pathname === "/redir") return r.writeHead(302, { location: "/f/gdm-qa-redir.zip" }), r.end();
@@ -229,8 +234,10 @@ const srv = http.createServer((q, r) => {
   const rate = RATE[name];
   if (!rate) return r.end(all.subarray(a, z + 1));
   let p = a;
+  const born = era;
   const tick = setInterval(() => {
     if (r.destroyed) return clearInterval(tick);
+    if (name === "gdm-qa-net.zip" && (outage || born !== era)) return; // silent: a dead link
     const n = Math.min(rate / 10, z + 1 - p);
     r.write(all.subarray(p, p + n));
     p += n;
@@ -273,6 +280,11 @@ async function finish(name, ms = 90000) {
     const j = await unblock(await jobBy(name));
     return j?.state === "complete" ? j : null;
   }, ms, 700);
+}
+// Add URL puts the file in the Download info dialog, not started (IDM's flow): Start = info_confirm
+async function addStarted(url) {
+  const id = await inv("add_url", { url });
+  return inv("info_confirm", { id, name: null, category: null, later: false });
 }
 const dialogOpen = () => visible(gdm, '[role="dialog"] .mfoot .btn-p');
 const dialogText = () => gdm.eval(`document.querySelector('[role="dialog"]')?.innerText ?? ""`);
@@ -571,48 +583,35 @@ await step("D13", async () => {
   verify("D13", await finish("gdm-qa-crash.zip", 90000), "gdm-qa-crash.zip");
 });
 await step("D14", async () => {
-  // the network goes away mid-download (Wi-Fi drop), then comes back
-  const ip = pwsh("(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254*' } | Select-Object -First 1).IPAddress");
-  const nic = pwsh("(Get-NetAdapter | Where-Object Status -eq 'Up' | Select-Object -First 1).Name");
-  if (!ip || !nic) return rec("BLOCKED", "D14", "no network adapter to switch off", `${ip} ${nic}`);
+  // the connection dies mid-download (Wi-Fi drop: silence, no reset) for 20 s, then the network is back
   await gdmPage();
-  const id = await inv("add_url", { url: `http://${ip}:8765/f/gdm-qa-net.zip` });
-  await until(async () => {
-    const x = (await jobs()).find((j) => j.id === id);
-    await unblock(x);
-    return x && x.done > 3 << 20;
-  }, 30000, 300);
-  // watchdog first: the adapter comes back even if this script dies
-  spawn("powershell", ["-NoProfile", "-Command", `Start-Sleep 25; Enable-NetAdapter -Name '${nic}' -Confirm:$false`], { stdio: "ignore", detached: true }).unref();
-  pwsh(`Disable-NetAdapter -Name '${nic}' -Confirm:$false`);
-  await sleep(8000);
+  const id = await addStarted("http://127.0.0.1:8765/f/gdm-qa-net.zip");
+  const going = await until(async () => ((await jobs()).find((j) => j.id === id)?.done ?? 0) > 3 << 20, 30000, 300);
+  if (!check("D14", !!going, "file is downloading before the drop")) return;
+  outage = true;
+  era++;
+  await sleep(20000);
   const mid = (await jobs()).find((j) => j.id === id);
-  rec("NOTE", "D14", "while offline", `${mid?.state} ${mid?.error_code ?? ""} ${mid?.done}`);
+  rec("NOTE", "D14", "during the drop", `${mid?.state} ${mid?.done} ${mid?.error_code ?? ""}`);
   rec("NOTE", "D14", "screen", shot("D14", "offline"));
-  await until(() => pwsh(`(Get-NetAdapter -Name '${nic}').Status`) === "Up", 40000, 1000);
+  outage = false;
   const back = Date.now();
-  rec("NOTE", "D14", "network back; address now", pwsh("(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254*' } | Select-Object -First 1).IPAddress"));
-  // a timeline, not a guess: what GDM shows every 5 s, and whether it needs a click (no click for 3 minutes)
+  // a timeline, not a guess: what GDM shows every 5 s after the network is back, with no click (3 minutes)
   const line = [];
   let fin = null;
   while (!fin && Date.now() - back < 180000) {
     const x = (await jobs()).find((j) => j.id === id);
-    line.push(`${Math.round((Date.now() - back) / 1000)}s ${x?.state} ${x?.done} r${x?.retries} ${x?.error_code ?? ""}`.trim());
+    line.push(`${Math.round((Date.now() - back) / 1000)}s ${x?.state} ${x?.done} ${x?.error_code ?? ""}`.trim());
     if (x?.state === "complete") fin = x;
     else await sleep(5000);
   }
   rec("NOTE", "D14", "timeline after the network came back", line.join(" | "));
-  check("D14", !!fin, "after the network comes back the download finishes BY ITSELF (no click)", fin ? `${Math.round((Date.now() - back) / 1000)} s` : "");
-  if (!fin) {
-    await inv("job_start", { id, decision: null }).catch((e) => rec("NOTE", "D14", "manual resume said", e.message));
-    fin = await until(async () => ((await jobs()).find((j) => j.id === id)?.state === "complete" ? (await jobs()).find((j) => j.id === id) : null), 60000, 1500);
-    check("D14", !!fin, "and with a click on Resume it finishes");
-  }
+  check("D14", !!fin, "after the network comes back the download finishes BY ITSELF (no click)", fin ? `${Math.round((Date.now() - back) / 1000)} s after` : "");
   if (fin) check("D14", sha(fileOf(fin)) === want("gdm-qa-net.zip"), "bytes exact after the drop");
 });
 await step("D15", async () => {
   // what a user sees for a dead link
-  const id = await inv("add_url", { url: "http://127.0.0.1:8765/f/missing.zip" });
+  const id = await addStarted("http://127.0.0.1:8765/f/missing.zip");
   const j = await until(async () => {
     const x = (await jobs()).find((y) => y.id === id);
     await unblock(x);
