@@ -249,7 +249,8 @@ pub fn launch_held(path: &std::path::Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // a throwaway test key pair (generated for these tests only; never used for releases)
+    // a throwaway test key pair (generated for these tests only; never used for releases). The test manifest says
+    // 99.0.1 so it stays newer than GDM's own version (it was 0.9.1 and broke at 1.0.0)
     const TEST_PUB: &str = include_str!("../tests/update/test.pub.b64");
     const BODY: &[u8] = include_bytes!("../tests/update/latest.json");
     const SIG: &str = include_str!("../tests/update/latest.json.sig.b64");
@@ -258,16 +259,16 @@ mod tests {
     #[test]
     fn u01_good_manifest_accepted() {
         let m = verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "0.9.0").unwrap();
-        assert_eq!(m.version, "0.9.1");
+        assert_eq!(m.version, "99.0.1");
     }
     #[test]
     fn u01_forged_body_wrong_key_old_version_expired_channel_refused() {
-        let forged = String::from_utf8_lossy(BODY).replace("0.9.1", "9.9.9");
+        let forged = String::from_utf8_lossy(BODY).replace("99.0.1", "9.9.9");
         assert_eq!(verify_manifest(forged.as_bytes(), SIG, TEST_PUB, NOW, "stable", "0.9.0"), Err(Reject::Signature), "forged manifest");
         assert_eq!(verify_manifest(BODY, SIG, PUBKEY, NOW, "stable", "0.9.0"), Err(Reject::Signature), "signed with another key");
         assert_eq!(verify_manifest(BODY, "AAAA", TEST_PUB, NOW, "stable", "0.9.0"), Err(Reject::Signature), "garbage signature");
-        assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "0.9.1"), Err(Reject::NotNewer), "same version (replay)");
-        assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "1.0.0"), Err(Reject::NotNewer), "downgrade below highest seen");
+        assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "99.0.1"), Err(Reject::NotNewer), "same version (replay)");
+        assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "100.0.0"), Err(Reject::NotNewer), "downgrade below highest seen");
         assert_eq!(verify_manifest(BODY, SIG, TEST_PUB, 2_000_000_000, "stable", "0.9.0"), Err(Reject::Expired));
         assert!(verify_manifest(BODY, SIG, TEST_PUB, NOW, "beta", "0.9.0").is_ok(), "beta takes stable");
     }
@@ -287,14 +288,14 @@ mod tests {
     fn u01_tauri_update_must_match_the_signed_manifest() {
         let m = verify_manifest(BODY, SIG, TEST_PUB, NOW, "stable", "0.9.0").unwrap();
         let p = &m.platforms["windows-x86_64"];
-        assert!(m.binds("windows-x86_64", "0.9.1", &p.url, &p.signature));
+        assert!(m.binds("windows-x86_64", "99.0.1", &p.url, &p.signature));
         assert!(
-            !m.binds("windows-x86_64", "0.9.1", "https://github.com/x/y/releases/download/v0.8.0/old.exe", &p.signature),
+            !m.binds("windows-x86_64", "99.0.1", "https://github.com/x/y/releases/download/v0.8.0/old.exe", &p.signature),
             "relabelled older installer"
         );
-        assert!(!m.binds("windows-x86_64", "0.9.1", &p.url, "other-signature"));
-        assert!(!m.binds("windows-x86_64", "0.9.2", &p.url, &p.signature));
-        assert!(!m.binds("windows-aarch64", "0.9.1", &p.url, &p.signature));
+        assert!(!m.binds("windows-x86_64", "99.0.1", &p.url, "other-signature"));
+        assert!(!m.binds("windows-x86_64", "99.0.2", &p.url, &p.signature));
+        assert!(!m.binds("windows-aarch64", "99.0.1", &p.url, &p.signature));
         #[cfg(all(windows, target_arch = "x86_64"))]
         assert_eq!(platform_key(), "windows-x86_64");
         #[cfg(all(windows, target_arch = "aarch64"))]
