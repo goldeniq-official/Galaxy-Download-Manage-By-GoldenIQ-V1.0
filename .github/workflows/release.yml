@@ -135,6 +135,17 @@ jobs:
           pattern: out-*
           path: out
           merge-multiple: true
+      - name: every file the website's download buttons link to is here (gdm.goldeniq.app src/content/release.ts FILES)
+        shell: pwsh
+        run: |
+          $v = $env:GITHUB_REF_NAME.TrimStart('v')
+          $want = @("GDM-Setup_${v}_windows-x64.exe", "GDM_${v}_windows-x64-setup.exe", "GDM-Setup_${v}_windows-arm64.exe", "GDM_${v}_windows-arm64-setup.exe",
+                    "GDM_${v}_macos-arm64.dmg", "GDM_${v}_macos-x64.dmg",
+                    "GDM_${v}_linux-x64.AppImage", "GDM_${v}_linux-x64.deb", "GDM_${v}_linux-x64.rpm",
+                    "GDM_${v}_linux-arm64.AppImage", "GDM_${v}_linux-arm64.deb", "GDM_${v}_linux-arm64.rpm",
+                    "gdm-extension-chrome-$v.zip", "gdm-extension-firefox-$v.zip")
+          $missing = $want | Where-Object { -not (Test-Path "out/$_") -or (Get-Item "out/$_").Length -eq 0 }
+          if ($missing) { throw "missing (a website button would be dead): $($missing -join ', ')" }
       - name: signed latest.json (U-01, one entry per platform) + sha256 sums
         shell: pwsh
         env:
