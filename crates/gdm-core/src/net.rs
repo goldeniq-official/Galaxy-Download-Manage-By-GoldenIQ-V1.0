@@ -49,12 +49,15 @@ pub fn lan_host(u: &Url) -> bool {
 
 /// private / loopback / ULA, but never link-local in any form: 169.254.169.254 is the cloud metadata service
 fn lan_ip(ip: IpAddr) -> bool {
-    let link_local_v4 = |v: std::net::Ipv4Addr| v.is_link_local();
-    let link_local = match ip {
-        IpAddr::V4(v) => link_local_v4(v),
-        IpAddr::V6(v) => (v.segments()[0] & 0xffc0) == 0xfe80 || embedded_v4(v).is_some_and(link_local_v4),
-    };
-    !public(ip) && !link_local
+    !public(ip) && !link_local(ip)
+}
+
+/// link-local in any form, also hidden in an IPv6 address that carries an IPv4 one
+fn link_local(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v) => v.is_link_local(),
+        IpAddr::V6(v) => (v.segments()[0] & 0xffc0) == 0xfe80 || embedded_v4(v).is_some_and(|m| m.is_link_local()),
+    }
 }
 
 /// the IPv4 address an IPv6 form carries: mapped ::ffff:a.b.c.d, compatible ::a.b.c.d, NAT64 64:ff9b::/96,
@@ -105,6 +108,12 @@ mod lan_tests {
         ] {
             assert!(l(y), "{y}");
         }
+        // an allowed name never resolves into link-local; a typed link-local IP stays allowed
+        let p = super::Policy { allow_private: vec!["nas.local".into(), "169.254.1.5".into()] };
+        let sa = |s: &str| vec![std::net::SocketAddr::new(s.parse().unwrap(), 80)];
+        assert!(p.check("nas.local", &sa("192.168.1.9")).is_ok());
+        assert!(p.check("nas.local", &sa("169.254.169.254")).is_err());
+        assert!(p.check("169.254.1.5", &sa("169.254.1.5")).is_ok());
         for n in [
             "https://example.com/a.zip",
             "http://evil.example/x",
@@ -155,7 +164,13 @@ impl Policy {
             return Err(Forbidden(format!("{host}: no address")));
         }
         if self.allowed_host(host) {
-            return Ok(());
+            // an allowed NAME never reaches link-local (169.254.169.254 = cloud metadata): a LAN name can be
+            // answered by anyone on the LAN (mDNS); only an IP the user typed itself may be link-local
+            let literal = host.trim_start_matches('[').trim_end_matches(']').parse::<IpAddr>().is_ok();
+            return match addrs.iter().find(|a| !literal && link_local(a.ip())) {
+                Some(a) => Err(Forbidden(format!("{host} -> {} (link-local address)", a.ip()))),
+                None => Ok(()),
+            };
         }
         match addrs.iter().find(|a| !public(a.ip())) {
             Some(a) => Err(Forbidden(format!("{host} -> {} (private or special address)", a.ip()))),

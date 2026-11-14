@@ -115,7 +115,8 @@ export async function boot() {
       // the array changes only when a toast arrives: a new array every tick restarted the 8 s dismiss timer, so
       // toasts never went away. A newer toast for the same download replaces its older one (an "error" for a
       // file that then finished stayed next to its "downloaded" one; Windows Sandbox QA 2026-11-14)
-      const fresh = t.toasts.filter((x) => x.kind !== "countdown");
+      // within one tick too: the newest toast per download wins
+      const fresh = t.toasts.filter((x, i, all) => x.kind !== "countdown" && (!x.id || !all.slice(i + 1).some((y) => y.id === x.id && y.kind !== "countdown")));
       const ids = new Set(fresh.map((x) => x.id).filter(Boolean));
       set({ tick: t, live, ...(fresh.length ? { toasts: [...st.toasts.filter((x) => !ids.has(x.id)), ...fresh].slice(-4) } : {}) });
       if (t.rev !== st.rev) {

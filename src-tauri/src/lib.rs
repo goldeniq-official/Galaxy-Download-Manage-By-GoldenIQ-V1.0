@@ -50,6 +50,9 @@ fn fit_rect(win: (i32, i32, u32, u32), area: (i32, i32, u32, u32)) -> Option<(i3
 /// 1100x700 does not fit a 1920x1080 laptop at 150% (1280x720 minus the taskbar) or 1366x768 at 125%: the window
 /// ran off the bottom and the first-run wizard's buttons could not be reached (Windows Sandbox, 2026-11-14)
 fn fit_to_screen(w: &tauri::WebviewWindow) {
+    if w.is_minimized().unwrap_or(false) || w.is_maximized().unwrap_or(false) {
+        return;
+    }
     let Some(m) = w.current_monitor().ok().flatten().or_else(|| w.primary_monitor().ok().flatten()) else { return };
     let (Ok(p), Ok(s)) = (w.outer_position(), w.outer_size()) else { return };
     let a = m.work_area();
@@ -64,9 +67,9 @@ fn fit_to_screen(w: &tauri::WebviewWindow) {
 
 pub fn show_main(_app: &Arc<App>, from_browser: bool) {
     if let Some(w) = HANDLE.get().and_then(|h| h.get_webview_window("main")) {
-        fit_to_screen(&w);
         let _ = w.show();
         let _ = w.unminimize();
+        fit_to_screen(&w); // after unminimize: a minimized window reports its parking place, not its size
         if from_browser {
             // come over the browser once (C-03), without staying on top
             let _ = w.set_always_on_top(true);
@@ -129,7 +132,9 @@ fn settings_set(app: A, patch: Value) -> R<Settings> {
 fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
     let wake: Vec<queue::Queue> = s.queues.clone();
     let autostart = s.autostart;
-    *lock(&app.settings) = s.clone();
+    // the Run entry is written only when the switch changes: rewriting it on every save (a theme change) undid
+    // the user's "Disable" in Task Manager's Startup tab
+    let was = std::mem::replace(&mut *lock(&app.settings), s.clone()).autostart;
     app.save_settings()?;
     app.apply_limit();
     // a debug build never rewrites the installed GDM's wake tasks or Run entry (they point at gdm.exe)
@@ -140,7 +145,7 @@ fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
         #[cfg(unix)]
         use tauri_plugin_autostart::ManagerExt;
         let mut failed = None;
-        if !cfg!(debug_assertions) {
+        if !cfg!(debug_assertions) && autostart != was {
             #[cfg(windows)]
             let r = os::set_autostart(autostart);
             #[cfg(unix)]
@@ -148,9 +153,9 @@ fn apply_settings(app: &Arc<App>, s: Settings) -> R<Settings> {
                 let al = h.autolaunch();
                 if autostart { al.enable() } else { al.disable() }.map_err(|e| e.to_string())
             };
-            // turning it on must really work, or the switch goes back off and the user is told
-            if let (Err(e), true) = (r, autostart) {
-                lock(&app.settings).autostart = false;
+            // the switch must say what Windows does: on failure it goes back and the user is told
+            if let Err(e) = r {
+                lock(&app.settings).autostart = was;
                 app.save_settings()?;
                 failed = Some(format!("autostart: {e}"));
             }
