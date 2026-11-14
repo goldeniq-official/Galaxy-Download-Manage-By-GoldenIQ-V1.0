@@ -105,6 +105,13 @@ jobs:
           node tests/e2e/ext-video.mjs $chrome.FullName
           if ($LASTEXITCODE) { exit 1 }
           Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force
+          # the GDM the bridge test started leaves its WebView2 browser processes running for a while; a new gdm.exe
+          # joins that browser (same user data folder) and WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS is ignored, so the
+          # DevTools port never opens: end them first
+          $wv = { Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -like '*GoldenIQ.GalaxyDownloadManager*' } }
+          "GDM WebView2 processes left by the earlier tests: $(@(& $wv).Count)"
+          & $wv | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          $t = 0; while (@(& $wv).Count -and $t -lt 20) { Start-Sleep 1; $t++ }
           node tests/e2e/webview2.mjs "$env:LOCALAPPDATA\Galaxy Download Manager" $env:GDM_DATA docs/evidence/g6-shots
           if ($LASTEXITCODE) { exit 1 }
           Get-Process gdm -ErrorAction SilentlyContinue | Stop-Process -Force; Stop-Process $fx -Force
