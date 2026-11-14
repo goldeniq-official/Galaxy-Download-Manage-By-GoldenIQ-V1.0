@@ -25,6 +25,6 @@ const swap = (f, re, to) => {
 swap("package.json", /("version":\s*)"[^"]+"/, `$1"${next}"`);
 swap("Cargo.toml", /(\[workspace\.package\]\r?\nversion = )"[^"]+"/, `$1"${next}"`);
 // the lock entries of the workspace's own crates (the release builds with --locked)
-const own = ["galaxy-download-manager", "gdm-core", "gdm-bridge", "gdm-media", "gdm-auth", "gdm-fixture"];
+const own = ["galaxy-download-manager", "gdm-core", "gdm-bridge", "gdm-media", "gdm-auth", "gdm-fixture", "gdm-setup"];
 swap("Cargo.lock", new RegExp(`(name = "(?:${own.join("|")})"\\r?\\nversion = )"[^"]+"`, "g"), `$1"${next}"`);
 console.log(next);

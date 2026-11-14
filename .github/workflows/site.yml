@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: RPL-1.5
+# When the owner publishes a release (or edits a published one), rebuild the website: its build reads the latest
+# release from GitHub (Web repo scripts/latest-release.mjs), so version and download links follow this repo.
+# SITE_DEPLOY_HOOK = the Cloudflare Workers Builds deploy hook of the gdm-web Worker (Settings > Builds > Deploy Hooks,
+# branch main); the URL is the credential, so it lives only in this secret.
+name: site
+on:
+  release:
+    types: [published, edited, deleted]
+permissions: {}
+jobs:
+  rebuild:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: start the website build
+        env:
+          HOOK: ${{ secrets.SITE_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then echo "::warning::secret SITE_DEPLOY_HOOK is not set: the website was not rebuilt"; exit 0; fi
+          curl -fsS -X POST "$HOOK" -o /dev/null && echo "website build started"
