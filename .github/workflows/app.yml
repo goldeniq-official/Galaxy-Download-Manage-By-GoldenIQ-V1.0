@@ -78,7 +78,7 @@ jobs:
           Copy-Item src-tauri/binaries/gdm-bridge-x86_64-pc-windows-msvc.exe src-tauri/binaries/gdm-bridge-aarch64-pc-windows-msvc.exe
           cargo check --workspace --target aarch64-pc-windows-msvc --locked
       - name: app tests (U-01 manifest, C-01 glob) + bridge (B-01, B-02, B-03)
-        run: cargo test -p galaxy-download-manager -p gdm-bridge --locked
+        run: cargo test -p galaxy-download-manager -p gdm-bridge --locked --no-fail-fast
       - name: Store (MSIX) build compiles without the updater (§07)
         run: cargo check -p galaxy-download-manager --features store --locked
       - name: extension builds (Chrome/Edge + Firefox)

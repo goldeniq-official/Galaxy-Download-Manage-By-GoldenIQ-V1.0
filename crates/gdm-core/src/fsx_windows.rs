@@ -182,9 +182,11 @@ impl Dir {
         };
         match st.0 as u32 {
             0 => {}
-            0xC000_0035 => return Err(FsError::Exists),                 // STATUS_OBJECT_NAME_COLLISION
-            0xC000_0043 => return Err(FsError::Busy),                   // STATUS_SHARING_VIOLATION
-            0xC000_0034 | 0xC000_003A => return Err(FsError::NotFound), // NAME_NOT_FOUND / PATH_NOT_FOUND
+            0xC000_0035 => return Err(FsError::Exists), // STATUS_OBJECT_NAME_COLLISION
+            0xC000_0043 => return Err(FsError::Busy),   // STATUS_SHARING_VIOLATION
+            // NAME_NOT_FOUND / PATH_NOT_FOUND. Creating inside a held folder cannot miss a path: report the status
+            // (an exFAT drive answered a create with one of these in CI; the code says which)
+            0xC000_0034 | 0xC000_003A if disposition != FILE_CREATE => return Err(FsError::NotFound),
             s => return Err(FsError::Io(format!("NtCreateFile {leaf:?}: NTSTATUS {s:#010x}"))),
         }
         let f = unsafe { File::from_raw_handle(h.0 as _) };

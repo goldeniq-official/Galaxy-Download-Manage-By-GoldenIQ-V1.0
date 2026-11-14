@@ -51,8 +51,15 @@ check((await talk([], "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/")).c
 // B-03: a 4 GB length prefix is refused before allocating
 check((await talk([], ORIGIN, Buffer.from([0xff, 0xff, 0xff, 0xff]))).code === 2, "B-03 length 0xFFFFFFFF: clean exit 2");
 
+// B-06: GDM is not running; the bridge starts it and waits at most 2.5 s (inside the extension's 3 s ack
+// budget, B-05), so a first-ever start on a slow runner may answer "offline" while GDM comes up. Asking again
+// must reach the GDM the bridge started.
 const t0 = Date.now();
-const h = await talk([{ t: "hello", browser: "chrome", ver: "0.9.0" }]);
+let h = await talk([{ t: "hello", browser: "chrome", ver: "0.9.0" }]);
+for (let i = 0; i < 20 && h.out[0]?.ok !== true; i++) {
+  await sleep(1000);
+  h = await talk([{ t: "hello", browser: "chrome", ver: "0.9.0" }]);
+}
 check(h.out[0]?.ok === true && Array.isArray(h.out[0]?.catch?.exts), `hello -> GDM (pipe + server image verified) in ${Date.now() - t0} ms: catch policy received`);
 
 // B-01: protocol has no dir/path field

@@ -41,9 +41,9 @@ jobs:
           New-Item -ItemType Directory "$env:RUNNER_TEMP\share" | Out-Null
           New-SmbShare -Name gdmtest -Path "$env:RUNNER_TEMP\share" -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
           "GDM_TEST_FAT_DIR=X:\dl" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
-          "GDM_TEST_SMB_DIR=\localhost\gdmtest" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "GDM_TEST_SMB_DIR=\\localhost\gdmtest" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: tests (cards E-01..E-04, N-01..N-05, N-09, W-01..W-03, D-01, L-01; hostile fixture wire tests)
-        run: cargo test --workspace --exclude galaxy-download-manager --locked -- --nocapture
+        run: cargo test --workspace --exclude galaxy-download-manager --locked --no-fail-fast -- --nocapture
         env:
           GDM_NET_TESTS: "1"
 
@@ -64,7 +64,7 @@ jobs:
         run: rustup toolchain install "$RUST_VERSION" --profile minimal -c clippy; rustup default "$RUST_VERSION"
       - name: Linux build libraries (WebKitGTK 4.1, tray, D-Bus)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev gnome-keyring dbus-x11
       - name: bridge sidecar for the Tauri build script + the frontend it embeds
         run: |
           cargo build -p gdm-bridge --locked
@@ -73,7 +73,15 @@ jobs:
           [ -f dist/index.html ] || echo '<!doctype html>' > dist/index.html
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: "tests (fsx_unix O_NOFOLLOW, hard links, flock Busy, quarantine/origin mark; bridge socket peer check B-02; E/N/W cards)"
-        run: cargo test -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture -p gdm-bridge -p galaxy-download-manager --locked
+        # Linux: site logins live in the Secret Service (keyring; GDM never stores them in plain text), which a
+        # runner does not have: an unlocked gnome-keyring on a private D-Bus session stands in for the desktop's
+        run: |
+          t="cargo test -p gdm-core -p gdm-auth -p gdm-media -p gdm-fixture -p gdm-bridge -p galaxy-download-manager --locked --no-fail-fast"
+          if [ "$RUNNER_OS" = Linux ]; then
+            dbus-run-session -- sh -c "printf '' | gnome-keyring-daemon --unlock --components=secrets >/dev/null && $t"
+          else
+            $t
+          fi
 
   kill1000:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 18 * * *')

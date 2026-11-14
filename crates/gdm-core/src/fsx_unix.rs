@@ -66,7 +66,7 @@ impl Dir {
     pub fn open(path: &Path) -> Result<Dir, FsError> {
         let abs = std::path::absolute(path).map_err(io)?;
         let canon = std::fs::canonicalize(&abs).map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { FsError::NotFound } else { io(e) })?;
-        if canon != abs {
+        if canon != abs && !system_links_only(&abs) {
             return Err(FsError::Reparse(format!("{} resolves to {}", abs.display(), canon.display())));
         }
         let mut fd = rfs::open("/", DIR_FLAGS, Mode::empty()).map_err(|e| err(e, "/"))?;
@@ -154,6 +154,28 @@ impl Dir {
         leaf_ok(leaf)?;
         rfs::unlinkat(&self.fd, leaf, AtFlags::empty()).map_err(|e| err(e, leaf))
     }
+}
+
+/// every symlink on the way is the system's own (macOS /var, /tmp, /etc -> /private/...): owned by root, in a
+/// folder only root can change, and never the destination itself. Like an 8.3 name on Windows, it is the same
+/// folder by another name; nobody but root can point it elsewhere (outside the threat model). Any other link
+/// is refused as before, and the walk below still checks every real folder (strict).
+fn system_links_only(abs: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let mut p = PathBuf::new();
+    let n = abs.components().count();
+    for (i, c) in abs.components().enumerate() {
+        p.push(c);
+        let Ok(m) = std::fs::symlink_metadata(&p) else { return false };
+        if m.file_type().is_symlink() {
+            let parent = p.parent().and_then(|q| std::fs::metadata(q).ok());
+            let safe_parent = parent.is_some_and(|q| q.uid() == 0 && q.mode() & 0o022 == 0);
+            if i + 1 == n || m.uid() != 0 || !safe_parent {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// StrictModes for one held directory: owned by root or us, never writable by others unless sticky; the
@@ -439,6 +461,26 @@ mod tests {
         std::fs::write(d.join("h"), b"x").unwrap();
         std::fs::hard_link(d.join("h"), d.join("h2")).unwrap();
         assert!(matches!(dir.open_rw("h"), Err(FsError::Reparse(_))), "hard link refused");
+    }
+    /// a user's symlink on the way is still refused; the system's own (macOS /var -> /private/var, root-owned in
+    /// root's /) is the same folder and is accepted, as an 8.3 name is on Windows
+    #[test]
+    fn only_system_symlinks_on_the_way() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tmp("sys");
+        let real = d.join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::create_dir(real.join("sub")).unwrap();
+        std::fs::set_permissions(real.join("sub"), std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::os::unix::fs::symlink(&real, d.join("mine")).unwrap();
+        assert!(matches!(Dir::open(&d.join("mine").join("sub")), Err(FsError::Reparse(_))), "a user's link on the way");
+        // the raw temp dir (macOS: under the /var symlink) as given, never canonicalized by the caller
+        let raw = std::env::temp_dir().join(format!("gdm-fsx-raw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raw);
+        std::fs::create_dir_all(&raw).unwrap();
+        std::fs::set_permissions(&raw, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(Dir::open(&raw).is_ok(), "system links only: {}", raw.display());
+        let _ = std::fs::remove_dir_all(&raw);
     }
     /// council final review: a folder another user can change names in is refused (rename / hard-link races)
     #[test]
