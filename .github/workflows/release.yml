@@ -185,7 +185,11 @@ jobs:
           $m = [ordered]@{ version = $v; channel = $(if ($v -match '-') { 'beta' } else { 'stable' }); expires = [int][double]::Parse((Get-Date).AddDays(90).ToUniversalTime().Subtract([datetime]'1970-01-01').TotalSeconds); security = [bool]$notes.security; notes_km = $notes.km; notes_en = $notes.en; notes = $notes.en; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = $platforms }
           $m | ConvertTo-Json -Depth 5 -Compress | Set-Content -NoNewline -Encoding utf8NoBOM out/latest.json
           pnpm tauri signer sign out/latest.json
-          Get-ChildItem out -File | Where-Object Name -notmatch '\.sig$' | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content out/SHA256SUMS.txt
+          # LF lines: with CRLF, `sha256sum -c` (Linux) and `shasum -c` (macOS) fail on every file (v1.0.0 draft, 2026-11-15)
+          ((Get-ChildItem out -File | Where-Object Name -notmatch '\.sig$' | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" }) -join "`n") + "`n" | Set-Content -NoNewline -Encoding utf8NoBOM out/SHA256SUMS.txt
+      - name: the sums check out with sha256sum -c, as a Linux or macOS user runs it
+        shell: bash
+        run: cd out && sha256sum -c --strict --quiet SHA256SUMS.txt
       - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
           subject-path: out/*
